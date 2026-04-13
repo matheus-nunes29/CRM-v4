@@ -31,8 +31,8 @@ export default function LoginPage() {
     <div style={{ minHeight: '100vh', background: '#EFEFEF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif" }}>
       <div style={{ width: '100%', maxWidth: 420, padding: 40 }}>
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <img src="/LOGO VERMELHO.png" alt="V4 Company" style={{ height: 48, width: 'auto', marginBottom: 20 }} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 40 }}>
+          <img src="/LOGO VERMELHO.png" alt="V4 Company" style={{ height: 52, width: 'auto', display: 'block', marginBottom: 20 }} />
           <div style={{ fontSize: 15, color: GRAY2, lineHeight: 1.5 }}>
             Faça login para acessar o CRM
           </div>
