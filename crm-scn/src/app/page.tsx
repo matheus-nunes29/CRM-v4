@@ -956,10 +956,18 @@ export default function CRMApp() {
     }
     const scMap: Record<string, string> = {
       'FOLLOW UP': 'EM FOLLOW UP',
-      'PERDIDO': 'PERDIDO CLOSER',
     }
     if (spvMap[targetStage]) updates.situacao_pre_vendas = spvMap[targetStage]
     if (scMap[targetStage]) updates.situacao_closer = scMap[targetStage]
+    if (targetStage === 'PERDIDO') {
+      const preVendasStages = ['ENTRADA','TENTANDO CONTATO','EM QUALIFICAÇÃO','REUNIÃO AGENDADA','NO-SHOW/REMARCANDO']
+      const currentStage = getPipelineStage(lead)
+      if (preVendasStages.includes(currentStage)) {
+        updates.situacao_pre_vendas = 'PERDIDO SDR'
+      } else {
+        updates.situacao_closer = 'PERDIDO CLOSER'
+      }
+    }
     if (targetStage === 'VENDA' && formData.data_assinatura) updates.venda = 'SIM'
     await supabase.from('leads').update(updates).eq('id', lead.id)
     fetchLeads()
@@ -1039,9 +1047,7 @@ export default function CRMApp() {
     'ATIVADO': { label: 'Ativado', fields: [
       { key: 'data_ativacao', label: 'Data de Ativação', type: 'date' },
     ]},
-    'PERDIDO': { label: 'Perdido', fields: [
-      { key: 'situacao_closer', label: 'Motivo (Situação Closer)', type: 'select', options: SITUACOES },
-    ]},
+    'PERDIDO': { label: 'Perdido', fields: [] },
   }
 
   // Pipeline stage logic based on situacao_pre_vendas + situacao_closer
