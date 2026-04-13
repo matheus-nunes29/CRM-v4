@@ -884,6 +884,7 @@ export default function CRMApp() {
   async function fetchLeads() {
     const { data } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
     setLeads(data || [])
+    setLoading(false)
   }
 
   async function fetchMetas() {
