@@ -1122,11 +1122,9 @@ export default function CRMApp() {
   ]
 
   if (authLoading) return (
-    <div style={{ minHeight:'100vh', background:CONTENT_BG, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16 }}>
-      <div style={{ width:52, height:52, borderRadius:16, background:'linear-gradient(135deg, #7C3AED, #6D28D9)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 8px 32px rgba(124,58,237,0.45)', marginBottom:4 }}>
-        <div style={{ width:26, height:26, border:'2.5px solid rgba(255,255,255,0.35)', borderTopColor:'#FFFFFF', borderRadius:'50%', animation:'spin .8s linear infinite' }} />
-      </div>
-      <div style={{ color:GRAY2, fontSize:14, fontWeight:500 }}>Carregando CRM...</div>
+    <div style={{ minHeight:'100vh', background:'#EFEFEF', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16 }}>
+      <div style={{ width:36, height:36, border:'3px solid #E5E7EB', borderTopColor:GRAY2, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
+      <div style={{ color:GRAY2, fontSize:14, fontWeight:500 }}>Carregando...</div>
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
