@@ -206,9 +206,20 @@ function DragModal({ info, stageReqs, pipelineStages, onConfirm, onClose }: {
           <div style={{ fontSize:12, color:GRAY2, marginTop:4 }}>Lead: <strong>{info.lead.empresa}</strong></div>
         </div>
         <div style={{ padding:24, display:'flex', flexDirection:'column', gap:16 }}>
-          <div style={{ background:'#FEF9C3', border:'1px solid #FDE047', borderRadius:10, padding:'12px 14px', fontSize:12, color:'#92400E' }}>
-            ⚠️ Preencha os campos obrigatórios para mover este lead para <strong>{reqs?.label}</strong>.
-          </div>
+          {reqs?.fields.length === 0 ? (
+            <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:10, padding:'12px 14px', fontSize:13, color:'#15803D', fontWeight:600 }}>
+              Confirme para mover <strong>{info.lead.empresa}</strong> para <strong>{reqs?.label}</strong>.
+            </div>
+          ) : (
+            <div style={{ background:'#FEF9C3', border:'1px solid #FDE047', borderRadius:10, padding:'12px 14px', fontSize:12, color:'#92400E' }}>
+              <div style={{ fontWeight:700, marginBottom:6 }}>Campos obrigatórios para mover para <strong>{reqs?.label}</strong>:</div>
+              <ul style={{ margin:0, paddingLeft:16, display:'flex', flexDirection:'column', gap:3 }}>
+                {reqs?.fields.map((f: any) => (
+                  <li key={f.key} style={{ fontSize:12 }}>{f.label}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {reqs?.fields.map((f: any) => (
             <div key={f.key}>
               <label style={labelCls}>{f.label} *</label>
