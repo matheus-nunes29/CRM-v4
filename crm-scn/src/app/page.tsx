@@ -1060,18 +1060,19 @@ export default function CRMApp() {
   const getPipelineStage = (l: any): string => {
     const spv = l.situacao_pre_vendas || ''
     const sc = l.situacao_closer || ''
-    // Situacao Closer rules (priority)
+    // PERDIDO tem prioridade máxima — mesmo que tenha data_assinatura
+    if (sc === 'PERDIDO CLOSER') return 'PERDIDO'
+    if (spv === 'PERDIDO SDR' || spv === 'REEMBOLSO') return 'PERDIDO'
+    // Venda / Ativado
     if (sc === 'VENDA' || l.data_assinatura) return l.data_ativacao ? 'ATIVADO' : 'VENDA'
-    if (sc === 'PERDIDO CLOSER' || sc === 'AGENDA FUTURA') return 'PERDIDO'
-    if (sc === 'EM FOLLOW UP' || sc === 'REUNIAO EXTRA AGENDADA') return 'FOLLOW UP'
-    // Situacao Pre-Vendas rules
+    // Follow Up
+    if (sc === 'EM FOLLOW UP' || sc === 'REUNIAO EXTRA AGENDADA' || sc === 'AGENDA FUTURA') return 'FOLLOW UP'
+    // Pré-Vendas
     if (spv === 'REUNIÃO REALIZADA') return 'REUNIÃO REALIZADA'
     if (spv === 'NO SHOW/REMARCANDO') return 'NO-SHOW/REMARCANDO'
     if (spv === 'REUNIÃO AGENDADA') return 'REUNIÃO AGENDADA'
     if (spv === 'EM QUALIFICAÇÃO' || spv === 'AGENDA FUTURA') return 'EM QUALIFICAÇÃO'
     if (spv === 'TENTANDO CONTATO') return 'TENTANDO CONTATO'
-    if (spv === 'PERDIDO SDR' || spv === 'REEMBOLSO') return 'PERDIDO'
-    // Default: Entrada
     return 'ENTRADA'
   }
 
