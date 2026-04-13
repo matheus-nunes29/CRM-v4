@@ -882,10 +882,8 @@ export default function CRMApp() {
   useEffect(() => { setPage(1); setSelected(new Set()) }, [search, filters])
 
   async function fetchLeads() {
-    setLoading(true)
     const { data } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
     setLeads(data || [])
-    setLoading(false)
   }
 
   async function fetchMetas() {
@@ -975,8 +973,9 @@ export default function CRMApp() {
       updates.situacao_closer = 'PERDIDO CLOSER'
     }
     if (targetStage === 'VENDA' && formData.data_assinatura) updates.venda = 'SIM'
-    await supabase.from('leads').update(updates).eq('id', lead.id)
-    fetchLeads()
+    const { error: updateError } = await supabase.from('leads').update(updates).eq('id', lead.id)
+    if (updateError) { alert('Erro ao mover lead: ' + updateError.message); return }
+    await fetchLeads()
     setDragModal(null)
   }
 
