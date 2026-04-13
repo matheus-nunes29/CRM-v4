@@ -971,13 +971,8 @@ export default function CRMApp() {
     if (spvMap[targetStage]) updates.situacao_pre_vendas = spvMap[targetStage]
     if (scMap[targetStage]) updates.situacao_closer = scMap[targetStage]
     if (targetStage === 'PERDIDO') {
-      const preVendasStages = ['ENTRADA','TENTANDO CONTATO','EM QUALIFICAÇÃO','REUNIÃO AGENDADA','NO-SHOW/REMARCANDO']
-      const currentStage = getPipelineStage(lead)
-      if (preVendasStages.includes(currentStage)) {
-        updates.situacao_pre_vendas = 'PERDIDO SDR'
-      } else {
-        updates.situacao_closer = 'PERDIDO CLOSER'
-      }
+      updates.situacao_pre_vendas = 'PERDIDO SDR'
+      updates.situacao_closer = 'PERDIDO CLOSER'
     }
     if (targetStage === 'VENDA' && formData.data_assinatura) updates.venda = 'SIM'
     await supabase.from('leads').update(updates).eq('id', lead.id)
