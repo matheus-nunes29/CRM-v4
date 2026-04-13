@@ -425,7 +425,9 @@ function UsuariosCard() {
 }
 
 // ── ConfiguracoesPage ─────────────────────────────────────────────────────────
-function ConfiguracoesPage({ onImport }: { onImport: (leads: any[]) => Promise<{ok: number, errors: number}> }) {
+const ADMIN_EMAIL = 'matheus.nunes@v4company.com'
+
+function ConfiguracoesPage({ onImport, userEmail }: { onImport: (leads: any[]) => Promise<{ok: number, errors: number}>; userEmail?: string }) {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<any[]>([])
   const [headers, setHeaders] = useState<string[]>([])
@@ -799,8 +801,8 @@ function ConfiguracoesPage({ onImport }: { onImport: (leads: any[]) => Promise<{
         </div>
       </div>
 
-      {/* CARD USUÁRIOS */}
-      <UsuariosCard />
+      {/* CARD USUÁRIOS — visível apenas para o admin */}
+      {userEmail === ADMIN_EMAIL && <UsuariosCard />}
 
       {/* CARD INFO */}
       <div style={{ background: WHITE, borderRadius: 14, border: '1px solid #E5E7EB', boxShadow: '0 1px 6px rgba(0,0,0,.07)', padding: 24 }}>
@@ -1705,7 +1707,7 @@ export default function CRMApp() {
 
           {/* CONFIGURAÇÕES */}
           {!loading && view === 'configuracoes' && (
-            <ConfiguracoesPage onImport={importLeads} />
+            <ConfiguracoesPage onImport={importLeads} userEmail={session?.user?.email} />
           )}
 
         </div>
