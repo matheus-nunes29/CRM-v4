@@ -58,6 +58,7 @@ export type Lead = {
   link_qualificacao?: string | null
   link_transcricao?: string | null
   historico_proximos_passos?: Array<{ data: string; texto: string }> | null
+  custo_broker?: number | null
   created_at: string
   updated_at: string
 }

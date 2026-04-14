@@ -36,6 +36,7 @@ const SPV_COLORS: Record<string, string> = {
   'AGENDA FUTURA': '#065F46',
 }
 const TEMPERATURAS = ['FRIO', 'MORNO', 'QUENTE', 'FECHADO']
+const CARGOS_OPTIONS = ['Não identificado', 'Sócio', 'Diretor', 'Gerente', 'Coordenador', 'Analista', 'Assistente', 'Outro']
 const ORIGENS = ['Lead Broker', 'Recomendação', 'Eventos', 'Prospecção Ativa (BDR/Hunter)', 'Indicação', 'Recovery']
 const SEGMENTOS = ['Varejo', 'Serviço', 'Indústria', 'Food Service', 'Educação', 'SAAS', 'Imobiliária', 'Outro']
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -196,6 +197,7 @@ function DragModal({ info, stageReqs, pipelineStages, onConfirm, onClose }: {
   const [errors, setErrors] = useState<Record<string,string>>({})
   const reqs = stageReqs[info.targetStage]
   const stageColor = pipelineStages.find(s => s.key === info.targetStage)?.color || R
+  const effectiveFields = [...(reqs?.fields ?? []), ...(reqs?.extraFields?.(info.lead) ?? [])]
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:60, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
@@ -206,7 +208,7 @@ function DragModal({ info, stageReqs, pipelineStages, onConfirm, onClose }: {
           <div style={{ fontSize:12, color:GRAY2, marginTop:4 }}>Lead: <strong>{info.lead.empresa}</strong></div>
         </div>
         <div style={{ padding:24, display:'flex', flexDirection:'column', gap:16 }}>
-          {reqs?.fields.length === 0 ? (
+          {effectiveFields.length === 0 ? (
             <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:10, padding:'12px 14px', fontSize:13, color:'#15803D', fontWeight:600 }}>
               Confirme para mover <strong>{info.lead.empresa}</strong> para <strong>{reqs?.label}</strong>.
             </div>
@@ -214,13 +216,13 @@ function DragModal({ info, stageReqs, pipelineStages, onConfirm, onClose }: {
             <div style={{ background:'#FEF9C3', border:'1px solid #FDE047', borderRadius:10, padding:'12px 14px', fontSize:12, color:'#92400E' }}>
               <div style={{ fontWeight:700, marginBottom:6 }}>Campos obrigatórios para mover para <strong>{reqs?.label}</strong>:</div>
               <ul style={{ margin:0, paddingLeft:16, display:'flex', flexDirection:'column', gap:3 }}>
-                {reqs?.fields.map((f: any) => (
+                {effectiveFields.map((f: any) => (
                   <li key={f.key} style={{ fontSize:12 }}>{f.label}</li>
                 ))}
               </ul>
             </div>
           )}
-          {reqs?.fields.map((f: any) => (
+          {effectiveFields.map((f: any) => (
             <div key={f.key}>
               <label style={labelCls}>{f.label} *</label>
               {f.type === 'select' ? (
@@ -230,11 +232,16 @@ function DragModal({ info, stageReqs, pipelineStages, onConfirm, onClose }: {
                   <option value="">Selecione</option>
                   {f.options?.map((o: string) => <option key={o}>{o}</option>)}
                 </select>
-              ) : f.key === 'tcv' ? (
+              ) : f.type === 'number' ? (
                 <input type="number" style={{ ...inputCls, borderColor: errors[f.key] ? R : '#D1D5DB' }}
                   placeholder="Ex: 5000"
                   value={form[f.key] ?? info.lead[f.key] ?? ''}
                   onChange={e => { setForm((p:any) => ({...p, [f.key]: e.target.value ? Number(e.target.value) : ''})); setErrors((p:any) => ({...p, [f.key]:''}))} } />
+              ) : f.type === 'text' ? (
+                <input type="text" style={{ ...inputCls, borderColor: errors[f.key] ? R : '#D1D5DB' }}
+                  placeholder={f.key === 'link_transcricao' ? 'https://...' : ''}
+                  value={form[f.key] ?? info.lead[f.key] ?? ''}
+                  onChange={e => { setForm((p:any) => ({...p, [f.key]: e.target.value})); setErrors((p:any) => ({...p, [f.key]:''}))} } />
               ) : f.type === 'bant' ? (
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
@@ -286,7 +293,7 @@ function DragModal({ info, stageReqs, pipelineStages, onConfirm, onClose }: {
           <button onClick={onClose} style={{ padding:'10px 20px', borderRadius:8, border:'1px solid #D1D5DB', background:WHITE, color:GRAY2, fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancelar</button>
           <button onClick={() => {
             const errs: Record<string,string> = {}
-            reqs?.fields.forEach((f: any) => {
+            effectiveFields.forEach((f: any) => {
               if (f.type === 'bant') {
                 const score = form.bant ?? info.lead.bant ?? 0
                 if (score < 3) errs[f.key] = 'BANT mínimo 3 para avançar'
@@ -297,7 +304,7 @@ function DragModal({ info, stageReqs, pipelineStages, onConfirm, onClose }: {
             })
             if (Object.keys(errs).length > 0) { setErrors(errs); return }
             const merged: Record<string,any> = {}
-            reqs?.fields.forEach((f: any) => { merged[f.key] = form[f.key] ?? info.lead[f.key] })
+            effectiveFields.forEach((f: any) => { merged[f.key] = form[f.key] ?? info.lead[f.key] })
             onConfirm(info.lead, info.targetStage, merged)
           }} style={{ padding:'10px 24px', borderRadius:8, border:'none', background:stageColor, color:WHITE, fontSize:13, fontWeight:800, cursor:'pointer' }}>
             Confirmar Movimentação
@@ -1021,8 +1028,10 @@ export default function CRMApp() {
   const conv = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0
   const convBar = (a: number, b: number) => Math.min(conv(a, b), 100)
 
+  type StageField = { key: string; label: string; type: 'date' | 'select' | 'bant' | 'number' | 'text'; options?: string[] }
+  type StageReq = { label: string; fields: StageField[]; extraFields?: (lead: any) => StageField[] }
   // Required fields when moving to each stage
-  const STAGE_REQUIREMENTS: Record<string, { label: string; fields: { key: string; label: string; type: 'date' | 'select' | 'bant'; options?: string[] }[] }> = {
+  const STAGE_REQUIREMENTS: Record<string, StageReq> = {
     'TENTANDO CONTATO': { label: 'Tentando Contato', fields: [
       { key: 'situacao_pre_vendas', label: 'Situação Pré-Vendas', type: 'select', options: SITUACOES_PRE_VENDAS },
     ]},
@@ -1034,7 +1043,15 @@ export default function CRMApp() {
       { key: 'closer', label: 'Closer Responsável', type: 'select', options: CLOSERS },
       { key: 'situacao_pre_vendas', label: 'Situação Pré-Vendas', type: 'select', options: SITUACOES_PRE_VENDAS },
       { key: 'bant', label: 'Nota BANT (mín. 3)', type: 'bant' },
-    ]},
+      { key: 'segmento', label: 'Segmento', type: 'select', options: SEGMENTOS },
+      { key: 'faturamento', label: 'Faturamento', type: 'select', options: FATURAMENTOS },
+      { key: 'cargo', label: 'Cargo do Lead', type: 'select', options: CARGOS_OPTIONS },
+      { key: 'urgencia', label: 'Urgência', type: 'text' },
+    ],
+    extraFields: (lead: any) => lead.origem === 'Lead Broker' ? [
+      { key: 'custo_broker', label: 'Custo de Broker (R$)', type: 'number' as const },
+    ] : [],
+    },
     'NO-SHOW/REMARCANDO': { label: 'No-Show/Remarcando', fields: [
       { key: 'situacao_pre_vendas', label: 'Situação Pré-Vendas', type: 'select', options: SITUACOES_PRE_VENDAS },
     ]},
@@ -1042,14 +1059,25 @@ export default function CRMApp() {
       { key: 'data_rr', label: 'Data da Reunião Realizada', type: 'date' },
       { key: 'closer', label: 'Closer Responsável', type: 'select', options: CLOSERS },
       { key: 'situacao_pre_vendas', label: 'Situação Pré-Vendas', type: 'select', options: SITUACOES_PRE_VENDAS },
+      { key: 'data_fup', label: 'Data do FUP', type: 'date' },
+      { key: 'link_transcricao', label: 'Link da Transcrição', type: 'text' },
+      { key: 'temperatura', label: 'Temperatura', type: 'select', options: TEMPERATURAS },
+      { key: 'tcv', label: 'TCV (R$)', type: 'number' },
     ]},
     'FOLLOW UP': { label: 'Follow Up', fields: [
       { key: 'situacao_closer', label: 'Situação Closer', type: 'select', options: SITUACOES },
       { key: 'data_fup', label: 'Data do FUP', type: 'date' },
+      { key: 'data_rr', label: 'Data da Reunião Realizada', type: 'date' },
+      { key: 'link_transcricao', label: 'Link da Transcrição', type: 'text' },
+      { key: 'temperatura', label: 'Temperatura', type: 'select', options: TEMPERATURAS },
+      { key: 'tcv', label: 'TCV (R$)', type: 'number' },
     ]},
     'VENDA': { label: 'Venda', fields: [
       { key: 'data_assinatura', label: 'Data da Venda', type: 'date' },
-      { key: 'tcv', label: 'TCV (R$)', type: 'date' },
+      { key: 'tcv', label: 'TCV (R$)', type: 'number' },
+      { key: 'data_rr', label: 'Data da Reunião Realizada', type: 'date' },
+      { key: 'link_transcricao', label: 'Link da Transcrição', type: 'text' },
+      { key: 'temperatura', label: 'Temperatura', type: 'select', options: TEMPERATURAS },
     ]},
     'ATIVADO': { label: 'Ativado', fields: [
       { key: 'data_ativacao', label: 'Data de Ativação', type: 'date' },

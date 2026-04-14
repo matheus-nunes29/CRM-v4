@@ -125,7 +125,7 @@ const LeadModal = React.memo(function LeadModal({
     urgencia: null, bant: undefined, data_entrada: null, data_ra: null, data_rr: null,
     data_assinatura: null, data_ativacao: null, anotacoes_pre_vendas: '', cadencia: null,
     contato_agendado: false, link_qualificacao: '', link_transcricao: '',
-    historico_proximos_passos: [],
+    historico_proximos_passos: [], custo_broker: null,
   }
   const [form, setForm] = useState<any>(() => lead ? { ...initForm, ...lead } : initForm)
 
@@ -288,6 +288,12 @@ const LeadModal = React.memo(function LeadModal({
             <InfoField label="Urgência">
               <input style={inputStyle} value={form.urgencia || ''} onChange={e => set('urgencia', e.target.value)} placeholder="Ex: Alta" />
             </InfoField>
+
+            {form.origem === 'Lead Broker' && (
+              <InfoField label="Custo de Broker (R$)" required>
+                <input type="number" style={inputStyle} value={form.custo_broker ?? ''} onChange={e => set('custo_broker', e.target.value ? Number(e.target.value) : null)} placeholder="Ex: 500" min={0} />
+              </InfoField>
+            )}
           </div>
 
           {/* ── Right Panel — tabs ── */}
