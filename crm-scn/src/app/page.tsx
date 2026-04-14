@@ -10,7 +10,7 @@ import { Users, Flame, Snowflake, ThermometerSun, CheckCircle2, Clock, Plus, Sea
 const R = '#E8001C'
 const SIDEBAR_BG = '#FFFFFF'
 const SIDEBAR_HOVER = '#F5F3FF'
-const CONTENT_BG = '#F1F0F7'
+const CONTENT_BG = '#F2F1EE'
 const WHITE = '#FFFFFF'
 const GRAY1 = '#1A1A1A'
 const GRAY2 = '#6B7280'
@@ -1237,28 +1237,29 @@ export default function CRMApp() {
 
           {/* DASHBOARD */}
           {!loading && view === 'dashboard' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* ── Header ── */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
                 <div>
-                  <h1 style={{ fontSize: 22, fontWeight: 800, color: GRAY1, margin: 0 }}>Dashboard</h1>
-                  <p style={{ fontSize: 13, color: GRAY2, marginTop: 4 }}>Performance comercial mensal</p>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: R, textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>Performance Comercial</div>
+                  <h1 style={{ fontSize: 30, fontWeight: 900, color: GRAY1, margin: 0, letterSpacing: '-0.02em', lineHeight: 1 }}>Dashboard</h1>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {/* Canal selector */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: WHITE, border: '1px solid #E5E7EB', borderRadius: 10, padding: '8px 14px', boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
-                    <button onClick={() => setCanalSel(c => CANAIS[(CANAIS.indexOf(c) - 1 + CANAIS.length) % CANAIS.length])} style={{ background: 'none', border: 'none', color: GRAY2, cursor: 'pointer', display: 'flex', padding: 0 }}><ChevronLeft size={16} /></button>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: GRAY1, minWidth: 110, textAlign: 'center' }}>{canalSel}</span>
-                    <button onClick={() => setCanalSel(c => CANAIS[(CANAIS.indexOf(c) + 1) % CANAIS.length])} style={{ background: 'none', border: 'none', color: GRAY2, cursor: 'pointer', display: 'flex', padding: 0 }}><ChevronRight size={16} /></button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: WHITE, border: '1px solid #E8E8EE', borderRadius: 10, padding: '8px 12px', boxShadow: '0 1px 6px rgba(0,0,0,.05)' }}>
+                    <button onClick={() => setCanalSel(c => CANAIS[(CANAIS.indexOf(c) - 1 + CANAIS.length) % CANAIS.length])} style={{ background: 'none', border: 'none', color: GRAY2, cursor: 'pointer', display: 'flex', padding: 0 }}><ChevronLeft size={15} /></button>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1, minWidth: 100, textAlign: 'center' }}>{canalSel}</span>
+                    <button onClick={() => setCanalSel(c => CANAIS[(CANAIS.indexOf(c) + 1) % CANAIS.length])} style={{ background: 'none', border: 'none', color: GRAY2, cursor: 'pointer', display: 'flex', padding: 0 }}><ChevronRight size={15} /></button>
                   </div>
-                  {/* Month selector */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: WHITE, border: '1px solid #E5E7EB', borderRadius: 10, padding: '8px 14px', boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
-                    <button onClick={() => navMes(-1)} style={{ background: 'none', border: 'none', color: GRAY2, cursor: 'pointer', display: 'flex' }}><ChevronLeft size={16} /></button>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: GRAY1, minWidth: 90, textAlign: 'center' }}>{mesFmt(mesSel)}</span>
-                    <button onClick={() => navMes(1)} style={{ background: 'none', border: 'none', color: GRAY2, cursor: 'pointer', display: 'flex' }}><ChevronRight size={16} /></button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#141414', borderRadius: 10, padding: '8px 12px', boxShadow: '0 2px 12px rgba(0,0,0,.2)' }}>
+                    <button onClick={() => navMes(-1)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', display: 'flex' }}><ChevronLeft size={15} /></button>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: WHITE, minWidth: 90, textAlign: 'center' }}>{mesFmt(mesSel)}</span>
+                    <button onClick={() => navMes(1)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', display: 'flex' }}><ChevronRight size={15} /></button>
                   </div>
                 </div>
               </div>
 
+              {/* ── KPI Cards ── */}
               {(() => {
                 const mm = metas[mesSel] || {}
                 const kpis = [
@@ -1269,25 +1270,28 @@ export default function CRMApp() {
                   { label: 'Ativações', real: lm.ativacao.length, meta: mm.meta_ativacoes, color: R },
                 ]
                 return (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10 }}>
                     {kpis.map(k => {
                       const pct = k.meta ? Math.min(Math.round(k.real / k.meta * 100), 100) : null
-                      const over = k.meta && k.real >= k.meta
+                      const over = !!(k.meta && k.real >= k.meta)
                       return (
-                        <div key={k.label} style={{ background: WHITE, borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,.06)', border: '1px solid #E5E7EB', borderTop: `3px solid ${k.color}` }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{k.label}</div>
-                          <div style={{ fontSize: 28, fontWeight: 900, color: GRAY1, lineHeight: 1 }}>{k.real}</div>
-                          {k.meta ? (
-                            <div style={{ marginTop: 10 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                                <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {k.meta}</span>
-                                <span style={{ fontSize: 10, fontWeight: 800, color: over ? GREEN : k.color }}>{pct}%</span>
+                        <div key={k.label} style={{ background: WHITE, borderRadius: 16, padding: '20px 18px 18px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
+                          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: k.color, borderRadius: '16px 0 0 16px' }} />
+                          <div style={{ paddingLeft: 10 }}>
+                            <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>{k.label}</div>
+                            <div style={{ fontSize: 44, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.03em' }}>{k.real}</div>
+                            {k.meta ? (
+                              <div style={{ marginTop: 12 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                                  <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {k.meta}</span>
+                                  <span style={{ fontSize: 10, fontWeight: 900, color: over ? GREEN : k.color, background: over ? `${GREEN}14` : `${k.color}14`, padding: '2px 7px', borderRadius: 20 }}>{pct}%</span>
+                                </div>
+                                <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                                  <div style={{ height: 3, borderRadius: 2, background: over ? GREEN : k.color, width: `${pct}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
+                                </div>
                               </div>
-                              <div style={{ height: 4, background: GRAY4, borderRadius: 2 }}>
-                                <div style={{ height: 4, borderRadius: 2, background: over ? GREEN : k.color, width: `${pct}%`, transition: 'width .5s' }} />
-                              </div>
-                            </div>
-                          ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 8 }}>Sem meta</div>}
+                            ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 10 }}>Sem meta</div>}
+                          </div>
                         </div>
                       )
                     })}
@@ -1295,118 +1299,146 @@ export default function CRMApp() {
                 )
               })()}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 1.4fr', gap: 16 }}>
+              {/* ── TCV + Conversão + Funil ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 1fr', gap: 10 }}>
+                {/* TCV Hero */}
                 {(() => {
                   const mm = metas[mesSel] || {}
                   const mt = mm.meta_tcv
                   const pct = mt ? Math.min(Math.round(tcvMes / mt * 100), 999) : null
-                  const over = mt && tcvMes >= mt
+                  const over = !!(mt && tcvMes >= mt)
                   return (
-                    <div style={{ background: WHITE, borderRadius: 12, padding: 22, boxShadow: '0 1px 4px rgba(0,0,0,.06)', border: '1px solid #E5E7EB', borderTop: `3px solid ${GREEN}` }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>TCV do Mês</div>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: GREEN }}>{fmt(tcvMes)}</div>
-                      <div style={{ fontSize: 11, color: GRAY2, marginTop: 4 }}>{lm.venda.length} vendas</div>
-                      {mt ? (
-                        <div style={{ marginTop: 12 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {fmt(mt)}</span>
-                            <span style={{ fontSize: 11, fontWeight: 900, color: over ? GREEN : R }}>{pct}%</span>
-                          </div>
-                          <div style={{ height: 5, background: GRAY4, borderRadius: 3 }}>
-                            <div style={{ height: 5, borderRadius: 3, background: over ? GREEN : R, width: `${Math.min(pct || 0, 100)}%`, transition: 'width .5s' }} />
-                          </div>
-                          <div style={{ fontSize: 10, color: GRAY2, marginTop: 6 }}>{over ? `✓ Meta batida! +${fmt(tcvMes - mt)}` : `Falta ${fmt(mt - tcvMes)}`}</div>
+                    <div style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '24px 22px', boxShadow: '0 4px 24px rgba(0,0,0,.2)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>TCV do Mês</div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: R, background: `${R}20`, border: `1px solid ${R}40`, padding: '3px 9px', borderRadius: 20 }}>{lm.venda.length} venda{lm.venda.length !== 1 ? 's' : ''}</div>
                         </div>
-                      ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 10 }}>Sem meta</div>}
+                        <div style={{ fontSize: 26, fontWeight: 900, color: WHITE, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{fmt(tcvMes)}</div>
+                      </div>
+                      {mt ? (
+                        <div style={{ marginTop: 18 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                            <span style={{ fontSize: 10, color: 'rgba(255,255,255,.3)' }}>Meta: {fmt(mt)}</span>
+                            <span style={{ fontSize: 12, fontWeight: 900, color: over ? '#4ADE80' : R }}>{pct}%</span>
+                          </div>
+                          <div style={{ height: 3, background: 'rgba(255,255,255,.08)', borderRadius: 2 }}>
+                            <div style={{ height: 3, borderRadius: 2, background: over ? '#4ADE80' : R, width: `${Math.min(pct || 0, 100)}%`, transition: 'width .7s' }} />
+                          </div>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,.3)', marginTop: 7 }}>{over ? `✓ Meta batida! +${fmt(tcvMes - mt)}` : `Falta ${fmt(mt - tcvMes)}`}</div>
+                        </div>
+                      ) : <div style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginTop: 14 }}>Sem meta definida</div>}
                     </div>
                   )
                 })()}
-                <div style={{ background: WHITE, borderRadius: 12, padding: 22, boxShadow: '0 1px 4px rgba(0,0,0,.06)', border: '1px solid #E5E7EB' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: GRAY1, marginBottom: 16 }}>Taxas de Conversão</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                {/* Taxas de Conversão */}
+                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 18 }}>Taxas de Conversão</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     {[
                       { label: 'Entrada → RA', a: lm.ra.length, b: lm.entrada.length, color: YELLOW },
                       { label: 'RA → RR', a: lm.rr.length, b: lm.ra.length, color: PURPLE },
                       { label: 'RR → Venda', a: lm.venda.length, b: lm.rr.length, color: GREEN },
                       { label: 'Venda → Ativação', a: lm.ativacao.length, b: lm.venda.length, color: R },
                     ].map(c => (
-                      <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 11, color: GRAY2, width: 120, flexShrink: 0 }}>{c.label}</span>
-                        <div style={{ flex: 1, height: 6, background: GRAY4, borderRadius: 3 }}>
-                          <div style={{ height: 6, borderRadius: 3, background: c.color, width: `${convBar(c.a, c.b)}%`, transition: 'width .5s' }} />
+                      <div key={c.label}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, color: GRAY2, fontWeight: 600 }}>{c.label}</span>
+                          <span style={{ fontSize: 14, fontWeight: 900, color: c.color }}>{conv(c.a, c.b)}<span style={{ fontSize: 10, fontWeight: 700 }}>%</span></span>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: GRAY1, width: 32, textAlign: 'right' }}>{conv(c.a, c.b)}%</span>
+                        <div style={{ height: 4, background: '#F0F0F0', borderRadius: 3 }}>
+                          <div style={{ height: 4, borderRadius: 3, background: `linear-gradient(90deg, ${c.color}80, ${c.color})`, width: `${convBar(c.a, c.b)}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div style={{ background: WHITE, borderRadius: 12, padding: 22, boxShadow: '0 1px 4px rgba(0,0,0,.06)', border: '1px solid #E5E7EB' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: GRAY1, marginBottom: 16 }}>Funil do Mês</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[ {label:'Entrada',value:lm.entrada.length,color:BLUE},{label:'Reu. Agend.',value:lm.ra.length,color:YELLOW},{label:'Reu. Realiz.',value:lm.rr.length,color:PURPLE},{label:'Vendas',value:lm.venda.length,color:GREEN},{label:'Ativações',value:lm.ativacao.length,color:R} ].map((f, _, arr) => (
-                      <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 11, color: GRAY2, width: 80, flexShrink: 0 }}>{f.label}</span>
-                        <div style={{ flex: 1, height: 20, background: GRAY4, borderRadius: 5 }}>
-                          <div style={{ height: 20, borderRadius: 5, background: f.color, width: `${Math.max(...arr.map(x => x.value)) > 0 ? Math.max(f.value/Math.max(...arr.map(x => x.value))*100, f.value>0?8:0) : 0}%`, maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8 }}>
-                            <span style={{ fontSize: 11, fontWeight: 800, color: WHITE }}>{f.value || ''}</span>
+
+                {/* Funil */}
+                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 18 }}>Funil do Mês</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                    {[
+                      { label: 'Entrada', value: lm.entrada.length, color: BLUE },
+                      { label: 'Reu. Agend.', value: lm.ra.length, color: YELLOW },
+                      { label: 'Reu. Realiz.', value: lm.rr.length, color: PURPLE },
+                      { label: 'Vendas', value: lm.venda.length, color: GREEN },
+                      { label: 'Ativações', value: lm.ativacao.length, color: R },
+                    ].map((f, _, arr) => {
+                      const max = Math.max(...arr.map(x => x.value))
+                      const w = max > 0 ? Math.max(f.value / max * 100, f.value > 0 ? 7 : 0) : 0
+                      return (
+                        <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 11, color: GRAY2, width: 82, flexShrink: 0, fontWeight: 500 }}>{f.label}</span>
+                          <div style={{ flex: 1, height: 22, background: '#F4F4F7', borderRadius: 7, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', borderRadius: 7, background: `linear-gradient(90deg, ${f.color}BB, ${f.color})`, width: `${w}%`, maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }}>
+                              {f.value > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: WHITE }}>{f.value}</span>}
+                            </div>
                           </div>
+                          {f.value === 0 && <span style={{ fontSize: 11, color: GRAY3, fontWeight: 700, width: 14 }}>0</span>}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               </div>
 
-              <div style={{ background: WHITE, borderRadius: 12, padding: 24, boxShadow: '0 1px 4px rgba(0,0,0,.06)', border: '1px solid #E5E7EB' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1, marginBottom: 20 }}>Evolução Mensal</div>
-                <ResponsiveContainer width="100%" height={240}>
-                  <LineChart data={dadosMensais}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={GRAY4} />
-                    <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 11 }} />
-                    <YAxis tick={{ fill: GRAY2, fontSize: 11 }} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line type="monotone" dataKey="entrada" name="Entradas" stroke={BLUE} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="ra" name="Reu. Agend." stroke={YELLOW} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="rr" name="Reu. Realiz." stroke={PURPLE} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="vendas" name="Vendas" stroke={GREEN} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="ativacao" name="Ativações" stroke={R} strokeWidth={2} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div style={{ background: WHITE, borderRadius: 12, padding: 24, boxShadow: '0 1px 4px rgba(0,0,0,.06)', border: '1px solid #E5E7EB' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1, marginBottom: 20 }}>TCV por Mês</div>
-                  <ResponsiveContainer width="100%" height={180}>
+              {/* ── Charts row ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Evolução Mensal</div>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={dadosMensais}>
+                      <CartesianGrid strokeDasharray="2 4" stroke="#EBEBEB" />
+                      <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
+                      <Line type="monotone" dataKey="entrada" name="Entradas" stroke={BLUE} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} activeDot={{ r: 6 }} />
+                      <Line type="monotone" dataKey="ra" name="Reu. Agend." stroke={YELLOW} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} />
+                      <Line type="monotone" dataKey="rr" name="Reu. Realiz." stroke={PURPLE} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} />
+                      <Line type="monotone" dataKey="vendas" name="Vendas" stroke={GREEN} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} />
+                      <Line type="monotone" dataKey="ativacao" name="Ativações" stroke={R} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>TCV por Mês</div>
+                  <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={dadosMensais}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={GRAY4} />
-                      <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 11 }} />
-                      <YAxis tick={{ fill: GRAY2, fontSize: 11 }} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
+                      <CartesianGrid strokeDasharray="2 4" stroke="#EBEBEB" />
+                      <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
                       <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [fmt(v), 'TCV']} />
-                      <Bar dataKey="tcv" fill={R} radius={[4,4,0,0]} />
+                      <Bar dataKey="tcv" fill={R} radius={[6,6,0,0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <div style={{ background: WHITE, borderRadius: 12, padding: 24, boxShadow: '0 1px 4px rgba(0,0,0,.06)', border: '1px solid #E5E7EB' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1, marginBottom: 16 }}>Próximos Follow Ups</div>
-                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                    {leads.filter(l => l.data_fup && new Date(l.data_fup) >= new Date()).sort((a,b) => new Date(a.data_fup!).getTime()-new Date(b.data_fup!).getTime()).slice(0,8).map(l => (
-                      <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1 }}>{l.empresa}</div>
-                          <div style={{ fontSize: 11, color: GRAY2, marginTop: 2 }}>{l.closer} · {l.proximos_passos?.slice(0,35)}</div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <TempBadge temp={l.temperatura} />
-                          <span style={{ fontSize: 11, color: GRAY2, display: 'flex', alignItems: 'center', gap: 3 }}><Clock size={10} />{fmtDate(l.data_fup)}</span>
-                        </div>
+              </div>
+
+              {/* ── Próximos FUPs ── */}
+              <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 16 }}>Próximos Follow Ups</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 8 }}>
+                  {leads.filter(l => l.data_fup && new Date(l.data_fup) >= new Date()).sort((a,b) => new Date(a.data_fup!).getTime()-new Date(b.data_fup!).getTime()).slice(0,8).map(l => (
+                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: '#F9F8F6', borderRadius: 10, border: '1px solid #EEEDE8' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>{l.empresa}</div>
+                        <div style={{ fontSize: 11, color: GRAY2, marginTop: 2 }}>{l.closer}{l.proximos_passos ? ` · ${l.proximos_passos?.slice(0,30)}` : ''}</div>
                       </div>
-                    ))}
-                    {leads.filter(l => l.data_fup).length === 0 && <div style={{ textAlign: 'center', padding: 40, fontSize: 13, color: GRAY2 }}>Nenhum FUP agendado</div>}
-                  </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+                        <TempBadge temp={l.temperatura} />
+                        <span style={{ fontSize: 11, fontWeight: 700, color: R, background: `${R}10`, border: `1px solid ${R}22`, padding: '3px 9px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><Clock size={10} />{fmtDate(l.data_fup)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {leads.filter(l => l.data_fup && new Date(l.data_fup) >= new Date()).length === 0 && (
+                    <div style={{ textAlign: 'center', padding: 32, fontSize: 13, color: GRAY2, gridColumn: '1/-1' }}>Nenhum FUP agendado</div>
+                  )}
                 </div>
               </div>
+
             </div>
           )}
 
