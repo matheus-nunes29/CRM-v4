@@ -1142,7 +1142,7 @@ export default function CRMApp() {
   const pagedLeads = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const allPageSelected = pagedLeads.length > 0 && pagedLeads.every(l => selected.has(l.id))
 
-  const tooltipStyle = { background: WHITE, border: '1px solid #E5E7EB', borderRadius: 8, color: GRAY1, fontSize: 12 }
+  const tooltipStyle = { background: '#1E1E1E', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: WHITE, fontSize: 12 }
 
   const MENU = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -1275,23 +1275,25 @@ export default function CRMApp() {
                       const pct = k.meta ? Math.min(Math.round(k.real / k.meta * 100), 100) : null
                       const over = !!(k.meta && k.real >= k.meta)
                       return (
-                        <div key={k.label} style={{ background: WHITE, borderRadius: 16, padding: '20px 18px 18px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
-                          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: k.color, borderRadius: '16px 0 0 16px' }} />
-                          <div style={{ paddingLeft: 10 }}>
-                            <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>{k.label}</div>
-                            <div style={{ fontSize: 44, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.03em' }}>{k.real}</div>
-                            {k.meta ? (
-                              <div style={{ marginTop: 12 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                                  <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {k.meta}</span>
-                                  <span style={{ fontSize: 10, fontWeight: 900, color: over ? GREEN : k.color, background: over ? `${GREEN}14` : `${k.color}14`, padding: '2px 7px', borderRadius: 20 }}>{pct}%</span>
-                                </div>
-                                <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
-                                  <div style={{ height: 3, borderRadius: 2, background: over ? GREEN : k.color, width: `${pct}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
-                                </div>
-                              </div>
-                            ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 10 }}>Sem meta</div>}
+                        <div key={k.label} style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '20px 20px 18px', boxShadow: '0 4px 20px rgba(0,0,0,.18)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{k.label}</div>
+                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: k.color, boxShadow: `0 0 8px ${k.color}` }} />
+                            </div>
+                            <div style={{ fontSize: 44, fontWeight: 900, color: WHITE, lineHeight: 1, letterSpacing: '-0.03em' }}>{k.real}</div>
                           </div>
+                          {k.meta ? (
+                            <div style={{ marginTop: 16 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                                <span style={{ fontSize: 10, color: 'rgba(255,255,255,.3)' }}>Meta: {k.meta}</span>
+                                <span style={{ fontSize: 11, fontWeight: 900, color: over ? '#4ADE80' : k.color }}>{pct}%</span>
+                              </div>
+                              <div style={{ height: 3, background: 'rgba(255,255,255,.08)', borderRadius: 2 }}>
+                                <div style={{ height: 3, borderRadius: 2, background: over ? '#4ADE80' : k.color, width: `${pct}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
+                              </div>
+                            </div>
+                          ) : <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', marginTop: 14 }}>Sem meta</div>}
                         </div>
                       )
                     })}
@@ -1308,7 +1310,7 @@ export default function CRMApp() {
                   const pct = mt ? Math.min(Math.round(tcvMes / mt * 100), 999) : null
                   const over = !!(mt && tcvMes >= mt)
                   return (
-                    <div style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '24px 22px', boxShadow: '0 4px 24px rgba(0,0,0,.2)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
+                    <div style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '24px 22px', boxShadow: '0 4px 20px rgba(0,0,0,.18)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                           <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>TCV do Mês</div>
@@ -1333,9 +1335,9 @@ export default function CRMApp() {
                 })()}
 
                 {/* Taxas de Conversão */}
-                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 18 }}>Taxas de Conversão</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '22px 22px', boxShadow: '0 4px 20px rgba(0,0,0,.18)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Taxas de Conversão</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {[
                       { label: 'Entrada → RA', a: lm.ra.length, b: lm.entrada.length, color: YELLOW },
                       { label: 'RA → RR', a: lm.rr.length, b: lm.ra.length, color: PURPLE },
@@ -1343,12 +1345,12 @@ export default function CRMApp() {
                       { label: 'Venda → Ativação', a: lm.ativacao.length, b: lm.venda.length, color: R },
                     ].map(c => (
                       <div key={c.label}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span style={{ fontSize: 11, color: GRAY2, fontWeight: 600 }}>{c.label}</span>
-                          <span style={{ fontSize: 14, fontWeight: 900, color: c.color }}>{conv(c.a, c.b)}<span style={{ fontSize: 10, fontWeight: 700 }}>%</span></span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.5)', fontWeight: 600 }}>{c.label}</span>
+                          <span style={{ fontSize: 15, fontWeight: 900, color: c.color }}>{conv(c.a, c.b)}<span style={{ fontSize: 10, fontWeight: 700 }}>%</span></span>
                         </div>
-                        <div style={{ height: 4, background: '#F0F0F0', borderRadius: 3 }}>
-                          <div style={{ height: 4, borderRadius: 3, background: `linear-gradient(90deg, ${c.color}80, ${c.color})`, width: `${convBar(c.a, c.b)}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
+                        <div style={{ height: 4, background: 'rgba(255,255,255,.07)', borderRadius: 3 }}>
+                          <div style={{ height: 4, borderRadius: 3, background: `linear-gradient(90deg, ${c.color}70, ${c.color})`, width: `${convBar(c.a, c.b)}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
                         </div>
                       </div>
                     ))}
@@ -1356,9 +1358,9 @@ export default function CRMApp() {
                 </div>
 
                 {/* Funil */}
-                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 18 }}>Funil do Mês</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                <div style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '22px 22px', boxShadow: '0 4px 20px rgba(0,0,0,.18)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Funil do Mês</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {[
                       { label: 'Entrada', value: lm.entrada.length, color: BLUE },
                       { label: 'Reu. Agend.', value: lm.ra.length, color: YELLOW },
@@ -1370,13 +1372,13 @@ export default function CRMApp() {
                       const w = max > 0 ? Math.max(f.value / max * 100, f.value > 0 ? 7 : 0) : 0
                       return (
                         <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 11, color: GRAY2, width: 82, flexShrink: 0, fontWeight: 500 }}>{f.label}</span>
-                          <div style={{ flex: 1, height: 22, background: '#F4F4F7', borderRadius: 7, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', borderRadius: 7, background: `linear-gradient(90deg, ${f.color}BB, ${f.color})`, width: `${w}%`, maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }}>
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', width: 82, flexShrink: 0, fontWeight: 500 }}>{f.label}</span>
+                          <div style={{ flex: 1, height: 22, background: 'rgba(255,255,255,.06)', borderRadius: 7, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', borderRadius: 7, background: `linear-gradient(90deg, ${f.color}AA, ${f.color})`, width: `${w}%`, maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }}>
                               {f.value > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: WHITE }}>{f.value}</span>}
                             </div>
                           </div>
-                          {f.value === 0 && <span style={{ fontSize: 11, color: GRAY3, fontWeight: 700, width: 14 }}>0</span>}
+                          {f.value === 0 && <span style={{ fontSize: 11, color: 'rgba(255,255,255,.2)', fontWeight: 700, width: 14 }}>0</span>}
                         </div>
                       )
                     })}
@@ -1386,30 +1388,30 @@ export default function CRMApp() {
 
               {/* ── Charts row ── */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
-                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Evolução Mensal</div>
+                <div style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '22px 22px', boxShadow: '0 4px 20px rgba(0,0,0,.18)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Evolução Mensal</div>
                   <ResponsiveContainer width="100%" height={220}>
                     <LineChart data={dadosMensais}>
-                      <CartesianGrid strokeDasharray="2 4" stroke="#EBEBEB" />
-                      <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,.06)" />
+                      <XAxis dataKey="mes" tick={{ fill: 'rgba(255,255,255,.35)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: 'rgba(255,255,255,.35)', fontSize: 10 }} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={tooltipStyle} />
-                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
-                      <Line type="monotone" dataKey="entrada" name="Entradas" stroke={BLUE} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} activeDot={{ r: 6 }} />
-                      <Line type="monotone" dataKey="ra" name="Reu. Agend." stroke={YELLOW} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} />
-                      <Line type="monotone" dataKey="rr" name="Reu. Realiz." stroke={PURPLE} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} />
-                      <Line type="monotone" dataKey="vendas" name="Vendas" stroke={GREEN} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} />
-                      <Line type="monotone" dataKey="ativacao" name="Ativações" stroke={R} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} />
+                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 14, color: 'rgba(255,255,255,.5)' }} />
+                      <Line type="monotone" dataKey="entrada" name="Entradas" stroke={BLUE} strokeWidth={2.5} dot={{ r: 4, fill: '#1E1E1E', strokeWidth: 2.5 }} activeDot={{ r: 6 }} />
+                      <Line type="monotone" dataKey="ra" name="Reu. Agend." stroke={YELLOW} strokeWidth={2.5} dot={{ r: 4, fill: '#1E1E1E', strokeWidth: 2.5 }} />
+                      <Line type="monotone" dataKey="rr" name="Reu. Realiz." stroke={PURPLE} strokeWidth={2.5} dot={{ r: 4, fill: '#1E1E1E', strokeWidth: 2.5 }} />
+                      <Line type="monotone" dataKey="vendas" name="Vendas" stroke={GREEN} strokeWidth={2.5} dot={{ r: 4, fill: '#1E1E1E', strokeWidth: 2.5 }} />
+                      <Line type="monotone" dataKey="ativacao" name="Ativações" stroke={R} strokeWidth={2.5} dot={{ r: 4, fill: '#1E1E1E', strokeWidth: 2.5 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>TCV por Mês</div>
+                <div style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '22px 22px', boxShadow: '0 4px 20px rgba(0,0,0,.18)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>TCV por Mês</div>
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={dadosMensais}>
-                      <CartesianGrid strokeDasharray="2 4" stroke="#EBEBEB" />
-                      <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
+                      <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,.06)" />
+                      <XAxis dataKey="mes" tick={{ fill: 'rgba(255,255,255,.35)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: 'rgba(255,255,255,.35)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
                       <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [fmt(v), 'TCV']} />
                       <Bar dataKey="tcv" fill={R} radius={[6,6,0,0]} />
                     </BarChart>
@@ -1418,23 +1420,23 @@ export default function CRMApp() {
               </div>
 
               {/* ── Próximos FUPs ── */}
-              <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 16 }}>Próximos Follow Ups</div>
+              <div style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '22px 22px', boxShadow: '0 4px 20px rgba(0,0,0,.18)' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 16 }}>Próximos Follow Ups</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 8 }}>
                   {leads.filter(l => l.data_fup && new Date(l.data_fup) >= new Date()).sort((a,b) => new Date(a.data_fup!).getTime()-new Date(b.data_fup!).getTime()).slice(0,8).map(l => (
-                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: '#F9F8F6', borderRadius: 10, border: '1px solid #EEEDE8' }}>
+                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: 'rgba(255,255,255,.05)', borderRadius: 10, border: '1px solid rgba(255,255,255,.08)' }}>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>{l.empresa}</div>
-                        <div style={{ fontSize: 11, color: GRAY2, marginTop: 2 }}>{l.closer}{l.proximos_passos ? ` · ${l.proximos_passos?.slice(0,30)}` : ''}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: WHITE }}>{l.empresa}</div>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', marginTop: 2 }}>{l.closer}{l.proximos_passos ? ` · ${l.proximos_passos?.slice(0,30)}` : ''}</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
                         <TempBadge temp={l.temperatura} />
-                        <span style={{ fontSize: 11, fontWeight: 700, color: R, background: `${R}10`, border: `1px solid ${R}22`, padding: '3px 9px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><Clock size={10} />{fmtDate(l.data_fup)}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: R, background: `${R}20`, border: `1px solid ${R}40`, padding: '3px 9px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><Clock size={10} />{fmtDate(l.data_fup)}</span>
                       </div>
                     </div>
                   ))}
                   {leads.filter(l => l.data_fup && new Date(l.data_fup) >= new Date()).length === 0 && (
-                    <div style={{ textAlign: 'center', padding: 32, fontSize: 13, color: GRAY2, gridColumn: '1/-1' }}>Nenhum FUP agendado</div>
+                    <div style={{ textAlign: 'center', padding: 32, fontSize: 13, color: 'rgba(255,255,255,.3)', gridColumn: '1/-1' }}>Nenhum FUP agendado</div>
                   )}
                 </div>
               </div>
