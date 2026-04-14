@@ -57,6 +57,7 @@ export type Lead = {
   contato_agendado?: boolean | null
   link_qualificacao?: string | null
   link_transcricao?: string | null
+  historico_proximos_passos?: Array<{ data: string; texto: string }> | null
   created_at: string
   updated_at: string
 }

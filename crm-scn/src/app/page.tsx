@@ -864,6 +864,7 @@ export default function CRMApp() {
   const PAGE_SIZE = 50
   const [dragModal, setDragModal] = useState<{ open: boolean; lead: any; targetStage: string } | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
+  const [fupFilter, setFupFilter] = useState<string>('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1598,6 +1599,27 @@ export default function CRMApp() {
                   </div>
                 </div>
               </div>
+              {pipelineView === 'vendas' && (
+                <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:WHITE, borderRadius:10, border:'1px solid #E5E7EB', boxShadow:'0 1px 4px rgba(0,0,0,.06)', marginBottom:4 }}>
+                  <span style={{ fontSize:12, fontWeight:700, color:GRAY2, whiteSpace:'nowrap' }}>Filtrar por FUP:</span>
+                  <input
+                    type="date"
+                    value={fupFilter}
+                    onChange={e => setFupFilter(e.target.value)}
+                    style={{ padding:'6px 10px', borderRadius:8, border:'1px solid #E5E7EB', fontSize:12, color:GRAY1, outline:'none', cursor:'pointer' }}
+                  />
+                  {fupFilter && (
+                    <button onClick={() => setFupFilter('')} style={{ display:'flex', alignItems:'center', gap:4, padding:'5px 10px', borderRadius:7, border:'1px solid #E5E7EB', background:WHITE, color:GRAY2, cursor:'pointer', fontSize:12, fontWeight:600 }}>
+                      <X size={12} /> Limpar
+                    </button>
+                  )}
+                  {fupFilter && (
+                    <span style={{ fontSize:11, fontWeight:600, color:R, marginLeft:4 }}>
+                      {fupFilter ? `Mostrando leads com FUP em ${new Date(fupFilter + 'T00:00:00').toLocaleDateString('pt-BR')}` : ''}
+                    </span>
+                  )}
+                </div>
+              )}
               {(() => {
                 const PRE_VENDAS_KEYS = ['ENTRADA','TENTANDO CONTATO','EM QUALIFICAÇÃO','REUNIÃO AGENDADA','NO-SHOW/REMARCANDO','REUNIÃO REALIZADA']
                 const VENDAS_KEYS = ['REUNIÃO REALIZADA','FOLLOW UP','VENDA','ATIVADO','PERDIDO']
@@ -1605,7 +1627,12 @@ export default function CRMApp() {
                   pipelineView === 'total' ? true :
                   pipelineView === 'pre-vendas' ? PRE_VENDAS_KEYS.includes(s.key) :
                   VENDAS_KEYS.includes(s.key)
-                )
+                ).map(s => {
+                  if (pipelineView === 'vendas' && fupFilter) {
+                    return { ...s, leads: s.leads.filter((l: any) => l.data_fup === fupFilter) }
+                  }
+                  return s
+                })
                 const cols = visibleStages.length
                 return (
               <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:10, minWidth:0 }}>
@@ -1683,6 +1710,11 @@ export default function CRMApp() {
                                   </span>
                                 )}
                                 {l.temperatura && <TempBadge temp={l.temperatura}/>}
+                                {l.data_fup && (
+                                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20, background:`${YELLOW}18`, color:YELLOW, whiteSpace:'nowrap' }}>
+                                    📅 FUP {new Date(l.data_fup + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           )}
@@ -1691,11 +1723,18 @@ export default function CRMApp() {
                           {isVendaPlus && (
                             <div style={{ display:'flex', flexDirection:'column', gap:4, marginTop:8 }}>
                               {l.tcv && <div style={{ fontSize:11, fontWeight:800, color:GREEN, fontFamily:'monospace' }}>{fmt(l.tcv)}</div>}
-                              {l.situacao_closer && (
-                                <span style={{ fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:20, background:`${PURPLE}15`, color:PURPLE, display:'inline-block', maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                                  {l.situacao_closer}
-                                </span>
-                              )}
+                              <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                                {l.situacao_closer && (
+                                  <span style={{ fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:20, background:`${PURPLE}15`, color:PURPLE, display:'inline-block', maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                    {l.situacao_closer}
+                                  </span>
+                                )}
+                                {l.data_fup && (
+                                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20, background:`${YELLOW}18`, color:YELLOW, whiteSpace:'nowrap' }}>
+                                    📅 FUP {new Date(l.data_fup + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>

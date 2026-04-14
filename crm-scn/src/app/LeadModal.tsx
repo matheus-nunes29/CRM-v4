@@ -115,6 +115,7 @@ const LeadModal = React.memo(function LeadModal({
 }) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<'pre-vendas' | 'vendas'>('pre-vendas')
+  const [novoPassoTexto, setNovoPassoTexto] = useState('')
 
   const initForm = {
     empresa: '', nome_lead: '', telefone: '', origem: null, segmento: null, closer: null,
@@ -124,6 +125,7 @@ const LeadModal = React.memo(function LeadModal({
     urgencia: null, bant: undefined, data_entrada: null, data_ra: null, data_rr: null,
     data_assinatura: null, data_ativacao: null, anotacoes_pre_vendas: '', cadencia: null,
     contato_agendado: false, link_qualificacao: '', link_transcricao: '',
+    historico_proximos_passos: [],
   }
   const [form, setForm] = useState<any>(() => lead ? { ...initForm, ...lead } : initForm)
 
@@ -508,7 +510,54 @@ const LeadModal = React.memo(function LeadModal({
                     </div>
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 8 }}>Próximos Passos</div>
-                      <textarea rows={4} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7 }} value={form.proximos_passos || ''} onChange={e => set('proximos_passos', e.target.value)} placeholder="Descreva as próximas ações..." />
+                      {/* New entry */}
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                        <textarea
+                          rows={2}
+                          style={{ ...inputStyle, flex: 1, resize: 'none', lineHeight: 1.6 }}
+                          value={novoPassoTexto}
+                          onChange={e => setNovoPassoTexto(e.target.value)}
+                          placeholder="Descreva a próxima ação..."
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                              e.preventDefault()
+                              const txt = novoPassoTexto.trim()
+                              if (!txt) return
+                              const hoje = new Date().toLocaleDateString('pt-BR')
+                              const entrada = { data: hoje, texto: txt }
+                              const hist = Array.isArray(form.historico_proximos_passos) ? form.historico_proximos_passos : []
+                              set('historico_proximos_passos', [entrada, ...hist])
+                              setNovoPassoTexto('')
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const txt = novoPassoTexto.trim()
+                            if (!txt) return
+                            const hoje = new Date().toLocaleDateString('pt-BR')
+                            const entrada = { data: hoje, texto: txt }
+                            const hist = Array.isArray(form.historico_proximos_passos) ? form.historico_proximos_passos : []
+                            set('historico_proximos_passos', [entrada, ...hist])
+                            setNovoPassoTexto('')
+                          }}
+                          style={{ padding: '0 16px', borderRadius: 8, border: 'none', background: R, color: WHITE, fontSize: 12, fontWeight: 800, cursor: 'pointer', flexShrink: 0, alignSelf: 'stretch' }}
+                        >
+                          + Adicionar
+                        </button>
+                      </div>
+                      {/* History list */}
+                      {Array.isArray(form.historico_proximos_passos) && form.historico_proximos_passos.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                          {form.historico_proximos_passos.map((entry: { data: string; texto: string }, i: number) => (
+                            <div key={i} style={{ background: '#F8F9FB', border: `1px solid ${BORDER}`, borderRadius: 8, padding: '9px 12px' }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: GRAY3, marginBottom: 4 }}>{entry.data}</div>
+                              <div style={{ fontSize: 12, color: GRAY1, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{entry.texto}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
