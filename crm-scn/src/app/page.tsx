@@ -1308,26 +1308,26 @@ export default function CRMApp() {
                   const pct = mt ? Math.min(Math.round(tcvMes / mt * 100), 999) : null
                   const over = !!(mt && tcvMes >= mt)
                   return (
-                    <div style={{ background: 'linear-gradient(150deg, #141414 0%, #1E1E1E 100%)', borderRadius: 16, padding: '24px 22px', boxShadow: '0 4px 20px rgba(0,0,0,.18)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
+                    <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>TCV do Mês</div>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: R, background: `${R}20`, border: `1px solid ${R}40`, padding: '3px 9px', borderRadius: 20 }}>{lm.venda.length} venda{lm.venda.length !== 1 ? 's' : ''}</div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.14em' }}>TCV do Mês</div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: R, background: `${R}12`, border: `1px solid ${R}30`, padding: '3px 9px', borderRadius: 20 }}>{lm.venda.length} venda{lm.venda.length !== 1 ? 's' : ''}</div>
                         </div>
-                        <div style={{ fontSize: 26, fontWeight: 900, color: WHITE, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{fmt(tcvMes)}</div>
+                        <div style={{ fontSize: 26, fontWeight: 900, color: GREEN, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{fmt(tcvMes)}</div>
                       </div>
                       {mt ? (
                         <div style={{ marginTop: 18 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-                            <span style={{ fontSize: 10, color: 'rgba(255,255,255,.3)' }}>Meta: {fmt(mt)}</span>
-                            <span style={{ fontSize: 12, fontWeight: 900, color: over ? '#4ADE80' : R }}>{pct}%</span>
+                            <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {fmt(mt)}</span>
+                            <span style={{ fontSize: 12, fontWeight: 900, color: over ? GREEN : R }}>{pct}%</span>
                           </div>
-                          <div style={{ height: 3, background: 'rgba(255,255,255,.08)', borderRadius: 2 }}>
-                            <div style={{ height: 3, borderRadius: 2, background: over ? '#4ADE80' : R, width: `${Math.min(pct || 0, 100)}%`, transition: 'width .7s' }} />
+                          <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                            <div style={{ height: 3, borderRadius: 2, background: over ? GREEN : R, width: `${Math.min(pct || 0, 100)}%`, transition: 'width .7s' }} />
                           </div>
-                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,.3)', marginTop: 7 }}>{over ? `✓ Meta batida! +${fmt(tcvMes - mt)}` : `Falta ${fmt(mt - tcvMes)}`}</div>
+                          <div style={{ fontSize: 10, color: GRAY2, marginTop: 7 }}>{over ? `✓ Meta batida! +${fmt(tcvMes - mt)}` : `Falta ${fmt(mt - tcvMes)}`}</div>
                         </div>
-                      ) : <div style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginTop: 14 }}>Sem meta definida</div>}
+                      ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 14 }}>Sem meta definida</div>}
                     </div>
                   )
                 })()}
