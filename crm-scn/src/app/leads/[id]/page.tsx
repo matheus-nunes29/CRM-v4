@@ -1,9 +1,10 @@
 'use client'
-import React, { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import React, { useState, useEffect, Suspense } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Lead } from '@/lib/supabase'
-import { ArrowLeft, Building2, AlertCircle, CheckCircle2, ExternalLink, Lock } from 'lucide-react'
+import { Building2, AlertCircle, CheckCircle2, ExternalLink, Lock, ChevronRight } from 'lucide-react'
+import Sidebar from '../../Sidebar'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const R = '#E8001C'
@@ -122,11 +123,14 @@ const initForm = {
   historico_proximos_passos: [], custo_broker: null,
 }
 
-export default function LeadPage() {
+function LeadPageInner() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const id = params.id as string
   const isNew = id === 'new'
+  const fromView = searchParams.get('from') || 'leads'   // 'leads' or 'pipeline'
+  const fromLabel = fromView === 'pipeline' ? 'Pipeline' : 'Leads'
 
   const [pageLoading, setPageLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
@@ -246,46 +250,48 @@ export default function LeadPage() {
   })()
 
   return (
-    <div style={{ minHeight: '100vh', background: PANEL_BG, display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-jakarta, sans-serif)' }}>
+    <div style={{ height: '100vh', display: 'flex', overflow: 'hidden', fontFamily: 'var(--font-jakarta, sans-serif)' }}>
 
-      {/* ── Top header ── */}
-      <div style={{ background: WHITE, borderBottom: `1px solid ${BORDER}`, padding: '0 28px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 8px rgba(0,0,0,.05)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
-          <button onClick={() => router.back()}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: `1px solid ${BORDER}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-            <ArrowLeft size={15} /> Voltar
-          </button>
-          <div style={{ width: 1, height: 28, background: BORDER, flexShrink: 0 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, background: 'linear-gradient(135deg, #E8001C, #B91C1C)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(232,0,28,0.25)' }}>
-              <Building2 size={17} color={WHITE} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: GRAY1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {isNew ? 'Novo Lead' : (form.empresa || 'Editar Lead')}
+      {/* ── Sidebar ── */}
+      <Sidebar activeView={null} onNavigate={v => router.push(`/?view=${v}`)} />
+
+      {/* ── Main content ── */}
+      <div style={{ flex: 1, background: PANEL_BG, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* ── Breadcrumb bar ── */}
+        <div style={{ background: WHITE, borderBottom: `1px solid ${BORDER}`, padding: '0 28px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxShadow: '0 1px 6px rgba(0,0,0,.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, minWidth: 0 }}>
+            <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: GRAY2, fontWeight: 600, fontSize: 13, padding: 0 }}>CRM</button>
+            <ChevronRight size={13} color={GRAY3} />
+            <button onClick={() => router.push(`/?view=${fromView}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: GRAY2, fontWeight: 600, fontSize: 13, padding: 0 }}>{fromLabel}</button>
+            <ChevronRight size={13} color={GRAY3} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 6, background: 'linear-gradient(135deg, #E8001C, #B91C1C)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Building2 size={12} color={WHITE} />
               </div>
-              <div style={{ display: 'flex', gap: 5, marginTop: 3, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 800, color: GRAY1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 260 }}>
+                {isNew ? 'Novo Lead' : (form.empresa || 'Editar Lead')}
+              </span>
+              <div style={{ display: 'flex', gap: 4 }}>
                 {form.origem && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EFF6FF', color: '#3B82F6' }}>{form.origem}</span>}
                 {form.temperatura && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${tempColor(form.temperatura)}18`, color: tempColor(form.temperatura) }}>{form.temperatura}</span>}
-                {form.cadencia && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#FEF3C7', color: '#D97706' }}>Dia {form.cadencia}</span>}
-                {form.contato_agendado && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#F0FDF4', color: GREEN }}>Contato Agendado</span>}
               </div>
             </div>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            {!isNew && (
+              <a href={calendarUrl} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 9, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#15803D', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Agendar no Google Agenda
+              </a>
+            )}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {!isNew && (
-            <a href={calendarUrl} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#15803D', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              Agendar no Google Agenda
-            </a>
-          )}
-        </div>
-      </div>
 
-      {/* ── Body ── */}
-      <div style={{ flex: 1, display: 'flex', maxWidth: 1120, width: '100%', margin: '24px auto', padding: '0 24px', gap: 0, boxSizing: 'border-box', alignItems: 'flex-start' }}>
+        {/* ── Body (scrollable) ── */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
+      <div style={{ flex: 1, display: 'flex', maxWidth: 1100, width: '100%', margin: '24px auto', padding: '0 24px', gap: 0, boxSizing: 'border-box', alignItems: 'flex-start' }}>
 
         {/* ── Left Panel ── */}
         <div style={{ width: 280, flexShrink: 0, background: WHITE, borderRadius: '16px 0 0 16px', border: `1px solid ${BORDER}`, borderRight: 'none', padding: '20px 18px', alignSelf: 'stretch', overflowY: 'auto' }}>
@@ -610,6 +616,16 @@ export default function LeadPage() {
           </div>
         </div>
       </div>
+        </div>{/* end scrollable body */}
+      </div>{/* end main content */}
     </div>
+  )
+}
+
+export default function LeadPage() {
+  return (
+    <Suspense>
+      <LeadPageInner />
+    </Suspense>
   )
 }
