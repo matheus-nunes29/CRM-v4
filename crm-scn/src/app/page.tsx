@@ -932,6 +932,8 @@ export default function CRMApp() {
   const [dashFilterOpen, setDashFilterOpen] = useState(false)
   const [pipelineFilterOpen, setPipelineFilterOpen] = useState(false)
   const [draftPipelineCanal, setDraftPipelineCanal] = useState('Canal')
+  const [pipelineCloser, setPipelineCloser] = useState('')
+  const [draftPipelineCloser, setDraftPipelineCloser] = useState('')
   const [tierSel, setTierSel] = useState('')
   const [closerSel, setCloserSel] = useState('')
   // draft state inside the filter popover
@@ -1201,8 +1203,12 @@ export default function CRMApp() {
 
   const funilPipeline = useMemo(() => PIPELINE_STAGES.map(stage => ({
     ...stage,
-    leads: leads.filter(l => getPipelineStage(l) === stage.key && (pipelineCanal === 'Canal' || l.origem === pipelineCanal))
-  })), [leads, pipelineCanal])
+    leads: leads.filter(l =>
+      getPipelineStage(l) === stage.key &&
+      (pipelineCanal === 'Canal' || l.origem === pipelineCanal) &&
+      (!pipelineCloser || l.closer === pipelineCloser)
+    )
+  })), [leads, pipelineCanal, pipelineCloser])
 
   const filtered = leads.filter(l =>
     (!search || l.empresa?.toLowerCase().includes(search.toLowerCase()) || l.closer?.toLowerCase().includes(search.toLowerCase()) || (l as any).nome_lead?.toLowerCase().includes(search.toLowerCase()))
@@ -1874,28 +1880,42 @@ export default function CRMApp() {
                   </div>
                   {/* Filter button */}
                   <div style={{ position:'relative' }}>
-                    <button onClick={() => { setDraftPipelineCanal(pipelineCanal); setPipelineFilterOpen(v => !v) }}
-                      style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 16px', borderRadius:10, border:'1px solid #E5E7EB', background:WHITE, color:GRAY1, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                      Filtros
-                      {pipelineCanal !== 'Canal' && <span style={{ background:R, color:WHITE, borderRadius:'50%', width:17, height:17, fontSize:10, fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center' }}>1</span>}
-                    </button>
+                    {(() => {
+                      const activeCount = (pipelineCanal !== 'Canal' ? 1 : 0) + (pipelineCloser ? 1 : 0)
+                      return (
+                        <button onClick={() => { setDraftPipelineCanal(pipelineCanal); setDraftPipelineCloser(pipelineCloser); setPipelineFilterOpen(v => !v) }}
+                          style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 16px', borderRadius:10, border:'1px solid #E5E7EB', background:WHITE, color:GRAY1, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                          Filtros
+                          {activeCount > 0 && <span style={{ background:R, color:WHITE, borderRadius:'50%', width:17, height:17, fontSize:10, fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center' }}>{activeCount}</span>}
+                        </button>
+                      )
+                    })()}
                     {pipelineFilterOpen && (
                       <>
                         <div style={{ position:'fixed', inset:0, zIndex:49 }} onClick={() => setPipelineFilterOpen(false)} />
-                        <div style={{ position:'absolute', right:0, top:'calc(100% + 8px)', background:WHITE, border:'1px solid #E5E7EB', borderRadius:16, boxShadow:'0 8px 32px rgba(0,0,0,.14)', zIndex:50, width:300, padding:24 }}>
+                        <div style={{ position:'absolute', right:0, top:'calc(100% + 8px)', background:WHITE, border:'1px solid #E5E7EB', borderRadius:16, boxShadow:'0 8px 32px rgba(0,0,0,.14)', zIndex:50, width:320, padding:24 }}>
                           <div style={{ fontSize:15, fontWeight:800, color:GRAY1, marginBottom:4 }}>Filtros do Pipeline</div>
-                          <div style={{ fontSize:12, color:GRAY2, marginBottom:20 }}>Filtre os leads por canal de origem.</div>
-                          <div>
-                            <label style={labelCls}>Canal <span style={{ fontWeight:400, textTransform:'none', fontSize:10, color:GRAY3 }}>(optional)</span></label>
-                            <select style={inputCls} value={draftPipelineCanal} onChange={e => setDraftPipelineCanal(e.target.value)}>
-                              {CANAIS.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                          <div style={{ fontSize:12, color:GRAY2, marginBottom:20 }}>Filtre os leads por canal e closer.</div>
+                          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                            <div>
+                              <label style={labelCls}>Canal <span style={{ fontWeight:400, textTransform:'none', fontSize:10, color:GRAY3 }}>(optional)</span></label>
+                              <select style={inputCls} value={draftPipelineCanal} onChange={e => setDraftPipelineCanal(e.target.value)}>
+                                {CANAIS.map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label style={labelCls}>Closer <span style={{ fontWeight:400, textTransform:'none', fontSize:10, color:GRAY3 }}>(optional)</span></label>
+                              <select style={inputCls} value={draftPipelineCloser} onChange={e => setDraftPipelineCloser(e.target.value)}>
+                                <option value="">Selecione</option>
+                                {CLOSERS.map(c => <option key={c}>{c}</option>)}
+                              </select>
+                            </div>
                           </div>
                           <div style={{ display:'flex', gap:10, marginTop:20 }}>
-                            <button onClick={() => { setPipelineCanal('Canal'); setDraftPipelineCanal('Canal'); setPipelineFilterOpen(false) }}
+                            <button onClick={() => { setPipelineCanal('Canal'); setDraftPipelineCanal('Canal'); setPipelineCloser(''); setDraftPipelineCloser(''); setPipelineFilterOpen(false) }}
                               style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1px solid #E5E7EB', background:WHITE, color:GRAY1, fontSize:13, fontWeight:700, cursor:'pointer' }}>Limpar</button>
-                            <button onClick={() => { setPipelineCanal(draftPipelineCanal); setPipelineFilterOpen(false) }}
+                            <button onClick={() => { setPipelineCanal(draftPipelineCanal); setPipelineCloser(draftPipelineCloser); setPipelineFilterOpen(false) }}
                               style={{ flex:2, padding:'10px 0', borderRadius:10, border:'none', background:R, color:WHITE, fontSize:13, fontWeight:800, cursor:'pointer' }}>Aplicar</button>
                           </div>
                         </div>
@@ -1905,13 +1925,21 @@ export default function CRMApp() {
                 </div>
               </div>
 
-              {/* Canal chip ativo */}
-              {pipelineCanal !== 'Canal' && (
-                <div style={{ display:'flex', gap:6 }}>
-                  <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:20, background:`${R}10`, border:`1px solid ${R}30`, fontSize:12, fontWeight:700, color:R }}>
-                    {pipelineCanal}
-                    <button onClick={() => setPipelineCanal('Canal')} style={{ background:'none', border:'none', cursor:'pointer', color:R, padding:0, display:'flex', lineHeight:1 }}>×</button>
-                  </span>
+              {/* Chips ativos */}
+              {(pipelineCanal !== 'Canal' || pipelineCloser) && (
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {pipelineCanal !== 'Canal' && (
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:20, background:`${R}10`, border:`1px solid ${R}30`, fontSize:12, fontWeight:700, color:R }}>
+                      {pipelineCanal}
+                      <button onClick={() => setPipelineCanal('Canal')} style={{ background:'none', border:'none', cursor:'pointer', color:R, padding:0, display:'flex', lineHeight:1 }}>×</button>
+                    </span>
+                  )}
+                  {pipelineCloser && (
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:20, background:`${R}10`, border:`1px solid ${R}30`, fontSize:12, fontWeight:700, color:R }}>
+                      Closer: {pipelineCloser}
+                      <button onClick={() => setPipelineCloser('')} style={{ background:'none', border:'none', cursor:'pointer', color:R, padding:0, display:'flex', lineHeight:1 }}>×</button>
+                    </span>
+                  )}
                 </div>
               )}
 
