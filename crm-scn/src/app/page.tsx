@@ -934,6 +934,8 @@ export default function CRMApp() {
   const [draftPipelineCanal, setDraftPipelineCanal] = useState('Canal')
   const [pipelineCloser, setPipelineCloser] = useState('')
   const [draftPipelineCloser, setDraftPipelineCloser] = useState('')
+  const [pipelineTemp, setPipelineTemp] = useState('')
+  const [draftPipelineTemp, setDraftPipelineTemp] = useState('')
   const [tierSel, setTierSel] = useState('')
   const [closerSel, setCloserSel] = useState('')
   // draft state inside the filter popover
@@ -1206,9 +1208,10 @@ export default function CRMApp() {
     leads: leads.filter(l =>
       getPipelineStage(l) === stage.key &&
       (pipelineCanal === 'Canal' || l.origem === pipelineCanal) &&
-      (!pipelineCloser || l.closer === pipelineCloser)
+      (!pipelineCloser || l.closer === pipelineCloser) &&
+      (!pipelineTemp || l.temperatura === pipelineTemp)
     )
-  })), [leads, pipelineCanal, pipelineCloser])
+  })), [leads, pipelineCanal, pipelineCloser, pipelineTemp])
 
   const filtered = leads.filter(l =>
     (!search || l.empresa?.toLowerCase().includes(search.toLowerCase()) || l.closer?.toLowerCase().includes(search.toLowerCase()) || (l as any).nome_lead?.toLowerCase().includes(search.toLowerCase()))
@@ -1881,9 +1884,9 @@ export default function CRMApp() {
                   {/* Filter button */}
                   <div style={{ position:'relative' }}>
                     {(() => {
-                      const activeCount = (pipelineCanal !== 'Canal' ? 1 : 0) + (pipelineCloser ? 1 : 0)
+                      const activeCount = (pipelineCanal !== 'Canal' ? 1 : 0) + (pipelineCloser ? 1 : 0) + (pipelineTemp ? 1 : 0)
                       return (
-                        <button onClick={() => { setDraftPipelineCanal(pipelineCanal); setDraftPipelineCloser(pipelineCloser); setPipelineFilterOpen(v => !v) }}
+                        <button onClick={() => { setDraftPipelineCanal(pipelineCanal); setDraftPipelineCloser(pipelineCloser); setDraftPipelineTemp(pipelineTemp); setPipelineFilterOpen(v => !v) }}
                           style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 16px', borderRadius:10, border:'1px solid #E5E7EB', background:WHITE, color:GRAY1, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
                           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                           Filtros
@@ -1911,11 +1914,18 @@ export default function CRMApp() {
                                 {CLOSERS.map(c => <option key={c}>{c}</option>)}
                               </select>
                             </div>
+                            <div>
+                              <label style={labelCls}>Temperatura <span style={{ fontWeight:400, textTransform:'none', fontSize:10, color:GRAY3 }}>(optional)</span></label>
+                              <select style={inputCls} value={draftPipelineTemp} onChange={e => setDraftPipelineTemp(e.target.value)}>
+                                <option value="">Selecione</option>
+                                {TEMPERATURAS.map(t => <option key={t}>{t}</option>)}
+                              </select>
+                            </div>
                           </div>
                           <div style={{ display:'flex', gap:10, marginTop:20 }}>
-                            <button onClick={() => { setPipelineCanal('Canal'); setDraftPipelineCanal('Canal'); setPipelineCloser(''); setDraftPipelineCloser(''); setPipelineFilterOpen(false) }}
+                            <button onClick={() => { setPipelineCanal('Canal'); setDraftPipelineCanal('Canal'); setPipelineCloser(''); setDraftPipelineCloser(''); setPipelineTemp(''); setDraftPipelineTemp(''); setPipelineFilterOpen(false) }}
                               style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1px solid #E5E7EB', background:WHITE, color:GRAY1, fontSize:13, fontWeight:700, cursor:'pointer' }}>Limpar</button>
-                            <button onClick={() => { setPipelineCanal(draftPipelineCanal); setPipelineCloser(draftPipelineCloser); setPipelineFilterOpen(false) }}
+                            <button onClick={() => { setPipelineCanal(draftPipelineCanal); setPipelineCloser(draftPipelineCloser); setPipelineTemp(draftPipelineTemp); setPipelineFilterOpen(false) }}
                               style={{ flex:2, padding:'10px 0', borderRadius:10, border:'none', background:R, color:WHITE, fontSize:13, fontWeight:800, cursor:'pointer' }}>Aplicar</button>
                           </div>
                         </div>
@@ -1926,7 +1936,7 @@ export default function CRMApp() {
               </div>
 
               {/* Chips ativos */}
-              {(pipelineCanal !== 'Canal' || pipelineCloser) && (
+              {(pipelineCanal !== 'Canal' || pipelineCloser || pipelineTemp) && (
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                   {pipelineCanal !== 'Canal' && (
                     <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:20, background:`${R}10`, border:`1px solid ${R}30`, fontSize:12, fontWeight:700, color:R }}>
@@ -1938,6 +1948,12 @@ export default function CRMApp() {
                     <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:20, background:`${R}10`, border:`1px solid ${R}30`, fontSize:12, fontWeight:700, color:R }}>
                       Closer: {pipelineCloser}
                       <button onClick={() => setPipelineCloser('')} style={{ background:'none', border:'none', cursor:'pointer', color:R, padding:0, display:'flex', lineHeight:1 }}>×</button>
+                    </span>
+                  )}
+                  {pipelineTemp && (
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:20, background:`${TEMP_COLORS[pipelineTemp]}18`, border:`1px solid ${TEMP_COLORS[pipelineTemp]}40`, fontSize:12, fontWeight:700, color:TEMP_COLORS[pipelineTemp] }}>
+                      {pipelineTemp}
+                      <button onClick={() => setPipelineTemp('')} style={{ background:'none', border:'none', cursor:'pointer', color:TEMP_COLORS[pipelineTemp], padding:0, display:'flex', lineHeight:1 }}>×</button>
                     </span>
                   )}
                 </div>
