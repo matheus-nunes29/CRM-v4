@@ -157,10 +157,31 @@ function MetasPage({ metas, mesSel, mesFmt, navMes, saveMeta }: any) {
         </div>
       </div>
 
+      {/* Resumo geral — soma dos canais */}
+      {(() => {
+        const vals = CANAIS_METAS.map(c => metas[mesSel]?.[c]).filter(Boolean)
+        if (vals.length === 0) return null
+        const soma: Record<string, number> = {}
+        CAMPOS.forEach(c => { soma[c.key] = vals.reduce((s: number, m: any) => s + (m[c.key] || 0), 0) })
+        return (
+          <div style={{ background: `${R}06`, border: `1px solid ${R}20`, borderRadius: 14, padding: '16px 22px', marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: R, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Meta Geral — {mesFmt(mesSel)} (soma de todos os canais)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12 }}>
+              {CAMPOS.map(c => (
+                <div key={c.key}>
+                  <div style={{ fontSize: 10, color: GRAY2, marginBottom: 3 }}>{c.icon} {c.label.replace(' (R$)', '').replace(' (Qtd)', '').replace(' (Leads)', '')}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: GRAY1 }}>{c.key === 'meta_tcv' ? fmt(soma[c.key]) : soma[c.key] || '—'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Canal tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
         {CANAIS_METAS.map(c => {
-          const key = c === 'Geral' ? 'geral' : c
+          const key = c
           const hasData = !!metas[mesSel]?.[key]
           const isSel = canalTab === c
           return (
