@@ -1,6 +1,5 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import LeadModal from './LeadModal'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, Lead } from '@/lib/supabase'
@@ -1128,8 +1127,6 @@ export default function CRMApp() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [metas, setMetas] = useState<Record<string, Record<string, any>>>({})
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState<{ open: boolean; lead: Partial<Lead> | null }>({ open: false, lead: null })
-  const closeModal = React.useCallback(() => setModal({ open: false, lead: null }), [])
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({
     closer: '', temperatura: '', situacao: '',
@@ -1211,22 +1208,6 @@ export default function CRMApp() {
     fetchMetas()
   }
 
-  const saveLead = React.useCallback(async (form: Partial<Lead>) => {
-    if (!form.empresa) return
-    const { id, created_at, updated_at, ...data } = form as any
-    if (id) {
-      const { error } = await supabase.from('leads').update(data).eq('id', id)
-      if (error) { alert('Erro: ' + error.message); return }
-    } else {
-      const clean: Record<string, any> = {}
-      Object.entries(data).forEach(([k, v]) => { clean[k] = (v === '' || v === undefined) ? null : v })
-      const { error } = await supabase.from('leads').insert(clean)
-      if (error) { alert('Erro: ' + error.message); return }
-    }
-    setModal({ open: false, lead: null })
-    fetchLeads()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   async function deleteLead(id: string) {
     if (!confirm('Excluir este lead?')) return
@@ -1504,7 +1485,7 @@ export default function CRMApp() {
           })}
         </nav>
         <div style={{ padding: '14px 12px', borderTop: '1px solid #F0EFF8' }}>
-          <button onClick={() => setModal({ open: true, lead: null })} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #E8001C, #B91C1C)', color: WHITE, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(232,0,28,0.28)' }}>
+          <button onClick={() => router.push('/leads/new')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #E8001C, #B91C1C)', color: WHITE, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(232,0,28,0.28)' }}>
             <Plus size={15} /> NOVO LEAD
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 4px 4px' }}>
@@ -2120,7 +2101,7 @@ export default function CRMApp() {
                               style={{ cursor:'pointer', width:15, height:15, accentColor:R }} />
                           </td>
                           <td style={{ padding:'10px 12px' }}>
-                            <div onClick={() => setModal({ open:true, lead:l })} style={{ fontWeight:700, color:R, cursor:'pointer' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration='underline'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.textDecoration='none'}>{l.empresa}</div>
+                            <div onClick={() => router.push(`/leads/${l.id}`)} style={{ fontWeight:700, color:R, cursor:'pointer' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration='underline'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.textDecoration='none'}>{l.empresa}</div>
                             <div style={{ fontSize:11, color:GRAY2, marginTop:1 }}>{l.segmento}</div>
                           </td>
                           <td style={{ padding:'10px 12px' }}>
@@ -2140,7 +2121,7 @@ export default function CRMApp() {
                           </td>
                           <td style={{ padding:'10px 12px' }}>
                             <div style={{ display:'flex', gap:4 }}>
-                              <button onClick={() => setModal({ open:true, lead:l })} style={{ background:`${R}12`, border:'none', borderRadius:6, padding:6, cursor:'pointer', color:R, display:'flex' }}><Edit2 size={13}/></button>
+                              <button onClick={() => router.push(`/leads/${l.id}`)} style={{ background:`${R}12`, border:'none', borderRadius:6, padding:6, cursor:'pointer', color:R, display:'flex' }}><Edit2 size={13}/></button>
                               <button onClick={() => deleteLead(l.id)} style={{ background:GRAY4, border:'none', borderRadius:6, padding:6, cursor:'pointer', color:GRAY2, display:'flex' }}><Trash2 size={13}/></button>
                             </div>
                           </td>
@@ -2361,7 +2342,7 @@ export default function CRMApp() {
                                 <div key={l.id}
                                   draggable
                                   onDragStart={e => { e.dataTransfer.setData('lead', JSON.stringify(l)); e.dataTransfer.effectAllowed = 'move' }}
-                                  onClick={() => setModal({ open:true, lead:l })}
+                                  onClick={() => router.push(`/leads/${l.id}`)}
                                   style={{ background:WHITE, borderRadius:10, padding:'12px 14px', border:'1px solid #EBEBEB', cursor:'grab', userSelect:'none', boxShadow:'0 1px 4px rgba(0,0,0,.05)', transition:'border-color .12s, box-shadow .12s' }}
                                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor=etapa.color; (e.currentTarget as HTMLElement).style.boxShadow=`0 3px 10px ${etapa.color}28` }}
                                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor='#EBEBEB'; (e.currentTarget as HTMLElement).style.boxShadow='0 1px 4px rgba(0,0,0,.05)' }}>
@@ -2451,7 +2432,6 @@ export default function CRMApp() {
 
       {/* DRAG MODAL */}
       {dragModal?.open && <DragModal info={dragModal} stageReqs={STAGE_REQUIREMENTS} pipelineStages={PIPELINE_STAGES} onConfirm={applyDragUpdate} onClose={() => setDragModal(null)} />}
-      {modal.open && <LeadModal lead={modal.lead} onClose={closeModal} onSave={saveLead} />}
     </div>
   )
 }
