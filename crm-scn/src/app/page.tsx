@@ -1299,90 +1299,143 @@ export default function CRMApp() {
                 )
               })()}
 
-              {/* ── TCV + Conversão + Funil ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 1fr', gap: 10 }}>
-                {/* TCV Hero */}
-                {(() => {
-                  const mm = metas[mesSel] || {}
-                  const mt = mm.meta_tcv
-                  const pct = mt ? Math.min(Math.round(tcvMes / mt * 100), 999) : null
-                  const over = !!(mt && tcvMes >= mt)
-                  return (
-                    <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.14em' }}>TCV do Mês</div>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: R, background: `${R}12`, border: `1px solid ${R}30`, padding: '3px 9px', borderRadius: 20 }}>{lm.venda.length} venda{lm.venda.length !== 1 ? 's' : ''}</div>
-                        </div>
-                        <div style={{ fontSize: 26, fontWeight: 900, color: GREEN, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{fmt(tcvMes)}</div>
+              {/* ── TCV + (broker cards se Lead Broker) + Conversão + Funil ── */}
+              {(() => {
+                const mm = metas[mesSel] || {}
+                const mt = mm.meta_tcv
+                const pct = mt ? Math.min(Math.round(tcvMes / mt * 100), 999) : null
+                const over = !!(mt && tcvMes >= mt)
+                const isLB = canalSel === 'Lead Broker'
+                const valorInvestido = lm.entrada.reduce((s: number, l: any) => s + (l.custo_broker || 0), 0)
+                const cpmql = lm.entrada.length > 0 && valorInvestido > 0 ? valorInvestido / lm.entrada.length : null
+                const roas = valorInvestido > 0 ? tcvMes / valorInvestido : null
+
+                const cardTCV = (
+                  <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.14em' }}>TCV do Mês</div>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: R, background: `${R}12`, border: `1px solid ${R}30`, padding: '3px 9px', borderRadius: 20 }}>{lm.venda.length} venda{lm.venda.length !== 1 ? 's' : ''}</div>
                       </div>
-                      {mt ? (
-                        <div style={{ marginTop: 18 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-                            <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {fmt(mt)}</span>
-                            <span style={{ fontSize: 12, fontWeight: 900, color: over ? GREEN : R }}>{pct}%</span>
-                          </div>
-                          <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
-                            <div style={{ height: 3, borderRadius: 2, background: over ? GREEN : R, width: `${Math.min(pct || 0, 100)}%`, transition: 'width .7s' }} />
-                          </div>
-                          <div style={{ fontSize: 10, color: GRAY2, marginTop: 7 }}>{over ? `✓ Meta batida! +${fmt(tcvMes - mt)}` : `Falta ${fmt(mt - tcvMes)}`}</div>
-                        </div>
-                      ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 14 }}>Sem meta definida</div>}
+                      <div style={{ fontSize: 26, fontWeight: 900, color: GREEN, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{fmt(tcvMes)}</div>
                     </div>
-                  )
-                })()}
-
-                {/* Taxas de Conversão */}
-                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Taxas de Conversão</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {[
-                      { label: 'Entrada → RA', a: lm.ra.length, b: lm.entrada.length, color: YELLOW },
-                      { label: 'RA → RR', a: lm.rr.length, b: lm.ra.length, color: PURPLE },
-                      { label: 'RR → Venda', a: lm.venda.length, b: lm.rr.length, color: GREEN },
-                      { label: 'Venda → Ativação', a: lm.ativacao.length, b: lm.venda.length, color: R },
-                    ].map(c => (
-                      <div key={c.label}>
+                    {mt ? (
+                      <div style={{ marginTop: 18 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-                          <span style={{ fontSize: 11, color: GRAY2, fontWeight: 600 }}>{c.label}</span>
-                          <span style={{ fontSize: 15, fontWeight: 900, color: c.color }}>{conv(c.a, c.b)}<span style={{ fontSize: 10, fontWeight: 700 }}>%</span></span>
+                          <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {fmt(mt)}</span>
+                          <span style={{ fontSize: 12, fontWeight: 900, color: over ? GREEN : R }}>{pct}%</span>
                         </div>
-                        <div style={{ height: 4, background: '#F0F0F0', borderRadius: 3 }}>
-                          <div style={{ height: 4, borderRadius: 3, background: `linear-gradient(90deg, ${c.color}80, ${c.color})`, width: `${convBar(c.a, c.b)}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
+                        <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                          <div style={{ height: 3, borderRadius: 2, background: over ? GREEN : R, width: `${Math.min(pct || 0, 100)}%`, transition: 'width .7s' }} />
+                        </div>
+                        <div style={{ fontSize: 10, color: GRAY2, marginTop: 7 }}>{over ? `✓ Meta batida! +${fmt(tcvMes - mt)}` : `Falta ${fmt(mt - tcvMes)}`}</div>
+                      </div>
+                    ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 14 }}>Sem meta definida</div>}
+                  </div>
+                )
+
+                const cardConversao = (
+                  <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Taxas de Conversão</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {[
+                        { label: 'Entrada → RA', a: lm.ra.length, b: lm.entrada.length, color: YELLOW },
+                        { label: 'RA → RR', a: lm.rr.length, b: lm.ra.length, color: PURPLE },
+                        { label: 'RR → Venda', a: lm.venda.length, b: lm.rr.length, color: GREEN },
+                        { label: 'Venda → Ativação', a: lm.ativacao.length, b: lm.venda.length, color: R },
+                      ].map(c => (
+                        <div key={c.label}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                            <span style={{ fontSize: 11, color: GRAY2, fontWeight: 600 }}>{c.label}</span>
+                            <span style={{ fontSize: 15, fontWeight: 900, color: c.color }}>{conv(c.a, c.b)}<span style={{ fontSize: 10, fontWeight: 700 }}>%</span></span>
+                          </div>
+                          <div style={{ height: 4, background: '#F0F0F0', borderRadius: 3 }}>
+                            <div style={{ height: 4, borderRadius: 3, background: `linear-gradient(90deg, ${c.color}80, ${c.color})`, width: `${convBar(c.a, c.b)}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+
+                const cardFunil = (
+                  <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Funil do Mês</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {[
+                        { label: 'Entrada', value: lm.entrada.length, color: BLUE },
+                        { label: 'Reu. Agend.', value: lm.ra.length, color: YELLOW },
+                        { label: 'Reu. Realiz.', value: lm.rr.length, color: PURPLE },
+                        { label: 'Vendas', value: lm.venda.length, color: GREEN },
+                        { label: 'Ativações', value: lm.ativacao.length, color: R },
+                      ].map((f, _, arr) => {
+                        const max = Math.max(...arr.map(x => x.value))
+                        const w = max > 0 ? Math.max(f.value / max * 100, f.value > 0 ? 7 : 0) : 0
+                        return (
+                          <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 11, color: GRAY2, width: 82, flexShrink: 0, fontWeight: 500 }}>{f.label}</span>
+                            <div style={{ flex: 1, height: 22, background: '#F4F4F7', borderRadius: 7, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', borderRadius: 7, background: `linear-gradient(90deg, ${f.color}BB, ${f.color})`, width: `${w}%`, maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }}>
+                                {f.value > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: WHITE }}>{f.value}</span>}
+                              </div>
+                            </div>
+                            {f.value === 0 && <span style={{ fontSize: 11, color: GRAY3, fontWeight: 700, width: 14 }}>0</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+
+                return isLB ? (
+                  <>
+                    {/* Lead Broker: TCV + 3 broker metrics na mesma linha */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+                      {cardTCV}
+                      {/* Valor Investido */}
+                      <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: YELLOW, borderRadius: '16px 0 0 16px' }} />
+                        <div style={{ paddingLeft: 10 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Valor Investido</div>
+                          <div style={{ fontSize: 28, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>{fmt(valorInvestido)}</div>
+                          <div style={{ fontSize: 10, color: GRAY2, marginTop: 8 }}>{lm.entrada.length} lead{lm.entrada.length !== 1 ? 's' : ''} no mês</div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Funil */}
-                <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Funil do Mês</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {[
-                      { label: 'Entrada', value: lm.entrada.length, color: BLUE },
-                      { label: 'Reu. Agend.', value: lm.ra.length, color: YELLOW },
-                      { label: 'Reu. Realiz.', value: lm.rr.length, color: PURPLE },
-                      { label: 'Vendas', value: lm.venda.length, color: GREEN },
-                      { label: 'Ativações', value: lm.ativacao.length, color: R },
-                    ].map((f, _, arr) => {
-                      const max = Math.max(...arr.map(x => x.value))
-                      const w = max > 0 ? Math.max(f.value / max * 100, f.value > 0 ? 7 : 0) : 0
-                      return (
-                        <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 11, color: GRAY2, width: 82, flexShrink: 0, fontWeight: 500 }}>{f.label}</span>
-                          <div style={{ flex: 1, height: 22, background: '#F4F4F7', borderRadius: 7, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', borderRadius: 7, background: `linear-gradient(90deg, ${f.color}BB, ${f.color})`, width: `${w}%`, maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }}>
-                              {f.value > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: WHITE }}>{f.value}</span>}
-                            </div>
-                          </div>
-                          {f.value === 0 && <span style={{ fontSize: 11, color: GRAY3, fontWeight: 700, width: 14 }}>0</span>}
+                      {/* CPMQL */}
+                      <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: PURPLE, borderRadius: '16px 0 0 16px' }} />
+                        <div style={{ paddingLeft: 10 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>CPMQL</div>
+                          <div style={{ fontSize: 28, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>{cpmql != null ? fmt(cpmql) : '—'}</div>
+                          <div style={{ fontSize: 10, color: GRAY2, marginTop: 8 }}>Custo médio por lead</div>
                         </div>
-                      )
-                    })}
+                      </div>
+                      {/* ROAS */}
+                      <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: roas != null && roas >= 1 ? GREEN : R, borderRadius: '16px 0 0 16px' }} />
+                        <div style={{ paddingLeft: 10 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>ROAS</div>
+                          <div style={{ fontSize: 28, fontWeight: 900, color: roas != null && roas >= 1 ? GREEN : roas != null ? R : GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>
+                            {roas != null ? `${roas.toFixed(2)}x` : '—'}
+                          </div>
+                          <div style={{ fontSize: 10, color: GRAY2, marginTop: 8 }}>TCV ÷ Valor investido</div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Conversão + Funil abaixo */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      {cardConversao}
+                      {cardFunil}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 1fr', gap: 10 }}>
+                    {cardTCV}
+                    {cardConversao}
+                    {cardFunil}
                   </div>
-                </div>
-              </div>
+                )
+              })()}
 
               {/* ── Charts row ── */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
