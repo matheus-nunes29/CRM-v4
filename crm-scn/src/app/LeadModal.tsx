@@ -167,6 +167,12 @@ const LeadModal = React.memo(function LeadModal({
       if (!form.closer) errs.closer = 'Obrigatório para Reunião Agendada'
       if (bantScore < 3) errs.bant = 'BANT mínimo 3 para Reunião Agendada'
     }
+    if (form.data_ra) {
+      if (!form.email?.trim()) errs.email = 'Obrigatório quando há data de RA'
+      if (!form.segmento) errs.segmento = 'Obrigatório quando há data de RA'
+      if (!form.faturamento) errs.faturamento = 'Obrigatório quando há data de RA'
+      if (!form.cargo) errs.cargo = 'Obrigatório quando há data de RA'
+    }
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
       if (errs.data_ra || errs.bant) setActiveTab('pre-vendas')
@@ -277,10 +283,10 @@ Apresentaremos como a V4 Company poderá contribuir com a operação da ${empres
               />
             </InfoField>
 
-            <InfoField label="E-mail do Lead">
+            <InfoField label="E-mail do Lead" error={errors.email}>
               <input
                 type="email"
-                style={inputStyle}
+                style={{ ...inputStyle, borderColor: errors.email ? R : BORDER }}
                 value={form.email || ''}
                 onChange={e => set('email', e.target.value)}
                 placeholder="email@exemplo.com"
@@ -310,15 +316,15 @@ Apresentaremos como a V4 Company poderá contribuir com a operação da ${empres
               </select>
             </InfoField>
 
-            <InfoField label="Segmento">
-              <select style={inputStyle} value={form.segmento || ''} onChange={e => set('segmento', e.target.value)}>
+            <InfoField label="Segmento" error={errors.segmento}>
+              <select style={{ ...inputStyle, borderColor: errors.segmento ? R : BORDER }} value={form.segmento || ''} onChange={e => set('segmento', e.target.value)}>
                 <option value="">Selecione</option>
                 {SEGMENTOS.map(o => <option key={o}>{o}</option>)}
               </select>
             </InfoField>
 
-            <InfoField label="Faturamento">
-              <select style={inputStyle} value={form.faturamento || ''} onChange={e => set('faturamento', e.target.value)}>
+            <InfoField label="Faturamento" error={errors.faturamento}>
+              <select style={{ ...inputStyle, borderColor: errors.faturamento ? R : BORDER }} value={form.faturamento || ''} onChange={e => set('faturamento', e.target.value)}>
                 <option value="">Selecione</option>
                 {FATURAMENTOS.map(o => <option key={o}>{o}</option>)}
               </select>
@@ -331,8 +337,8 @@ Apresentaremos como a V4 Company poderá contribuir com a operação da ${empres
               </div>
             </InfoField>
 
-            <InfoField label="Cargo">
-              <select style={inputStyle} value={form.cargo || ''} onChange={e => set('cargo', e.target.value)}>
+            <InfoField label="Cargo" error={errors.cargo}>
+              <select style={{ ...inputStyle, borderColor: errors.cargo ? R : BORDER }} value={form.cargo || ''} onChange={e => set('cargo', e.target.value)}>
                 <option value="">Selecione</option>
                 {CARGOS.map(o => <option key={o}>{o}</option>)}
               </select>

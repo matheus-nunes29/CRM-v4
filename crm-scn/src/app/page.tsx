@@ -1149,6 +1149,8 @@ export default function CRMApp() {
   const [fupFilter, setFupFilter] = useState<string>('')
   const [dashFilterOpen, setDashFilterOpen] = useState(false)
   const [pipelineFilterOpen, setPipelineFilterOpen] = useState(false)
+  const [leadsFilterOpen, setLeadsFilterOpen] = useState(false)
+  const [draftLeadsFilters, setDraftLeadsFilters] = useState({ closer:'', temperatura:'', situacao:'', origem:'', tier:'', mes_entrada:'', mes_ra:'', mes_rr:'', mes_venda:'', mes_ativacao:'', situacao_pre_vendas:'' })
   const [draftPipelineCanal, setDraftPipelineCanal] = useState('Canal')
   const [pipelineCloser, setPipelineCloser] = useState('')
   const [draftPipelineCloser, setDraftPipelineCloser] = useState('')
@@ -1905,66 +1907,131 @@ export default function CRMApp() {
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* Linha 1: busca + filtros rápidos */}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div style={{ position: 'relative' }}>
-                    <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: GRAY2 }} />
-                    <input style={{ ...inputCls, paddingLeft: 34, width: 260 }} placeholder="Buscar empresa ou nome do lead..." value={search} onChange={e => setSearch(e.target.value)} />
+              {/* ── Filter bar ── */}
+              {(() => {
+                const emptyFilters = { closer:'', temperatura:'', situacao:'', origem:'', tier:'', mes_entrada:'', mes_ra:'', mes_rr:'', mes_venda:'', mes_ativacao:'', situacao_pre_vendas:'' }
+                const activeLeadsFilters = [
+                  filters.closer && { key:'closer', label:`Closer: ${filters.closer}`, onRemove:()=>setFilters(p=>({...p,closer:''})) },
+                  filters.temperatura && { key:'temperatura', label:filters.temperatura, onRemove:()=>setFilters(p=>({...p,temperatura:''})) },
+                  filters.tier && { key:'tier', label:`Tier: ${filters.tier}`, onRemove:()=>setFilters(p=>({...p,tier:''})) },
+                  filters.origem && { key:'origem', label:`Origem: ${filters.origem}`, onRemove:()=>setFilters(p=>({...p,origem:''})) },
+                  filters.situacao_pre_vendas && { key:'situacao_pre_vendas', label:`BDR: ${filters.situacao_pre_vendas}`, onRemove:()=>setFilters(p=>({...p,situacao_pre_vendas:''})) },
+                  filters.situacao && { key:'situacao', label:`Sit: ${filters.situacao}`, onRemove:()=>setFilters(p=>({...p,situacao:''})) },
+                  filters.mes_entrada && { key:'mes_entrada', label:`Entrada: ${mesFmt(filters.mes_entrada)}`, onRemove:()=>setFilters(p=>({...p,mes_entrada:''})) },
+                  filters.mes_ra && { key:'mes_ra', label:`RA: ${mesFmt(filters.mes_ra)}`, onRemove:()=>setFilters(p=>({...p,mes_ra:''})) },
+                  filters.mes_rr && { key:'mes_rr', label:`RR: ${mesFmt(filters.mes_rr)}`, onRemove:()=>setFilters(p=>({...p,mes_rr:''})) },
+                  filters.mes_venda && { key:'mes_venda', label:`Venda: ${mesFmt(filters.mes_venda)}`, onRemove:()=>setFilters(p=>({...p,mes_venda:''})) },
+                  filters.mes_ativacao && { key:'mes_ativacao', label:`Ativação: ${mesFmt(filters.mes_ativacao)}`, onRemove:()=>setFilters(p=>({...p,mes_ativacao:''})) },
+                ].filter(Boolean) as { key:string; label:string; onRemove:()=>void }[]
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      {/* Search */}
+                      <div style={{ position:'relative' }}>
+                        <Search size={14} style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:GRAY2 }} />
+                        <input style={{ ...inputCls, paddingLeft:34, width:260 }} placeholder="Buscar empresa ou nome do lead..." value={search} onChange={e => setSearch(e.target.value)} />
+                      </div>
+                      {/* Filter popover button */}
+                      <div style={{ position:'relative' }}>
+                        <button onClick={() => { setDraftLeadsFilters({...filters}); setLeadsFilterOpen(v => !v) }}
+                          style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 16px', borderRadius:10, border:'1px solid #E5E7EB', background:WHITE, color:GRAY1, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 1px 4px rgba(0,0,0,.06)', whiteSpace:'nowrap' }}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                          Adicionar Filtro
+                          {activeLeadsFilters.length > 0 && <span style={{ background:R, color:WHITE, borderRadius:'50%', width:17, height:17, fontSize:10, fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center' }}>{activeLeadsFilters.length}</span>}
+                        </button>
+                        {leadsFilterOpen && (
+                          <>
+                            <div style={{ position:'fixed', inset:0, zIndex:49 }} onClick={() => setLeadsFilterOpen(false)} />
+                            <div style={{ position:'absolute', left:0, top:'calc(100% + 8px)', background:WHITE, border:'1px solid #E5E7EB', borderRadius:16, boxShadow:'0 8px 32px rgba(0,0,0,.14)', zIndex:50, width:500, padding:24 }}>
+                              <div style={{ fontSize:15, fontWeight:800, color:GRAY1, marginBottom:4 }}>Personalize seu filtro</div>
+                              <div style={{ fontSize:12, color:GRAY2, marginBottom:20 }}>Escolha os filtros e as opções desejadas.</div>
+                              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14 }}>
+                                <div>
+                                  <label style={labelCls}>Closer</label>
+                                  <select style={inputCls} value={draftLeadsFilters.closer} onChange={e => setDraftLeadsFilters(p=>({...p,closer:e.target.value}))}>
+                                    <option value="">Todos</option>
+                                    {CLOSERS.map(c=><option key={c}>{c}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={labelCls}>Temperatura</label>
+                                  <select style={inputCls} value={draftLeadsFilters.temperatura} onChange={e => setDraftLeadsFilters(p=>({...p,temperatura:e.target.value}))}>
+                                    <option value="">Todas</option>
+                                    {TEMPERATURAS.map(t=><option key={t}>{t}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={labelCls}>Tier</label>
+                                  <select style={inputCls} value={draftLeadsFilters.tier} onChange={e => setDraftLeadsFilters(p=>({...p,tier:e.target.value}))}>
+                                    <option value="">Todos</option>
+                                    {['TINY','SMALL','MEDIUM','LARGE','ENTERPRISE'].map(t=><option key={t}>{t}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={labelCls}>Origem</label>
+                                  <select style={inputCls} value={draftLeadsFilters.origem} onChange={e => setDraftLeadsFilters(p=>({...p,origem:e.target.value}))}>
+                                    <option value="">Todas</option>
+                                    {ORIGENS.map(o=><option key={o}>{o}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={labelCls}>Sit. BDR</label>
+                                  <select style={inputCls} value={draftLeadsFilters.situacao_pre_vendas} onChange={e => setDraftLeadsFilters(p=>({...p,situacao_pre_vendas:e.target.value}))}>
+                                    <option value="">Todas</option>
+                                    {SITUACOES_PRE_VENDAS.map(s=><option key={s}>{s}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={labelCls}>Sit. Closer</label>
+                                  <select style={inputCls} value={draftLeadsFilters.situacao} onChange={e => setDraftLeadsFilters(p=>({...p,situacao:e.target.value}))}>
+                                    <option value="">Todas</option>
+                                    {SITUACOES.map(s=><option key={s}>{s}</option>)}
+                                  </select>
+                                </div>
+                                {([
+                                  { key:'mes_entrada', label:'Mês Entrada', dataKey:'data_entrada' },
+                                  { key:'mes_ra', label:'Mês RA', dataKey:'data_ra' },
+                                  { key:'mes_rr', label:'Mês RR', dataKey:'data_rr' },
+                                  { key:'mes_venda', label:'Mês Venda', dataKey:'data_assinatura' },
+                                  { key:'mes_ativacao', label:'Mês Ativação', dataKey:'data_ativacao' },
+                                ] as { key: keyof typeof draftLeadsFilters; label: string; dataKey: keyof Lead }[]).map(f => {
+                                  const months = Array.from(new Set(leads.map(l => mesAno(l[f.dataKey] as string)).filter(Boolean))).sort().reverse() as string[]
+                                  return (
+                                    <div key={f.key}>
+                                      <label style={labelCls}>{f.label}</label>
+                                      <select style={inputCls} value={draftLeadsFilters[f.key]} onChange={e => setDraftLeadsFilters(p=>({...p,[f.key]:e.target.value}))}>
+                                        <option value="">Todos</option>
+                                        {months.map(m=><option key={m} value={m}>{mesFmt(m)}</option>)}
+                                      </select>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                              <div style={{ display:'flex', gap:10, marginTop:20 }}>
+                                <button onClick={() => { setFilters(emptyFilters); setDraftLeadsFilters(emptyFilters); setSearch(''); setLeadsFilterOpen(false) }}
+                                  style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1px solid #E5E7EB', background:WHITE, color:GRAY1, fontSize:13, fontWeight:700, cursor:'pointer' }}>Limpar</button>
+                                <button onClick={() => { setFilters({...draftLeadsFilters}); setLeadsFilterOpen(false) }}
+                                  style={{ flex:2, padding:'10px 0', borderRadius:10, border:'none', background:R, color:WHITE, fontSize:13, fontWeight:800, cursor:'pointer' }}>Aplicar</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {/* Active chips */}
+                    {activeLeadsFilters.length > 0 && (
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                        {activeLeadsFilters.map(f => (
+                          <span key={f.key} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:20, background:`${R}10`, border:`1px solid ${R}30`, fontSize:12, fontWeight:700, color:R }}>
+                            {f.label}
+                            <button onClick={f.onRemove} style={{ background:'none', border:'none', cursor:'pointer', color:R, padding:0, display:'flex', lineHeight:1 }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {[
-                    { val: filters.closer, key: 'closer', ph: 'Closer', opts: CLOSERS },
-                    { val: filters.temperatura, key: 'temperatura', ph: 'Temperatura', opts: TEMPERATURAS },
-                    { val: filters.origem, key: 'origem', ph: 'Origem', opts: ORIGENS },
-                    { val: filters.tier, key: 'tier', ph: 'Tier', opts: ['TINY','SMALL','MEDIUM','LARGE','ENTERPRISE'] },
-                  ].map(f => (
-                    <select key={f.key} style={{ ...inputCls, width: 'auto', minWidth: 120, cursor: 'pointer' }} value={f.val} onChange={e => setFilters(p => ({ ...p, [f.key]: e.target.value }))}>
-                      <option value="">{f.ph}</option>
-                      {f.opts.map(o => <option key={o}>{o}</option>)}
-                    </select>
-                  ))}
-                </div>
-                {/* Linha 2: filtros de situação e mês */}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  {[
-                    { val: filters.situacao_pre_vendas, key: 'situacao_pre_vendas', ph: 'Sit. BDR', opts: SITUACOES_PRE_VENDAS },
-                    { val: filters.situacao, key: 'situacao', ph: 'Sit. Closer', opts: SITUACOES },
-                  ].map(f => (
-                    <select key={f.key} style={{ ...inputCls, width: 'auto', minWidth: 140, cursor: 'pointer' }} value={f.val} onChange={e => setFilters(p => ({ ...p, [f.key]: e.target.value }))}>
-                      <option value="">{f.ph}</option>
-                      {f.opts.map(o => <option key={o}>{o}</option>)}
-                    </select>
-                  ))}
-                  {/* Filtros de mês */}
-                  {[
-                    { val: filters.mes_entrada, key: 'mes_entrada', ph: 'Mês Entrada' },
-                    { val: filters.mes_ra, key: 'mes_ra', ph: 'Mês RA' },
-                    { val: filters.mes_rr, key: 'mes_rr', ph: 'Mês RR' },
-                    { val: filters.mes_venda, key: 'mes_venda', ph: 'Mês Venda' },
-                    { val: filters.mes_ativacao, key: 'mes_ativacao', ph: 'Mês Ativação' },
-                  ].map(f => {
-                    // Build unique months from leads for each field
-                    const fieldMap: Record<string, keyof typeof leads[0]> = {
-                      mes_entrada: 'data_entrada', mes_ra: 'data_ra', mes_rr: 'data_rr',
-                      mes_venda: 'data_assinatura', mes_ativacao: 'data_ativacao'
-                    }
-                    const months = Array.from(new Set(leads.map(l => mesAno(l[fieldMap[f.key]] as string)).filter(Boolean))).sort().reverse() as string[]
-                    return (
-                      <select key={f.key} style={{ ...inputCls, width: 'auto', minWidth: 130, cursor: 'pointer' }} value={f.val} onChange={e => setFilters(p => ({ ...p, [f.key]: e.target.value }))}>
-                        <option value="">{f.ph}</option>
-                        {months.map(m => <option key={m} value={m}>{mesFmt(m)}</option>)}
-                      </select>
-                    )
-                  })}
-                  {/* Limpar */}
-                  {(Object.values(filters).some(v => v) || search) && (
-                    <button onClick={() => { setFilters({ closer:'', temperatura:'', situacao:'', origem:'', tier:'', mes_entrada:'', mes_ra:'', mes_rr:'', mes_venda:'', mes_ativacao:'', situacao_pre_vendas:'' }); setSearch('') }}
-                      style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 14px', border:`1px solid ${R}33`, borderRadius:8, background:WHITE, color:R, fontSize:12, cursor:'pointer', whiteSpace:'nowrap' }}>
-                      <X size={12} /> Limpar filtros
-                    </button>
-                  )}
-                </div>
-              </div>
+                )
+              })()}
               <div style={{ background: WHITE, borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,.06)', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
