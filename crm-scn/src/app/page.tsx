@@ -97,15 +97,15 @@ function SpvBadge({ s }: { s: string | null }) {
 }
 
 
-const CANAIS_METAS = ['Geral', 'Recovery', 'Lead Broker', 'Recomendação', 'Eventos', 'Indicação']
+const CANAIS_METAS = ['Recovery', 'Lead Broker', 'Recomendação', 'Eventos', 'Indicação']
 
 function MetasPage({ metas, mesSel, mesFmt, navMes, saveMeta }: any) {
-  const [canalTab, setCanalTab] = useState('Geral')
+  const [canalTab, setCanalTab] = useState('Recovery')
   const [form, setForm] = useState({ meta_entradas: '', meta_ra: '', meta_rr: '', meta_vendas: '', meta_tcv: '', meta_ativacoes: '' })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const canalKey = canalTab === 'Geral' ? 'geral' : canalTab
+  const canalKey = canalTab
 
   useEffect(() => {
     const m = metas[mesSel]?.[canalKey] || {}
@@ -143,15 +143,12 @@ function MetasPage({ metas, mesSel, mesFmt, navMes, saveMeta }: any) {
     return months
   })()
 
-  const geralMeta = metas[mesSel]?.['geral'] || {}
-  const showGeralRef = canalTab !== 'Geral'
-
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: GRAY1, margin: 0 }}>Metas Mensais</h1>
-          <p style={{ fontSize: 13, color: GRAY2, marginTop: 4 }}>Defina as metas gerais e por canal</p>
+          <p style={{ fontSize: 13, color: GRAY2, marginTop: 4 }}>Defina as metas por canal — a meta geral é a soma de todos os canais</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: WHITE, border: '1px solid #E5E7EB', borderRadius: 10, padding: '8px 14px', boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
           <button onClick={() => navMes(-1)} style={{ background: 'none', border: 'none', color: GRAY2, cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px' }}>‹</button>
@@ -176,36 +173,13 @@ function MetasPage({ metas, mesSel, mesFmt, navMes, saveMeta }: any) {
         })}
       </div>
 
-      {/* Meta geral como referência no topo dos canais específicos */}
-      {showGeralRef && (
-        <div style={{ background: `${BLUE}08`, border: `1px solid ${BLUE}25`, borderRadius: 12, padding: '14px 18px', marginBottom: 18 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: BLUE, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Meta Geral — {mesFmt(mesSel)}</div>
-          {Object.values(geralMeta).some(v => v) ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
-              {CAMPOS.map(c => {
-                const v = geralMeta[c.key]
-                if (!v) return null
-                return (
-                  <div key={c.key} style={{ fontSize: 12, color: GRAY1 }}>
-                    <span style={{ color: GRAY2 }}>{c.icon} {c.label.replace(' (R$)', '').replace(' (Qtd)', '').replace(' (Leads)', '')}: </span>
-                    <strong>{c.key === 'meta_tcv' ? fmt(v) : v}</strong>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <span style={{ fontSize: 12, color: GRAY2 }}>Sem meta geral definida para este mês</span>
-          )}
-        </div>
-      )}
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         <div style={{ background: WHITE, borderRadius: 14, padding: 28, boxShadow: '0 1px 6px rgba(0,0,0,.07)', border: '1px solid #E5E7EB' }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: GRAY1, marginBottom: 4 }}>
-            {canalTab === 'Geral' ? 'Meta Geral' : `Meta — ${canalTab}`} · {mesFmt(mesSel)}
+            Meta — {canalTab} · {mesFmt(mesSel)}
           </div>
           <div style={{ fontSize: 12, color: GRAY2, marginBottom: 22 }}>
-            {canalTab === 'Geral' ? 'Meta consolidada do mês (todos os canais)' : `Meta específica para o canal ${canalTab}`}
+            Meta específica para o canal {canalTab}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {CAMPOS.map(c => (
@@ -1334,7 +1308,12 @@ export default function CRMApp() {
 
               {/* ── KPI Cards ── */}
               {(() => {
-                const mm = (canalSel !== 'Canal' ? metas[mesSel]?.[canalSel] : null) || metas[mesSel]?.['geral'] || {}
+                const mm = (() => {
+                  if (canalSel !== 'Canal') return metas[mesSel]?.[canalSel] || {}
+                  const vals = CANAIS_METAS.map(c => metas[mesSel]?.[c]).filter(Boolean)
+                  if (vals.length === 0) return {}
+                  return { meta_entradas: vals.reduce((s:number,m:any)=>s+(m.meta_entradas||0),0)||null, meta_ra: vals.reduce((s:number,m:any)=>s+(m.meta_ra||0),0)||null, meta_rr: vals.reduce((s:number,m:any)=>s+(m.meta_rr||0),0)||null, meta_vendas: vals.reduce((s:number,m:any)=>s+(m.meta_vendas||0),0)||null, meta_tcv: vals.reduce((s:number,m:any)=>s+(m.meta_tcv||0),0)||null, meta_ativacoes: vals.reduce((s:number,m:any)=>s+(m.meta_ativacoes||0),0)||null }
+                })()
                 const kpis = [
                   { label: 'Entradas', real: lm.entrada.length, meta: mm.meta_entradas, color: BLUE },
                   { label: 'Reu. Agend.', real: lm.ra.length, meta: mm.meta_ra, color: YELLOW },
@@ -1374,7 +1353,12 @@ export default function CRMApp() {
 
               {/* ── TCV + (broker cards se Lead Broker) + Conversão + Funil ── */}
               {(() => {
-                const mm = (canalSel !== 'Canal' ? metas[mesSel]?.[canalSel] : null) || metas[mesSel]?.['geral'] || {}
+                const mm = (() => {
+                  if (canalSel !== 'Canal') return metas[mesSel]?.[canalSel] || {}
+                  const vals = CANAIS_METAS.map(c => metas[mesSel]?.[c]).filter(Boolean)
+                  if (vals.length === 0) return {}
+                  return { meta_entradas: vals.reduce((s:number,m:any)=>s+(m.meta_entradas||0),0)||null, meta_ra: vals.reduce((s:number,m:any)=>s+(m.meta_ra||0),0)||null, meta_rr: vals.reduce((s:number,m:any)=>s+(m.meta_rr||0),0)||null, meta_vendas: vals.reduce((s:number,m:any)=>s+(m.meta_vendas||0),0)||null, meta_tcv: vals.reduce((s:number,m:any)=>s+(m.meta_tcv||0),0)||null, meta_ativacoes: vals.reduce((s:number,m:any)=>s+(m.meta_ativacoes||0),0)||null }
+                })()
                 const mt = mm.meta_tcv
                 const pct = mt ? Math.min(Math.round(tcvMes / mt * 100), 999) : null
                 const over = !!(mt && tcvMes >= mt)
