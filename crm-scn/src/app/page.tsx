@@ -929,6 +929,14 @@ export default function CRMApp() {
   const [dragModal, setDragModal] = useState<{ open: boolean; lead: any; targetStage: string } | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [fupFilter, setFupFilter] = useState<string>('')
+  const [dashFilterOpen, setDashFilterOpen] = useState(false)
+  const [tierSel, setTierSel] = useState('')
+  const [closerSel, setCloserSel] = useState('')
+  // draft state inside the filter popover
+  const [draftCanal, setDraftCanal] = useState('Canal')
+  const [draftMes, setDraftMes] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}` })
+  const [draftTier, setDraftTier] = useState('')
+  const [draftCloser, setDraftCloser] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1083,14 +1091,17 @@ export default function CRMApp() {
 
   const lm = useMemo(() => {
     const byCanal = (l: any) => canalSel === 'Canal' || l.origem === canalSel
+    const byTier = (l: any) => !tierSel || l.tier === tierSel
+    const byCloser = (l: any) => !closerSel || l.closer === closerSel
+    const match = (l: any) => byCanal(l) && byTier(l) && byCloser(l)
     return {
-      entrada: leads.filter(l => mesAno(l.data_entrada as string) === mesSel && byCanal(l)),
-      ra: leads.filter(l => mesAno(l.data_ra as string) === mesSel && byCanal(l)),
-      rr: leads.filter(l => mesAno(l.data_rr as string) === mesSel && byCanal(l)),
-      venda: leads.filter(l => mesAno(l.data_assinatura as string) === mesSel && byCanal(l)),
-      ativacao: leads.filter(l => mesAno(l.data_ativacao as string) === mesSel && byCanal(l)),
+      entrada: leads.filter(l => mesAno(l.data_entrada as string) === mesSel && match(l)),
+      ra: leads.filter(l => mesAno(l.data_ra as string) === mesSel && match(l)),
+      rr: leads.filter(l => mesAno(l.data_rr as string) === mesSel && match(l)),
+      venda: leads.filter(l => mesAno(l.data_assinatura as string) === mesSel && match(l)),
+      ativacao: leads.filter(l => mesAno(l.data_ativacao as string) === mesSel && match(l)),
     }
-  }, [leads, mesSel, canalSel])
+  }, [leads, mesSel, canalSel, tierSel, closerSel])
 
   const tcvMes = lm.venda.reduce((s, l) => s + (l.tcv || 0), 0)
   const conv = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0
@@ -1308,24 +1319,95 @@ export default function CRMApp() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
               {/* ── Header ── */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: R, textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>Performance Comercial</div>
-                  <h1 style={{ fontSize: 30, fontWeight: 900, color: GRAY1, margin: 0, letterSpacing: '-0.02em', lineHeight: 1 }}>Dashboard</h1>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: WHITE, border: '1px solid #E8E8EE', borderRadius: 10, padding: '8px 12px', boxShadow: '0 1px 6px rgba(0,0,0,.05)' }}>
-                    <button onClick={() => setCanalSel(c => CANAIS[(CANAIS.indexOf(c) - 1 + CANAIS.length) % CANAIS.length])} style={{ background: 'none', border: 'none', color: GRAY2, cursor: 'pointer', display: 'flex', padding: 0 }}><ChevronLeft size={15} /></button>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1, minWidth: 100, textAlign: 'center' }}>{canalSel}</span>
-                    <button onClick={() => setCanalSel(c => CANAIS[(CANAIS.indexOf(c) + 1) % CANAIS.length])} style={{ background: 'none', border: 'none', color: GRAY2, cursor: 'pointer', display: 'flex', padding: 0 }}><ChevronRight size={15} /></button>
+              {(() => {
+                const TIERS = ['TINY', 'SMALL', 'MEDIUM', 'LARGE', 'ENTERPRISE']
+                const allMonthsOpts = (() => {
+                  const months: string[] = []
+                  const now = new Date()
+                  for (let i = -11; i <= 2; i++) {
+                    const d = new Date(now.getFullYear(), now.getMonth() + i)
+                    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+                  }
+                  return months
+                })()
+                const activeFilters = [
+                  canalSel !== 'Canal' && { key: 'canal', label: canalSel, onRemove: () => setCanalSel('Canal') },
+                  mesSel !== draftMes && { key: 'mes', label: mesFmt(mesSel), onRemove: () => { const n = new Date(); const m = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; setMesSel(m); setDraftMes(m) } },
+                  tierSel && { key: 'tier', label: `Tier: ${tierSel}`, onRemove: () => { setTierSel(''); setDraftTier('') } },
+                  closerSel && { key: 'closer', label: `Closer: ${closerSel}`, onRemove: () => { setCloserSel(''); setDraftCloser('') } },
+                ].filter(Boolean) as { key: string; label: string; onRemove: () => void }[]
+                return (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: activeFilters.length > 0 ? 12 : 0 }}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: R, textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>Performance Comercial</div>
+                        <h1 style={{ fontSize: 30, fontWeight: 900, color: GRAY1, margin: 0, letterSpacing: '-0.02em', lineHeight: 1 }}>Dashboard</h1>
+                      </div>
+                      <div style={{ position: 'relative' }}>
+                        <button onClick={() => { setDraftCanal(canalSel); setDraftMes(mesSel); setDraftTier(tierSel); setDraftCloser(closerSel); setDashFilterOpen(v => !v) }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, border: '1px solid #E5E7EB', background: WHITE, color: GRAY1, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                          Adicionar Filtro
+                          {activeFilters.length > 0 && <span style={{ background: R, color: WHITE, borderRadius: '50%', width: 17, height: 17, fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilters.length}</span>}
+                        </button>
+                        {dashFilterOpen && (
+                          <>
+                            <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setDashFilterOpen(false)} />
+                            <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: WHITE, border: '1px solid #E5E7EB', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 50, width: 340, padding: 24 }}>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: GRAY1, marginBottom: 4 }}>Personalize seu filtro</div>
+                              <div style={{ fontSize: 12, color: GRAY2, marginBottom: 20 }}>Escolha os filtros e as opções desejadas.</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                                <div>
+                                  <label style={labelCls}>Canal <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10, color: GRAY3 }}>(optional)</span></label>
+                                  <select style={inputCls} value={draftCanal} onChange={e => setDraftCanal(e.target.value)}>
+                                    {CANAIS.map(c => <option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={labelCls}>Mês <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10, color: GRAY3 }}>(optional)</span></label>
+                                  <select style={inputCls} value={draftMes} onChange={e => setDraftMes(e.target.value)}>
+                                    {allMonthsOpts.map(m => <option key={m} value={m}>{mesFmt(m)}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={labelCls}>Tier <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10, color: GRAY3 }}>(optional)</span></label>
+                                  <select style={inputCls} value={draftTier} onChange={e => setDraftTier(e.target.value)}>
+                                    <option value="">Selecione</option>
+                                    {TIERS.map(t => <option key={t}>{t}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={labelCls}>Closer <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10, color: GRAY3 }}>(optional)</span></label>
+                                  <select style={inputCls} value={draftCloser} onChange={e => setDraftCloser(e.target.value)}>
+                                    <option value="">Selecione</option>
+                                    {CLOSERS.map(c => <option key={c}>{c}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                                <button onClick={() => { setCanalSel('Canal'); const n = new Date(); const m = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; setMesSel(m); setDraftMes(m); setDraftCanal('Canal'); setTierSel(''); setCloserSel(''); setDraftTier(''); setDraftCloser(''); setDashFilterOpen(false) }}
+                                  style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #E5E7EB', background: WHITE, color: GRAY1, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Limpar</button>
+                                <button onClick={() => { setCanalSel(draftCanal); setMesSel(draftMes); setTierSel(draftTier); setCloserSel(draftCloser); setDashFilterOpen(false) }}
+                                  style={{ flex: 2, padding: '10px 0', borderRadius: 10, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Aplicar</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {activeFilters.length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {activeFilters.map(f => (
+                          <span key={f.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, background: `${R}10`, border: `1px solid ${R}30`, fontSize: 12, fontWeight: 700, color: R }}>
+                            {f.label}
+                            <button onClick={f.onRemove} style={{ background: 'none', border: 'none', cursor: 'pointer', color: R, padding: 0, display: 'flex', lineHeight: 1 }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#141414', borderRadius: 10, padding: '8px 12px', boxShadow: '0 2px 12px rgba(0,0,0,.2)' }}>
-                    <button onClick={() => navMes(-1)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', display: 'flex' }}><ChevronLeft size={15} /></button>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: WHITE, minWidth: 90, textAlign: 'center' }}>{mesFmt(mesSel)}</span>
-                    <button onClick={() => navMes(1)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', display: 'flex' }}><ChevronRight size={15} /></button>
-                  </div>
-                </div>
-              </div>
+                )
+              })()}
 
               {/* ── KPI Cards ── */}
               {(() => {
