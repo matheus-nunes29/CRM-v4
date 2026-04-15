@@ -52,6 +52,7 @@ export type Lead = {
   primeiro_pagamento: string | null
   produto_vendido: string | null
   handover: string | null
+  email?: string | null
   anotacoes_pre_vendas?: string | null
   cadencia?: number | null
   contato_agendado?: boolean | null

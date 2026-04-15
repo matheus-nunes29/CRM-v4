@@ -18,6 +18,10 @@ const ORIGENS = ['Recovery', 'Lead Broker', 'Recomendação', 'Eventos', 'Indica
 const SEGMENTOS = ['Serviço', 'Varejo', 'Indústria', 'Saúde', 'Educação', 'Tecnologia', 'Imobiliário', 'Agronegócio', 'Outro']
 const CARGOS = ['Não identificado', 'Sócio', 'Diretor', 'Gerente', 'Coordenador', 'Analista', 'Assistente', 'Outro']
 const CLOSERS = ['MATHEUS', 'VITOR']
+const CLOSER_EMAILS: Record<string, string> = {
+  'MATHEUS': 'matheus.nunes@v4company.com',
+  'VITOR': 'vitor@v4company.com',
+}
 const TEMPERATURAS = ['FRIO', 'MORNO', 'QUENTE', 'FECHADO']
 const SITUACOES_PRE_VENDAS = ['TENTANDO CONTATO', 'EM QUALIFICAÇÃO', 'REUNIÃO AGENDADA', 'NO SHOW/REMARCANDO', 'REUNIÃO REALIZADA', 'PERDIDO SDR', 'REEMBOLSO', 'AGENDA FUTURA']
 const SITUACOES = ['EM FOLLOW UP', 'REUNIAO EXTRA AGENDADA', 'VENDA', 'PERDIDO CLOSER', 'AGENDA FUTURA']
@@ -118,7 +122,7 @@ const LeadModal = React.memo(function LeadModal({
   const [novoPassoTexto, setNovoPassoTexto] = useState('')
 
   const initForm = {
-    empresa: '', nome_lead: '', telefone: '', origem: null, segmento: null, closer: null,
+    empresa: '', nome_lead: '', telefone: '', email: '', origem: null, segmento: null, closer: null,
     temperatura: null, situacao_pre_vendas: null, bant_budget: false, bant_authority: false,
     bant_need: false, bant_timing: false, situacao_closer: null, proximos_passos: '',
     tcv: undefined, venda: 'NÃO', data_fup: null, tier: null, faturamento: null, cargo: null,
@@ -196,6 +200,35 @@ const LeadModal = React.memo(function LeadModal({
               </div>
             </div>
           </div>
+          {!isNew && (() => {
+            const date = form.data_ra || new Date().toISOString().split('T')[0]
+            const [y, m, d] = date.split('-')
+            const start = `${y}${m}${d}T090000`
+            const end   = `${y}${m}${d}T100000`
+            const guests: string[] = []
+            if (form.email) guests.push(form.email)
+            if (form.closer && CLOSER_EMAILS[form.closer]) guests.push(CLOSER_EMAILS[form.closer])
+            const params = new URLSearchParams({
+              action: 'TEMPLATE',
+              text: `Reunião — ${form.empresa || 'Lead'}`,
+              dates: `${start}/${end}`,
+              details: [
+                form.nome_lead ? `Lead: ${form.nome_lead}` : '',
+                form.telefone ? `Tel: ${form.telefone}` : '',
+                form.origem ? `Canal: ${form.origem}` : '',
+                form.segmento ? `Segmento: ${form.segmento}` : '',
+              ].filter(Boolean).join('\n'),
+            })
+            if (guests.length) params.set('add', guests.join(','))
+            const url = `https://calendar.google.com/calendar/render?${params.toString()}`
+            return (
+              <a href={url} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#15803D', fontSize: 12, fontWeight: 700, textDecoration: 'none', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Agendar no Google Agenda
+              </a>
+            )
+          })()}
           <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: GRAY2 }}>
             <X size={16} />
           </button>
@@ -231,6 +264,16 @@ const LeadModal = React.memo(function LeadModal({
                 value={form.telefone || ''}
                 onChange={e => set('telefone', formatPhone(e.target.value))}
                 placeholder="(43) 99999-9999"
+              />
+            </InfoField>
+
+            <InfoField label="E-mail do Lead">
+              <input
+                type="email"
+                style={inputStyle}
+                value={form.email || ''}
+                onChange={e => set('email', e.target.value)}
+                placeholder="email@exemplo.com"
               />
             </InfoField>
 
