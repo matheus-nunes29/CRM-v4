@@ -208,16 +208,26 @@ const LeadModal = React.memo(function LeadModal({
             const guests: string[] = []
             if (form.email) guests.push(form.email)
             if (form.closer && CLOSER_EMAILS[form.closer]) guests.push(CLOSER_EMAILS[form.closer])
+            const empresa = form.empresa || 'Lead'
+            const descricao = `Nosso especialista com todo know how e expertise estará com vocês via videoconferência para apresentar nossa Assessoria com foco na geração de demanda.
+
+Apresentaremos como a V4 Company poderá contribuir com a operação da ${empresa} e quais estratégias iremos utilizar para compor na sua empresa quanto a performance e processos de marketing e vendas.
+
+
+✅ Para acessar a reunião basta clicar no link abaixo e depois no botão azul de "Entrar com Google Meet" ou se estiver em inglês "Login with Google Meet". Algumas informações sobre a nossa reunião:
+
+💻 1) É fundamental acessar de um computador ou notebook com câmera, para visualizar melhor as informações;
+
+🎥 2) Não é obrigatório, mas é melhor usar uma webcam;
+
+🎧 3) Fundamental você ter microfone e de preferência um fone de ouvido, também;
+
+📶 4) É importante ter uma boa conexão de 'internet'. Se possível, com cabo.`
             const params = new URLSearchParams({
               action: 'TEMPLATE',
-              text: `Reunião — ${form.empresa || 'Lead'}`,
+              text: `V4 Company + ${empresa}`,
               dates: `${start}/${end}`,
-              details: [
-                form.nome_lead ? `Lead: ${form.nome_lead}` : '',
-                form.telefone ? `Tel: ${form.telefone}` : '',
-                form.origem ? `Canal: ${form.origem}` : '',
-                form.segmento ? `Segmento: ${form.segmento}` : '',
-              ].filter(Boolean).join('\n'),
+              details: descricao,
             })
             if (guests.length) params.set('add', guests.join(','))
             const url = `https://calendar.google.com/calendar/render?${params.toString()}`
