@@ -1149,6 +1149,8 @@ export default function CRMApp() {
   const [fupFilter, setFupFilter] = useState<string>('')
   const [dashFilterOpen, setDashFilterOpen] = useState(false)
   const [pipelineFilterOpen, setPipelineFilterOpen] = useState(false)
+  const [kpiHover, setKpiHover] = useState<string|null>(null)
+  const [kpiPopoverPage, setKpiPopoverPage] = useState(0)
   const [leadsFilterOpen, setLeadsFilterOpen] = useState(false)
   const [draftLeadsFilters, setDraftLeadsFilters] = useState({ closer:'', temperatura:'', situacao:'', origem:'', tier:'', mes_entrada:'', mes_ra:'', mes_rr:'', mes_venda:'', mes_ativacao:'', situacao_pre_vendas:'' })
   const [draftPipelineCanal, setDraftPipelineCanal] = useState('Canal')
@@ -1649,36 +1651,83 @@ export default function CRMApp() {
                   if (vals.length === 0) return {}
                   return { meta_entradas: vals.reduce((s:number,m:any)=>s+(m.meta_entradas||0),0)||null, meta_ra: vals.reduce((s:number,m:any)=>s+(m.meta_ra||0),0)||null, meta_rr: vals.reduce((s:number,m:any)=>s+(m.meta_rr||0),0)||null, meta_vendas: vals.reduce((s:number,m:any)=>s+(m.meta_vendas||0),0)||null, meta_tcv: vals.reduce((s:number,m:any)=>s+(m.meta_tcv||0),0)||null, meta_ativacoes: vals.reduce((s:number,m:any)=>s+(m.meta_ativacoes||0),0)||null }
                 })()
+                const KPI_PAGE = 10
                 const kpis = [
-                  { label: 'Entradas', real: lm.entrada.length, meta: mm.meta_entradas, color: BLUE },
-                  { label: 'Reu. Agend.', real: lm.ra.length, meta: mm.meta_ra, color: YELLOW },
-                  { label: 'Reu. Realiz.', real: lm.rr.length, meta: mm.meta_rr, color: PURPLE },
-                  { label: 'Vendas', real: lm.venda.length, meta: mm.meta_vendas, color: GREEN },
-                  { label: 'Ativações', real: lm.ativacao.length, meta: mm.meta_ativacoes, color: R },
+                  { label: 'Entradas',    real: lm.entrada.length, leads: lm.entrada,  dateKey: 'data_entrada'    as keyof Lead, meta: mm.meta_entradas,  color: BLUE },
+                  { label: 'Reu. Agend.', real: lm.ra.length,      leads: lm.ra,       dateKey: 'data_ra'         as keyof Lead, meta: mm.meta_ra,        color: YELLOW },
+                  { label: 'Reu. Realiz.',real: lm.rr.length,      leads: lm.rr,       dateKey: 'data_rr'         as keyof Lead, meta: mm.meta_rr,        color: PURPLE },
+                  { label: 'Vendas',      real: lm.venda.length,   leads: lm.venda,    dateKey: 'data_assinatura' as keyof Lead, meta: mm.meta_vendas,    color: GREEN },
+                  { label: 'Ativações',   real: lm.ativacao.length,leads: lm.ativacao, dateKey: 'data_ativacao'   as keyof Lead, meta: mm.meta_ativacoes, color: R },
                 ]
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10 }}>
-                    {kpis.map(k => {
+                    {kpis.map((k, ki) => {
                       const pct = k.meta ? Math.min(Math.round(k.real / k.meta * 100), 100) : null
                       const over = !!(k.meta && k.real >= k.meta)
+                      const isHovered = kpiHover === k.label
+                      const totalKpiPages = Math.ceil(k.leads.length / KPI_PAGE)
+                      const pageLeads = k.leads.slice(kpiPopoverPage * KPI_PAGE, (kpiPopoverPage + 1) * KPI_PAGE)
+                      // Align popover: last two cards align right to avoid overflow
+                      const popoverLeft = ki >= 3 ? 'auto' : '50%'
+                      const popoverRight = ki >= 3 ? 0 : 'auto'
+                      const popoverTransform = ki >= 3 ? 'none' : 'translateX(-50%)'
                       return (
-                        <div key={k.label} style={{ background: WHITE, borderRadius: 16, padding: '20px 20px 18px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
-                          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: k.color, borderRadius: '16px 0 0 16px' }} />
-                          <div style={{ paddingLeft: 10 }}>
-                            <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>{k.label}</div>
-                            <div style={{ fontSize: 44, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.03em' }}>{k.real}</div>
-                            {k.meta ? (
-                              <div style={{ marginTop: 12 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                                  <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {k.meta}</span>
-                                  <span style={{ fontSize: 10, fontWeight: 900, color: over ? GREEN : k.color, background: over ? `${GREEN}14` : `${k.color}14`, padding: '2px 7px', borderRadius: 20 }}>{pct}%</span>
+                        <div key={k.label} style={{ position: 'relative' }}
+                          onMouseEnter={() => { setKpiHover(k.label); setKpiPopoverPage(0) }}
+                          onMouseLeave={() => setKpiHover(null)}
+                        >
+                          <div style={{ background: WHITE, borderRadius: 16, padding: '20px 20px 18px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: k.color, borderRadius: '16px 0 0 16px' }} />
+                            <div style={{ paddingLeft: 10 }}>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>{k.label}</div>
+                              <div style={{ fontSize: 44, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.03em', cursor: k.leads.length > 0 ? 'default' : 'default' }}>{k.real}</div>
+                              {k.meta ? (
+                                <div style={{ marginTop: 12 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                                    <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {k.meta}</span>
+                                    <span style={{ fontSize: 10, fontWeight: 900, color: over ? GREEN : k.color, background: over ? `${GREEN}14` : `${k.color}14`, padding: '2px 7px', borderRadius: 20 }}>{pct}%</span>
+                                  </div>
+                                  <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                                    <div style={{ height: 3, borderRadius: 2, background: over ? GREEN : k.color, width: `${pct}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
+                                  </div>
                                 </div>
-                                <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
-                                  <div style={{ height: 3, borderRadius: 2, background: over ? GREEN : k.color, width: `${pct}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
-                                </div>
-                              </div>
-                            ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 10 }}>Sem meta</div>}
+                              ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 10 }}>Sem meta</div>}
+                            </div>
                           </div>
+                          {/* ── Lead popover on hover ── */}
+                          {isHovered && k.leads.length > 0 && (
+                            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: popoverLeft, right: popoverRight, transform: popoverTransform, width: 290, background: WHITE, border: '1px solid #E5E7EB', borderRadius: 14, boxShadow: '0 10px 36px rgba(0,0,0,.16)', zIndex: 200, overflow: 'hidden' }}>
+                              {/* header */}
+                              <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: 11, fontWeight: 800, color: k.color, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{k.label}</span>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: GRAY2 }}>{k.leads.length} lead{k.leads.length !== 1 ? 's' : ''}</span>
+                              </div>
+                              {/* rows */}
+                              <div>
+                                {pageLeads.map((l, i) => (
+                                  <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderBottom: i < pageLeads.length - 1 ? '1px solid #F9FAFB' : 'none', background: i % 2 ? '#FAFAFA' : WHITE }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontSize: 12, fontWeight: 700, color: GRAY1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.empresa}</div>
+                                      <div style={{ fontSize: 10, color: GRAY3, marginTop: 1 }}>{fmtDate(l[k.dateKey] as string) || '—'}</div>
+                                    </div>
+                                    {l.closer && (
+                                      <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, background: l.closer === 'VITOR' ? `${PURPLE}18` : `${BLUE}18`, color: l.closer === 'VITOR' ? PURPLE : BLUE, whiteSpace: 'nowrap', flexShrink: 0 }}>{l.closer}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              {/* pagination */}
+                              {totalKpiPages > 1 && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: '1px solid #F3F4F6', background: '#FAFAFA' }}>
+                                  <button onClick={e => { e.stopPropagation(); setKpiPopoverPage(p => Math.max(0, p - 1)) }} disabled={kpiPopoverPage === 0}
+                                    style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #E5E7EB', background: kpiPopoverPage === 0 ? GRAY4 : WHITE, color: kpiPopoverPage === 0 ? GRAY3 : GRAY1, fontSize: 11, fontWeight: 700, cursor: kpiPopoverPage === 0 ? 'default' : 'pointer' }}>‹ Anterior</button>
+                                  <span style={{ fontSize: 10, color: GRAY2, fontWeight: 600 }}>{kpiPopoverPage + 1} / {totalKpiPages}</span>
+                                  <button onClick={e => { e.stopPropagation(); setKpiPopoverPage(p => Math.min(totalKpiPages - 1, p + 1)) }} disabled={kpiPopoverPage === totalKpiPages - 1}
+                                    style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #E5E7EB', background: kpiPopoverPage === totalKpiPages - 1 ? GRAY4 : WHITE, color: kpiPopoverPage === totalKpiPages - 1 ? GRAY3 : GRAY1, fontSize: 11, fontWeight: 700, cursor: kpiPopoverPage === totalKpiPages - 1 ? 'default' : 'pointer' }}>Próxima ›</button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
