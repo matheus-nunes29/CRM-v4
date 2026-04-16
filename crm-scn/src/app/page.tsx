@@ -307,7 +307,7 @@ export default function DashboardPage() {
             if (canalSel !== 'Canal') return metas[mesSel]?.[canalSel] || {}
             const vals = CANAIS_METAS.map(c => metas[mesSel]?.[c]).filter(Boolean)
             if (vals.length === 0) return {}
-            return { meta_tcv: vals.reduce((s:number,m:any)=>s+(m.meta_tcv||0),0)||null }
+            return { meta_tcv: vals.reduce((s:number,m:any)=>s+(m.meta_tcv||0),0)||null, meta_valor_investido: vals.reduce((s:number,m:any)=>s+(m.meta_valor_investido||0),0)||null, meta_entradas: vals.reduce((s:number,m:any)=>s+(m.meta_entradas||0),0)||null }
           })()
           const mt = mm.meta_tcv
           const pct = mt ? Math.min(Math.round(tcvMes / mt * 100), 999) : null
@@ -316,6 +316,9 @@ export default function DashboardPage() {
           const valorInvestido = lm.entrada.reduce((s: number, l: any) => s + (l.custo_broker || 0), 0)
           const cpmql = lm.entrada.length > 0 && valorInvestido > 0 ? valorInvestido / lm.entrada.length : null
           const roas = valorInvestido > 0 ? tcvMes / valorInvestido : null
+          const metaVI = mm.meta_valor_investido || null
+          const metaCpmql = (metaVI && mm.meta_entradas) ? metaVI / mm.meta_entradas : (metaVI && lm.entrada.length > 0 ? metaVI / lm.entrada.length : null)
+          const metaRoas = (metaVI && mt) ? mt / metaVI : null
 
           const cardTCV = (
             <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
@@ -398,32 +401,94 @@ export default function DashboardPage() {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
                 {cardTCV}
-                <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: YELLOW, borderRadius: '16px 0 0 16px' }} />
-                  <div style={{ paddingLeft: 10 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Valor Investido</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>{fmt(valorInvestido)}</div>
-                    <div style={{ fontSize: 10, color: GRAY2, marginTop: 8 }}>{lm.entrada.length} lead{lm.entrada.length !== 1 ? 's' : ''} no mês</div>
-                  </div>
-                </div>
-                <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: PURPLE, borderRadius: '16px 0 0 16px' }} />
-                  <div style={{ paddingLeft: 10 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>CPMQL</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>{cpmql != null ? fmt(cpmql) : '—'}</div>
-                    <div style={{ fontSize: 10, color: GRAY2, marginTop: 8 }}>Custo médio por lead</div>
-                  </div>
-                </div>
-                <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: roas != null && roas >= 1 ? GREEN : R, borderRadius: '16px 0 0 16px' }} />
-                  <div style={{ paddingLeft: 10 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>ROAS</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: roas != null && roas >= 1 ? GREEN : roas != null ? R : GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>
-                      {roas != null ? `${roas.toFixed(2)}x` : '—'}
+                {/* Valor Investido */}
+                {(() => {
+                  const pctVI = metaVI && valorInvestido ? Math.min(Math.round(valorInvestido / metaVI * 100), 100) : null
+                  const overVI = !!(metaVI && valorInvestido >= metaVI)
+                  return (
+                    <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: YELLOW, borderRadius: '16px 0 0 16px' }} />
+                      <div style={{ paddingLeft: 10 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Valor Investido</div>
+                        <div style={{ fontSize: 28, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>{fmt(valorInvestido)}</div>
+                        <div style={{ fontSize: 10, color: GRAY2, marginTop: 6 }}>{lm.entrada.length} lead{lm.entrada.length !== 1 ? 's' : ''} no mês</div>
+                      </div>
+                      {metaVI ? (
+                        <div style={{ marginTop: 14, paddingLeft: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                            <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {fmt(metaVI)}</span>
+                            <span style={{ fontSize: 10, fontWeight: 900, color: overVI ? GREEN : YELLOW, background: overVI ? `${GREEN}14` : `${YELLOW}14`, padding: '2px 7px', borderRadius: 20 }}>{pctVI}%</span>
+                          </div>
+                          <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                            <div style={{ height: 3, borderRadius: 2, background: overVI ? GREEN : YELLOW, width: `${pctVI}%`, transition: 'width .7s' }} />
+                          </div>
+                        </div>
+                      ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 10, paddingLeft: 10 }}>Sem meta</div>}
                     </div>
-                    <div style={{ fontSize: 10, color: GRAY2, marginTop: 8 }}>TCV ÷ Valor investido</div>
-                  </div>
-                </div>
+                  )
+                })()}
+                {/* CPMQL */}
+                {(() => {
+                  const cpmqlBom = cpmql != null && metaCpmql != null ? cpmql <= metaCpmql : null
+                  return (
+                    <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: PURPLE, borderRadius: '16px 0 0 16px' }} />
+                      <div style={{ paddingLeft: 10 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>CPMQL</div>
+                        <div style={{ fontSize: 28, fontWeight: 900, color: cpmqlBom === true ? GREEN : cpmqlBom === false ? R : GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>{cpmql != null ? fmt(cpmql) : '—'}</div>
+                        <div style={{ fontSize: 10, color: GRAY2, marginTop: 6 }}>Custo médio por lead</div>
+                      </div>
+                      {metaCpmql ? (
+                        <div style={{ marginTop: 14, paddingLeft: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {fmt(metaCpmql)}</span>
+                            {cpmql != null && (
+                              <span style={{ fontSize: 10, fontWeight: 900, color: cpmqlBom ? GREEN : R, background: cpmqlBom ? `${GREEN}14` : `${R}14`, padding: '2px 7px', borderRadius: 20 }}>
+                                {cpmqlBom ? '✓ OK' : '↑ Acima'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 10, paddingLeft: 10 }}>Sem meta</div>}
+                    </div>
+                  )
+                })()}
+                {/* ROAS */}
+                {(() => {
+                  const roasColor = roas != null && roas >= 1 ? GREEN : R
+                  const roasBom = roas != null && metaRoas != null ? roas >= metaRoas : null
+                  return (
+                    <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: roasColor, borderRadius: '16px 0 0 16px' }} />
+                      <div style={{ paddingLeft: 10 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>ROAS</div>
+                        <div style={{ fontSize: 28, fontWeight: 900, color: roasColor, lineHeight: 1, letterSpacing: '-0.02em' }}>
+                          {roas != null ? `${roas.toFixed(2)}x` : '—'}
+                        </div>
+                        <div style={{ fontSize: 10, color: GRAY2, marginTop: 6 }}>TCV ÷ Valor investido</div>
+                      </div>
+                      {metaRoas ? (
+                        <div style={{ marginTop: 14, paddingLeft: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {metaRoas.toFixed(2)}x</span>
+                            {roas != null && (
+                              <span style={{ fontSize: 10, fontWeight: 900, color: roasBom ? GREEN : R, background: roasBom ? `${GREEN}14` : `${R}14`, padding: '2px 7px', borderRadius: 20 }}>
+                                {roasBom ? '✓ OK' : '↓ Abaixo'}
+                              </span>
+                            )}
+                          </div>
+                          {roas != null && (
+                            <div style={{ marginTop: 5 }}>
+                              <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                                <div style={{ height: 3, borderRadius: 2, background: roasBom ? GREEN : R, width: `${Math.min(roas / metaRoas * 100, 100)}%`, transition: 'width .7s' }} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 10, paddingLeft: 10 }}>Sem meta</div>}
+                    </div>
+                  )
+                })()}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {cardConversao}
