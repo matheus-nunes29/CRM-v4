@@ -202,7 +202,7 @@ function LeadPageInner() {
     setSaving(true)
     const { id: formId, created_at, updated_at, ...data } = form as any
     if (!isNew && formId) {
-      const { error } = await supabase.from('leads').update(data).eq('id', formId)
+      const { error } = await supabase.from('leads').update({ ...data, updated_at: new Date().toISOString() }).eq('id', formId)
       if (error) { alert('Erro ao salvar: ' + error.message); setSaving(false); return }
     } else {
       const clean: Record<string, any> = {}
