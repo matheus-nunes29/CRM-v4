@@ -78,8 +78,10 @@ export default function DashboardPage() {
     const s = new Set<string>()
     const campos: (keyof Lead)[] = ['data_entrada', 'data_ra', 'data_rr', 'data_assinatura', 'data_ativacao']
     leads.forEach(l => campos.forEach(c => { const m = mesAno(l[c] as string); if (m) s.add(m) }))
+    const now = new Date()
+    const currentMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     const byCanal = (l: any) => canalSel === 'Canal' || l.origem === canalSel
-    return Array.from(s).sort().map(m => ({
+    return Array.from(s).sort().filter(m => m <= currentMes).slice(-4).map(m => ({
       mes: mesFmt(m),
       entrada: leads.filter(l => mesAno(l.data_entrada as string) === m && byCanal(l)).length,
       ra: leads.filter(l => mesAno(l.data_ra as string) === m && byCanal(l)).length,
@@ -509,7 +511,7 @@ export default function DashboardPage() {
           <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Evolução Mensal</div>
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={dadosMensais.slice(-4)}>
+              <LineChart data={dadosMensais}>
                 <CartesianGrid strokeDasharray="2 4" stroke="#EBEBEB" />
                 <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -526,7 +528,7 @@ export default function DashboardPage() {
           <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>TCV por Mês</div>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={dadosMensais.slice(-4)}>
+              <BarChart data={dadosMensais}>
                 <CartesianGrid strokeDasharray="2 4" stroke="#EBEBEB" />
                 <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
