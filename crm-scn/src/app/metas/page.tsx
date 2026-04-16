@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import CRMLayout from '../_components/CRMLayout'
 import {
-  R, WHITE, GRAY1, GRAY2, GRAY3, GREEN,
+  R, WHITE, GRAY1, GRAY2, GRAY3, GREEN, YELLOW, PURPLE, BLUE,
   CANAIS_METAS, MESES,
   fmt, mesFmt,
   inputCls, labelCls,
@@ -64,7 +64,7 @@ export default function MetasPageRoute() {
 
 function MetasContent({ metas, mesSel, navMes, saveMeta }: any) {
   const [canalTab, setCanalTab] = useState('Recovery')
-  const [form, setForm] = useState({ meta_entradas: '', meta_ra: '', meta_rr: '', meta_vendas: '', meta_tcv: '', meta_ativacoes: '' })
+  const [form, setForm] = useState({ meta_entradas: '', meta_ra: '', meta_rr: '', meta_vendas: '', meta_tcv: '', meta_ativacoes: '', meta_valor_investido: '' })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -72,7 +72,7 @@ function MetasContent({ metas, mesSel, navMes, saveMeta }: any) {
 
   useEffect(() => {
     const m = metas[mesSel]?.[canalKey] || {}
-    setForm({ meta_entradas: m.meta_entradas || '', meta_ra: m.meta_ra || '', meta_rr: m.meta_rr || '', meta_vendas: m.meta_vendas || '', meta_tcv: m.meta_tcv || '', meta_ativacoes: m.meta_ativacoes || '' })
+    setForm({ meta_entradas: m.meta_entradas || '', meta_ra: m.meta_ra || '', meta_rr: m.meta_rr || '', meta_vendas: m.meta_vendas || '', meta_tcv: m.meta_tcv || '', meta_ativacoes: m.meta_ativacoes || '', meta_valor_investido: m.meta_valor_investido || '' })
     setSaved(false)
   }, [mesSel, metas, canalTab])
 
@@ -172,6 +172,40 @@ function MetasContent({ metas, mesSel, navMes, saveMeta }: any) {
                 <input type="number" placeholder="0" style={inputCls} value={(form as any)[c.key]} onChange={e => set(c.key, e.target.value)} />
               </div>
             ))}
+
+            {/* Lead Broker extra fields */}
+            {canalTab === 'Lead Broker' && (() => {
+              const metaVI = Number(form.meta_valor_investido) || 0
+              const metaEntradas = Number(form.meta_entradas) || 0
+              const metaTCV = Number(form.meta_tcv) || 0
+              const cpmql = metaEntradas > 0 && metaVI > 0 ? metaVI / metaEntradas : null
+              const roas = metaVI > 0 && metaTCV > 0 ? metaTCV / metaVI : null
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 14, borderTop: '1px solid #F3F4F6' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: YELLOW, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Lead Broker</div>
+                  <div>
+                    <label style={labelCls}>💸 Meta de Valor Investido (R$)</label>
+                    <input type="number" placeholder="0" style={inputCls} value={form.meta_valor_investido} onChange={e => set('meta_valor_investido', e.target.value)} />
+                  </div>
+                  {/* CPMQL calculado */}
+                  <div style={{ background: `${PURPLE}08`, border: `1px solid ${PURPLE}20`, borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: PURPLE, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>CPMQL — Meta Calculada</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: cpmql ? PURPLE : GRAY2 }}>
+                      {cpmql ? fmt(cpmql) : '—'}
+                    </div>
+                    <div style={{ fontSize: 11, color: GRAY2, marginTop: 3 }}>Valor Investido ÷ Meta de Entradas</div>
+                  </div>
+                  {/* ROAS calculado */}
+                  <div style={{ background: `${(roas != null && roas >= 1) ? GREEN : R}08`, border: `1px solid ${(roas != null && roas >= 1) ? GREEN : R}20`, borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: (roas != null && roas >= 1) ? GREEN : R, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>ROAS — Meta Calculada</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: roas ? ((roas >= 1) ? GREEN : R) : GRAY2 }}>
+                      {roas ? `${roas.toFixed(2)}x` : '—'}
+                    </div>
+                    <div style={{ fontSize: 11, color: GRAY2, marginTop: 3 }}>Meta TCV ÷ Valor Investido</div>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
           <button onClick={handleSave} disabled={saving} style={{ width: '100%', marginTop: 22, padding: 13, borderRadius: 10, border: 'none', background: saved ? GREEN : R, color: WHITE, fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'background .3s' }}>
             {saving ? 'SALVANDO...' : saved ? '✓ SALVO!' : 'SALVAR METAS'}
