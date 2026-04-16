@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Lead } from '@/lib/supabase'
-import { ArrowRight, X } from 'lucide-react'
+import { ArrowRight, X, Search } from 'lucide-react'
 import CRMLayout from '../_components/CRMLayout'
 import { TempBadge } from '@/lib/crm-badges'
 import {
@@ -159,6 +159,7 @@ export default function PipelinePage() {
   const [dragModal, setDragModal] = useState<{ open: boolean; lead: any; targetStage: string } | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [fupFilter, setFupFilter] = useState<string>('')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -199,15 +200,19 @@ export default function PipelinePage() {
     setDragModal(null)
   }
 
-  const funilPipeline = useMemo(() => PIPELINE_STAGES.map(stage => ({
-    ...stage,
-    leads: leads.filter(l =>
-      getPipelineStage(l) === stage.key &&
-      (pipelineCanal === 'Canal' || l.origem === pipelineCanal) &&
-      (!pipelineCloser || l.closer === pipelineCloser) &&
-      (!pipelineTemp || l.temperatura === pipelineTemp)
-    )
-  })), [leads, pipelineCanal, pipelineCloser, pipelineTemp])
+  const funilPipeline = useMemo(() => {
+    const q = search.toLowerCase()
+    return PIPELINE_STAGES.map(stage => ({
+      ...stage,
+      leads: leads.filter(l =>
+        getPipelineStage(l) === stage.key &&
+        (pipelineCanal === 'Canal' || l.origem === pipelineCanal) &&
+        (!pipelineCloser || l.closer === pipelineCloser) &&
+        (!pipelineTemp || l.temperatura === pipelineTemp) &&
+        (!q || l.empresa?.toLowerCase().includes(q) || (l as any).nome_lead?.toLowerCase().includes(q))
+      )
+    }))
+  }, [leads, pipelineCanal, pipelineCloser, pipelineTemp, search])
 
   if (loading) {
     return (
@@ -231,6 +236,15 @@ export default function PipelinePage() {
             <h1 style={{ fontSize:30, fontWeight:900, color:GRAY1, margin:0, letterSpacing:'-0.02em', lineHeight:1 }}>Pipeline</h1>
           </div>
           <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+            <div style={{ position:'relative' }}>
+              <Search size={14} style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:GRAY2, pointerEvents:'none' }} />
+              <input
+                style={{ paddingLeft:34, paddingRight:12, paddingTop:9, paddingBottom:9, border:'1px solid #E5E7EB', borderRadius:10, fontSize:13, color:GRAY1, outline:'none', background:WHITE, width:240, boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}
+                placeholder="Buscar empresa ou lead..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
             <div style={{ display:'flex', background:WHITE, border:'1px solid #E5E7EB', borderRadius:12, padding:4, boxShadow:'0 1px 4px rgba(0,0,0,.06)', gap:2 }}>
               {([
                 { key:'total', label:'Total', color: GRAY1 },
