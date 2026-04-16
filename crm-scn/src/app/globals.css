@@ -2,22 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif;
-  background: #F1F0F7;
-  -webkit-font-smoothing: antialiased;
+:root {
+  --red:        #E8001C;
+  --red-hover:  #C5001A;
+  --black:      #0E0D0B;
+  --white:      #FFFFFF;
+  --cream:      #F6F3EE;
+  --border:     #E6E1D8;
+  --text-1:     #181612;
+  --text-2:     #6E6A63;
+  --text-3:     #B0AAA0;
+  --card:       #FFFFFF;
+  --sidebar-bg: #0E0D0B;
+  --sidebar-border: rgba(255,255,255,0.06);
 }
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-dm), 'DM Sans', system-ui, sans-serif;
+  background: var(--cream);
+  color: var(--text-1);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Tabular numbers for data */
+.tabular { font-variant-numeric: tabular-nums; }
 
 @keyframes spin { to { transform: rotate(360deg) } }
 
-@keyframes nav-glow {
-  0%, 100% { box-shadow: 0 4px 16px rgba(124,58,237,0.35); }
-  50% { box-shadow: 0 4px 20px rgba(124,58,237,0.5); }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* Input / select base reset */
+input, select, textarea {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
