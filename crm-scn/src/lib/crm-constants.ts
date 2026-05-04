@@ -3,21 +3,26 @@ import React from 'react'
 // ── Brand palette ──────────────────────────────────────────────────────────
 export const R       = '#E8001C'
 export const WHITE   = '#FFFFFF'
-export const BLACK   = '#0E0D0B'
+export const BLACK   = '#07050A'
 export const CREAM   = '#F6F3EE'
 
-// ── Grays (warm-toned) ─────────────────────────────────────────────────────
-export const GRAY1   = '#181612'   // near-black text
-export const GRAY2   = '#6E6A63'   // secondary text
-export const GRAY3   = '#B0AAA0'   // muted / disabled
-export const GRAY4   = '#F0EDE8'   // table row alt
-export const GRAY5   = '#E6E1D8'   // borders
+// ── Grays ─────────────────────────────────────────────────────────────────
+export const GRAY1   = '#111827'                       // primary text
+export const GRAY2   = '#4B5563'                       // secondary text
+export const GRAY3   = '#9CA3AF'                       // muted / disabled
+export const GRAY4   = '#F9FAFB'                       // table row alt
+export const GRAY5   = '#E5E7EB'                       // borders
 
-// ── Semantic accents (kept minimal) ───────────────────────────────────────
-export const GREEN   = '#1A7A4A'
-export const BLUE    = '#0B6E8A'
-export const YELLOW  = '#B45309'
-export const PURPLE  = '#5B3FA6'
+// ── Semantic accents ──────────────────────────────────────────────────────
+export const GREEN   = '#10B981'
+export const BLUE    = '#3B82F6'
+export const YELLOW  = '#D97706'
+export const PURPLE  = '#8B5CF6'
+
+// ── Glass design tokens (kept for compatibility) ──────────────────────────
+export const GLASS_BG     = 'rgba(255,255,255,0.07)'
+export const GLASS_BORDER = 'rgba(255,255,255,0.13)'
+export const GLASS_SHADOW = '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.18)'
 
 // ── Layout ────────────────────────────────────────────────────────────────
 export const CONTENT_BG  = '#F6F3EE'
@@ -35,6 +40,30 @@ export const MESES              = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ag
 export const CANAIS_METAS       = ['Recovery', 'Lead Broker', 'Recomendação', 'Eventos', 'Indicação']
 export const CANAIS             = ['Canal', ...CANAIS_METAS]
 export const TIERS              = ['TINY', 'SMALL', 'MEDIUM', 'LARGE', 'ENTERPRISE']
+
+export const MOTIVOS_PERDA_PRE_VENDAS = [
+  'Sem perfil (fora do ICP)',
+  'Sem interesse',
+  'Incontactável',
+  'Já tem solução / concorrente',
+  'Sem budget declarado',
+  'Timing ruim',
+  'Não chegou ao decisor',
+  'No-show repetido',
+  'Agenda futura sem data',
+]
+
+export const MOTIVOS_PERDA_CLOSER = [
+  'Preço alto / sem budget aprovado',
+  'Perdeu para concorrente',
+  'Sem urgência',
+  'Sócio/Diretor vetou',
+  'Ghost / parou de responder',
+  'Proposta não encaixou na necessidade',
+  'Timing ruim',
+  'Negociação travada',
+  'Reembolso / cancelamento',
+]
 
 export const TEMP_COLORS: Record<string,string> = {
   FRIO: BLUE, MORNO: YELLOW, QUENTE: R, FECHADO: GREEN,
@@ -72,9 +101,8 @@ export const fmtDate = (d: string | null | undefined) =>
 
 export const mesAno = (d: string | null | undefined): string | null => {
   if (!d) return null
-  const dt = new Date(d)
-  if (isNaN(dt.getTime())) return null
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+  const s = String(d).substring(0, 7)
+  return /^\d{4}-\d{2}$/.test(s) ? s : null
 }
 
 export const mesFmt = (m: string) => {
@@ -86,11 +114,11 @@ export const mesFmt = (m: string) => {
 // ── Shared form styles ─────────────────────────────────────────────────────
 export const inputCls: React.CSSProperties = {
   width: '100%',
-  border: '1px solid #E6E1D8',
+  border: '1px solid #D1D5DB',
   borderRadius: 8,
   padding: '9px 12px',
   fontSize: 13,
-  color: '#181612',
+  color: '#111827',
   outline: 'none',
   boxSizing: 'border-box',
   background: '#FFFFFF',
@@ -101,7 +129,7 @@ export const labelCls: React.CSSProperties = {
   display: 'block',
   fontSize: 11,
   fontWeight: 600,
-  color: '#6E6A63',
+  color: '#6B7280',
   marginBottom: 5,
   textTransform: 'uppercase' as const,
   letterSpacing: '0.06em',

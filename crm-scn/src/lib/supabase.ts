@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://fkbwxhjjlsjgpwttgbdw.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrYnd4aGpqbHNqZ3B3dHRnYmR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NzU0NTgsImV4cCI6MjA5MTA1MTQ1OH0.Qpsv4a8lYSGdhPO4zCcH_cu4FS6mVZr-t2EAo0cnPzo'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
@@ -58,7 +58,12 @@ export type Lead = {
   contato_agendado?: boolean | null
   link_qualificacao?: string | null
   link_transcricao?: string | null
+  link_proposta?: string | null
+  link_contrato?: string | null
   historico_proximos_passos?: Array<{ data: string; texto: string }> | null
+  historico_anotacoes_pre_vendas?: Array<{ data: string; texto: string }> | null
+  motivo_perda_pre_vendas?: string | null
+  motivo_perda_closer?: string | null
   custo_broker?: number | null
   created_at: string
   updated_at: string

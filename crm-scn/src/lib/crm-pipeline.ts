@@ -1,6 +1,6 @@
-import { BLUE, YELLOW, PURPLE, GREEN, GRAY2, R, SITUACOES_PRE_VENDAS, SITUACOES, CLOSERS, SEGMENTOS, FATURAMENTOS, CARGOS_OPTIONS, TEMPERATURAS } from './crm-constants'
+import { BLUE, YELLOW, PURPLE, GREEN, GRAY2, R, SITUACOES_PRE_VENDAS, SITUACOES, CLOSERS, SEGMENTOS, FATURAMENTOS, CARGOS_OPTIONS, TEMPERATURAS, MOTIVOS_PERDA_PRE_VENDAS, MOTIVOS_PERDA_CLOSER } from './crm-constants'
 
-export type StageField = { key: string; label: string; type: 'date' | 'select' | 'bant' | 'number' | 'text'; options?: string[] }
+export type StageField = { key: string; label: string; type: 'date' | 'select' | 'bant' | 'number' | 'text' | 'file'; options?: string[] }
 export type StageReq = { label: string; fields: StageField[]; extraFields?: (lead: any) => StageField[] }
 
 export const STAGE_REQUIREMENTS: Record<string, StageReq> = {
@@ -41,6 +41,7 @@ export const STAGE_REQUIREMENTS: Record<string, StageReq> = {
     { key: 'data_fup', label: 'Data do FUP', type: 'date' },
     { key: 'data_rr', label: 'Data da Reunião Realizada', type: 'date' },
     { key: 'link_transcricao', label: 'Link da Transcrição', type: 'text' },
+    { key: 'link_proposta', label: 'Link da Proposta', type: 'text' },
     { key: 'temperatura', label: 'Temperatura', type: 'select', options: TEMPERATURAS },
     { key: 'tcv', label: 'TCV (R$)', type: 'number' },
   ]},
@@ -50,11 +51,16 @@ export const STAGE_REQUIREMENTS: Record<string, StageReq> = {
     { key: 'data_rr', label: 'Data da Reunião Realizada', type: 'date' },
     { key: 'link_transcricao', label: 'Link da Transcrição', type: 'text' },
     { key: 'temperatura', label: 'Temperatura', type: 'select', options: TEMPERATURAS },
+    { key: 'link_contrato', label: 'Upload do Contrato', type: 'file' },
   ]},
   'ATIVADO': { label: 'Ativado', fields: [
     { key: 'data_ativacao', label: 'Data de Ativação', type: 'date' },
   ]},
-  'PERDIDO': { label: 'Perdido', fields: [] },
+  'PERDIDO': { label: 'Perdido', fields: [],
+    extraFields: (lead: any) => lead.data_rr
+      ? [{ key: 'motivo_perda_closer', label: 'Motivo de Perda — Closer', type: 'select' as const, options: MOTIVOS_PERDA_CLOSER }]
+      : [{ key: 'motivo_perda_pre_vendas', label: 'Motivo de Perda — Pré-Vendas', type: 'select' as const, options: MOTIVOS_PERDA_PRE_VENDAS }],
+  },
 }
 
 export const PIPELINE_STAGES = [

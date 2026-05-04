@@ -2,19 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Google Fonts ─────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 :root {
-  --red:        #E8001C;
-  --red-hover:  #C5001A;
-  --black:      #0E0D0B;
-  --white:      #FFFFFF;
-  --cream:      #F6F3EE;
-  --border:     #E6E1D8;
-  --text-1:     #181612;
-  --text-2:     #6E6A63;
-  --text-3:     #B0AAA0;
-  --card:       #FFFFFF;
-  --sidebar-bg: #0E0D0B;
-  --sidebar-border: rgba(255,255,255,0.06);
+  --red: #E8001C;
 }
 
 *, *::before, *::after {
@@ -30,21 +22,39 @@ html {
 }
 
 body {
-  font-family: var(--font-dm), 'DM Sans', system-ui, sans-serif;
-  background: var(--cream);
-  color: var(--text-1);
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #111827;
   font-size: 14px;
   line-height: 1.5;
+  min-height: 100vh;
+  background: #F6F3EE;
 }
 
-/* Tabular numbers for data */
-.tabular { font-variant-numeric: tabular-nums; }
-
+/* ── Keyframes ────────────────────────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg) } }
 
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(18px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes slideRight {
+  from { transform: translateX(-10px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+@keyframes progressFill {
+  from { width: 0%; }
 }
 
 @keyframes shimmer {
@@ -52,21 +62,78 @@ body {
   100% { background-position:  200% 0; }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.6; }
+}
 
-/* Input / select base reset */
+@keyframes topbar-progress {
+  0%   { width: 0%; opacity: 1; }
+  80%  { width: 90%; opacity: 1; }
+  100% { width: 100%; opacity: 0; }
+}
+
+/* ── Utility animation classes ─────────────────────────────────────────── */
+.anim-fade-up   { animation: fadeUp  .45s cubic-bezier(.22,1,.36,1) both; }
+.anim-scale-in  { animation: scaleIn .35s cubic-bezier(.22,1,.36,1) both; }
+.anim-fade-in   { animation: fadeIn  .3s ease both; }
+
+/* Staggered children */
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 60ms; }
+.stagger > *:nth-child(3) { animation-delay: 120ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 240ms; }
+.stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+/* ── Card hover ─────────────────────────────────────────────────────── */
+.card-hover {
+  transition: transform .2s cubic-bezier(.22,1,.36,1), box-shadow .2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.10) !important;
+}
+
+/* ── Button press effect ──────────────────────────────────────────────── */
+.btn-press { transition: transform .1s; }
+.btn-press:active { transform: scale(0.97); }
+
+/* ── Progress bar animation ───────────────────────────────────────────── */
+.progress-bar-fill {
+  animation: progressFill .9s cubic-bezier(.22,1,.36,1) both;
+}
+
+/* ── Table row hover ──────────────────────────────────────────────────── */
+.table-row {
+  transition: background .14s ease;
+}
+.table-row:hover {
+  background: #F9FAFB !important;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.15);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.25);
+}
+
+/* ── Input / select base ──────────────────────────────────────────────── */
 input, select, textarea {
   font-family: inherit;
   font-size: 13px;
-  color: var(--text-1);
 }
 
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+/* ── Focus ring ───────────────────────────────────────────────────────── */
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
 }
+
+/* ── Tabular numbers ──────────────────────────────────────────────────── */
+.tabular { font-variant-numeric: tabular-nums; }

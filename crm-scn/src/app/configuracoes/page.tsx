@@ -9,8 +9,11 @@ import {
   R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GREEN, YELLOW, BLUE,
   inputCls, labelCls,
 } from '@/lib/crm-constants'
+import { PAPEL_LABELS, PAPEL_COLORS, type Papel } from '@/lib/useUserRole'
 
 const ADMIN_EMAIL = 'matheus.nunes@v4company.com'
+
+const PAPEIS: Papel[] = ['admin', 'sdr', 'closer', 'viewer']
 
 export default function ConfiguracoesPageRoute() {
   const router = useRouter()
@@ -45,20 +48,41 @@ export default function ConfiguracoesPageRoute() {
   )
 }
 
-function UsuariosCard() {
+function PapelBadge({ papel }: { papel: Papel | null }) {
+  const p = papel ?? 'viewer'
+  const c = PAPEL_COLORS[p]
+  return (
+    <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: c.bg, color: c.text }}>
+      {PAPEL_LABELS[p]}
+    </span>
+  )
+}
+
+function UsuariosCard({ currentEmail }: { currentEmail?: string }) {
+  const isAdmin = currentEmail === ADMIN_EMAIL
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
+  const [papel, setPapel] = useState<Papel>('viewer')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [updatingPapel, setUpdatingPapel] = useState<string | null>(null)
+  // Rastreia mudanças pendentes de papel por usuário
+  const [papelPendente, setPapelPendente] = useState<Record<string, Papel>>({})
 
   useEffect(() => { fetchUsuarios() }, [])
 
   async function fetchUsuarios() {
     setLoading(true)
-    const { data } = await supabase.from('usuarios_permitidos').select('*').order('created_at')
-    setUsuarios(data || [])
+    const [{ data: rpcData }, { data: directData }] = await Promise.all([
+      supabase.rpc('get_usuarios_com_ultimo_login'),
+      supabase.from('usuarios_permitidos').select('id, papel, avatar_url'),
+    ])
+    if (rpcData) {
+      const extra = Object.fromEntries((directData || []).map((u: any) => [u.id, u]))
+      setUsuarios(rpcData.map((u: any) => ({ ...u, papel: extra[u.id]?.papel ?? null, avatar_url: extra[u.id]?.avatar_url ?? null })))
+    }
     setLoading(false)
   }
 
@@ -66,11 +90,17 @@ function UsuariosCard() {
     if (!nome.trim() || !email.trim()) { setError('Preencha nome e email'); return }
     if (!/^[^@]+@[^@]+\.[^@]+$/.test(email)) { setError('Email inválido'); return }
     setSaving(true); setError('')
-    const { error: err } = await supabase.from('usuarios_permitidos').insert({ nome: nome.trim(), email: email.trim().toLowerCase() })
+    const { error: err } = await supabase.from('usuarios_permitidos').insert({
+      nome: nome.trim(),
+      email: email.trim().toLowerCase(),
+      papel,
+    })
     if (err) {
-      setError(err.code === '23505' ? 'Este email já está cadastrado' : 'Erro ao adicionar usuário')
+      if (err.code === '23505') setError('Este email já está cadastrado')
+      else if (err.code === '42501') setError('Sem permissão. Execute a policy no Supabase.')
+      else setError(`Erro: ${err.message}`)
     } else {
-      setNome(''); setEmail(''); fetchUsuarios()
+      setNome(''); setEmail(''); setPapel('viewer'); fetchUsuarios()
     }
     setSaving(false)
   }
@@ -86,6 +116,25 @@ function UsuariosCard() {
     fetchUsuarios()
   }
 
+  async function savePapel(id: string) {
+    const novoPapel = papelPendente[id]
+    if (!novoPapel) return
+    setUpdatingPapel(id)
+    setError('')
+    const { error: err } = await supabase.from('usuarios_permitidos').update({ papel: novoPapel }).eq('id', id)
+    if (err) {
+      if (err.message.includes('column') || err.code === '42703') {
+        setError('A coluna "papel" ainda não existe. Execute o SQL de migração no Supabase Dashboard.')
+      } else {
+        setError(`Erro ao salvar papel: ${err.message}`)
+      }
+    } else {
+      setUsuarios(prev => prev.map(u => u.id === id ? { ...u, papel: novoPapel } : u))
+      setPapelPendente(prev => { const n = { ...prev }; delete n[id]; return n })
+    }
+    setUpdatingPapel(null)
+  }
+
   return (
     <div style={{ background: WHITE, borderRadius: 14, border: '1px solid #E5E7EB', boxShadow: '0 1px 6px rgba(0,0,0,.07)', overflow: 'hidden' }}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -99,24 +148,34 @@ function UsuariosCard() {
       </div>
 
       <div style={{ padding: 24 }}>
-        {/* Add user form */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, marginBottom: 20 }}>
-          <div>
-            <label style={labelCls}>Nome</label>
-            <input style={inputCls} placeholder="Nome completo" value={nome} onChange={e => { setNome(e.target.value); setError('') }} />
-          </div>
-          <div>
-            <label style={labelCls}>Email Google</label>
-            <input style={inputCls} placeholder="email@gmail.com" value={email} onChange={e => { setEmail(e.target.value); setError('') }} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button onClick={addUsuario} disabled={saving}
-              style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: saving ? GRAY2 : R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Plus size={14} /> Adicionar
-            </button>
-          </div>
-        </div>
-        {error && <div style={{ fontSize: 12, color: R, marginBottom: 14, fontWeight: 600 }}>⚠️ {error}</div>}
+        {/* Add user form — só admin vê */}
+        {isAdmin && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 180px auto', gap: 10, marginBottom: 8 }}>
+              <div>
+                <label style={labelCls}>Nome</label>
+                <input style={inputCls} placeholder="Nome completo" value={nome} onChange={e => { setNome(e.target.value); setError('') }} />
+              </div>
+              <div>
+                <label style={labelCls}>Email Google</label>
+                <input style={inputCls} placeholder="email@v4company.com" value={email} onChange={e => { setEmail(e.target.value); setError('') }} />
+              </div>
+              <div>
+                <label style={labelCls}>Papel</label>
+                <select style={inputCls} value={papel} onChange={e => setPapel(e.target.value as Papel)}>
+                  {PAPEIS.map(p => <option key={p} value={p}>{PAPEL_LABELS[p]}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <button onClick={addUsuario} disabled={saving}
+                  style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: saving ? GRAY2 : R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Plus size={14} /> Adicionar
+                </button>
+              </div>
+            </div>
+            {error && <div style={{ fontSize: 12, color: R, marginBottom: 14, fontWeight: 600 }}>⚠️ {error}</div>}
+          </>
+        )}
 
         {/* Users list */}
         {loading ? (
@@ -126,7 +185,7 @@ function UsuariosCard() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: GRAY4 }}>
-                  {['Nome', 'Email', 'Status', 'Ações'].map(h => (
+                  {['Nome', 'Email', 'Papel', 'Último Login', 'Status', ...(isAdmin ? ['Ações'] : [])].map(h => (
                     <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 11, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</th>
                   ))}
                 </tr>
@@ -134,29 +193,70 @@ function UsuariosCard() {
               <tbody>
                 {usuarios.map((u, i) => (
                   <tr key={u.id} style={{ borderTop: '1px solid #F3F4F6', background: i % 2 ? GRAY4 : WHITE }}>
-                    <td style={{ padding: '12px 14px', fontWeight: 600, color: GRAY1 }}>{u.nome}</td>
-                    <td style={{ padding: '12px 14px', color: GRAY2, fontSize: 12 }}>{u.email}</td>
-                    <td style={{ padding: '12px 14px' }}>
-                      <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: u.ativo ? `${GREEN}18` : `${GRAY2}18`, color: u.ativo ? GREEN : GRAY2, border: `1px solid ${u.ativo ? GREEN : GRAY2}33` }}>
-                        {u.ativo ? '✓ Ativo' : '✗ Inativo'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 14px' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => toggleAtivo(u.id, u.ativo)}
-                          style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${u.ativo ? YELLOW : GREEN}44`, background: u.ativo ? `${YELLOW}12` : `${GREEN}12`, color: u.ativo ? YELLOW : GREEN, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                          {u.ativo ? 'Desativar' : 'Ativar'}
-                        </button>
-                        <button onClick={() => removeUsuario(u.id)}
-                          style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${R}33`, background: `${R}10`, color: R, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                          Remover
-                        </button>
+                    <td style={{ padding: '12px 14px', fontWeight: 600, color: GRAY1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {u.avatar_url && (
+                          <img src={u.avatar_url} alt={u.nome} width={28} height={28} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        )}
+                        {u.nome}
                       </div>
                     </td>
+                    <td style={{ padding: '12px 14px', color: GRAY2, fontSize: 12 }}>{u.email}</td>
+                    <td style={{ padding: '12px 14px' }}>
+                      {isAdmin && u.email !== ADMIN_EMAIL ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <select
+                            value={papelPendente[u.id] ?? u.papel ?? 'viewer'}
+                            disabled={updatingPapel === u.id}
+                            onChange={e => setPapelPendente(prev => ({ ...prev, [u.id]: e.target.value as Papel }))}
+                            style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, border: `1px solid ${papelPendente[u.id] ? '#F59E0B' : '#E5E7EB'}`, background: WHITE, cursor: 'pointer', color: GRAY1 }}
+                          >
+                            {PAPEIS.map(p => <option key={p} value={p}>{PAPEL_LABELS[p]}</option>)}
+                          </select>
+                          {papelPendente[u.id] && (
+                            <button
+                              onClick={() => savePapel(u.id)}
+                              disabled={updatingPapel === u.id}
+                              style={{ padding: '3px 10px', borderRadius: 6, border: 'none', background: GREEN, color: WHITE, fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              {updatingPapel === u.id ? '...' : 'Salvar'}
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <PapelBadge papel={u.papel ?? 'viewer'} />
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 14px', fontSize: 12, color: u.ultimo_login ? GRAY2 : GRAY3 }}>
+                      {u.ultimo_login
+                        ? new Date(u.ultimo_login).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : '—'}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: u.ativo ? `${GREEN}18` : `${GRAY2}18`, color: u.ativo ? GREEN : GRAY2, border: `1px solid ${u.ativo ? GREEN : GRAY2}33` }}>
+                        {u.ativo ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    {isAdmin && (
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => toggleAtivo(u.id, u.ativo)}
+                            style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${u.ativo ? YELLOW : GREEN}44`, background: u.ativo ? `${YELLOW}12` : `${GREEN}12`, color: u.ativo ? YELLOW : GREEN, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                            {u.ativo ? 'Desativar' : 'Ativar'}
+                          </button>
+                          {u.email !== ADMIN_EMAIL && (
+                            <button onClick={() => removeUsuario(u.id)}
+                              style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${R}33`, background: `${R}10`, color: R, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                              Remover
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {usuarios.length === 0 && (
-                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: 32, color: GRAY2 }}>Nenhum usuário cadastrado</td></tr>
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: GRAY2 }}>Nenhum usuário cadastrado</td></tr>
                 )}
               </tbody>
             </table>
@@ -531,8 +631,8 @@ function ConfiguracoesContent({ onImport, userEmail }: { onImport: (leads: any[]
         </div>
       </div>
 
-      {/* CARD USUÁRIOS — visível apenas para o admin */}
-      {userEmail === ADMIN_EMAIL && <UsuariosCard />}
+      {/* CARD USUÁRIOS — admin vê e gerencia, outros só visualizam */}
+      <UsuariosCard currentEmail={userEmail} />
 
       {/* CARD INFO */}
       <div style={{ background: WHITE, borderRadius: 14, border: '1px solid #E5E7EB', boxShadow: '0 1px 6px rgba(0,0,0,.07)', padding: 24 }}>

@@ -14,11 +14,21 @@ SUPABASE_URL = "https://xxxxxxxxxxxxxxxxxxxx.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 EXCEL_PATH   = "Dash_RECEITAS_SCN___Co.xlsx"
 
+def fix_encoding(s):
+    """Corrige dupla codificação UTF-8→Latin-1 (ex: 'RecomendaÃ§Ã£o' → 'Recomendação')."""
+    if not isinstance(s, str):
+        return s
+    try:
+        return s.encode('latin-1').decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return s
+
 def clean(v):
     """Converte NaN / Timestamp para tipos Python limpos."""
     if v is None: return None
     if isinstance(v, float) and math.isnan(v): return None
     if hasattr(v, 'strftime'): return v.strftime('%Y-%m-%d')
+    if isinstance(v, str): return fix_encoding(v)
     return v
 
 def row_to_dict(row, mapping):

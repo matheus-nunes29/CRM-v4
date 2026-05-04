@@ -83,9 +83,11 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
   const today = toDS(new Date())
   const daysInMonth = new Date(y, mo, 0).getDate()
 
+  const allDaysInMonth: string[] = []
   const workDays: string[] = []
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+    allDaysInMonth.push(ds)
     const dow = new Date(ds+'T12:00:00').getDay()
     if (dow !== 0 && dow !== 6 && !holidays.has(ds)) workDays.push(ds)
   }
@@ -249,8 +251,8 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
                       </td>
                     </React.Fragment>
                   ))}
-                  <td style={{ ...R_CELL_DEF, background:'#EBEBEB', fontWeight:900, color: rTotal(row.rMap,workDays) > 0 ? GRAY1 : GRAY3 }}>
-                    {rTotal(row.rMap, workDays) || '·'}
+                  <td style={{ ...R_CELL_DEF, background:'#EBEBEB', fontWeight:900, color: rTotal(row.rMap,allDaysInMonth) > 0 ? GRAY1 : GRAY3 }}>
+                    {rTotal(row.rMap, allDaysInMonth) || '·'}
                   </td>
                 </tr>
               </React.Fragment>

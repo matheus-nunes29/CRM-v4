@@ -1,18 +1,20 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Lead } from '@/lib/supabase'
 import { Users, Search, Edit2, Trash2 } from 'lucide-react'
 import CRMLayout from '../_components/CRMLayout'
+import { useUserRole } from '@/lib/useUserRole'
 import { SpvBadge, SitBadge } from '@/lib/crm-badges'
 import {
   R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GREEN,
-  CLOSERS, TEMPERATURAS, SITUACOES, SITUACOES_PRE_VENDAS, ORIGENS,
-  mesAno, fmtDate, mesFmt,
+  TEMPERATURAS, SITUACOES, SITUACOES_PRE_VENDAS, ORIGENS,
+  mesAno, fmt, fmtDate, mesFmt,
   inputCls, labelCls,
 } from '@/lib/crm-constants'
+import { useCloserUsers } from '@/lib/useCloserUsers'
 import { getPipelineStage, PIPELINE_STAGES } from '@/lib/crm-pipeline'
 
 function tempoRelativo(dateStr: string | null | undefined): string {
@@ -51,8 +53,11 @@ function EtapaBadge({ lead }: { lead: any }) {
 
 export default function LeadsPage() {
   const router = useRouter()
+  const { canEdit } = useUserRole()
+  const closerUsers = useCloserUsers()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({
     closer: '', temperatura: '', situacao: '',
@@ -76,13 +81,47 @@ export default function LeadsPage() {
     })
   }, [])
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('leads-list-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchLeads)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
   useEffect(() => { setPage(1); setSelected(new Set()) }, [search, filters])
 
   async function fetchLeads() {
     setLoading(true)
-    const { data } = await supabase.from('leads').select('*').order('updated_at', { ascending: false })
-    setLeads(data || [])
-    setLoading(false)
+    setFetchError(null)
+    try {
+      const { data, error } = await supabase.from('leads').select('*').order('updated_at', { ascending: false })
+      if (error) throw error
+      setLeads(data || [])
+    } catch (e: any) {
+      setFetchError('Erro ao carregar leads. Verifique sua conexão e tente novamente.')
+      setLeads([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function exportCSV() {
+    const headers = ['Empresa','Lead','Telefone','Email','Origem','Etapa','Sit. BDR','Sit. Closer','Closer','Segmento','Faturamento','Tier','TCV','Temperatura','Data Entrada','Data RA','Data RR','Data Assinatura','Data Ativação','BANT','Data FUP']
+    const rows = filtered.map(l => [
+      l.empresa||'', (l as any).nome_lead||'', l.telefone||'', (l as any).email||'',
+      l.origem||'', getPipelineStage(l), (l as any).situacao_pre_vendas||'', l.situacao_closer||'',
+      l.closer||'', l.segmento||'', l.faturamento||'', l.tier||'',
+      l.tcv||'', l.temperatura||'',
+      l.data_entrada||'', l.data_ra||'', l.data_rr||'', l.data_assinatura||'', l.data_ativacao||'',
+      l.bant||'', l.data_fup||'',
+    ])
+    const csv = [headers,...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `leads_${new Date().toISOString().slice(0,10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function deleteLead(id: string) {
@@ -102,7 +141,7 @@ export default function LeadsPage() {
     fetchLeads()
   }
 
-  const filtered = leads.filter(l =>
+  const filtered = useMemo(() => leads.filter(l =>
     (!search || l.empresa?.toLowerCase().includes(search.toLowerCase()) || l.closer?.toLowerCase().includes(search.toLowerCase()) || (l as any).nome_lead?.toLowerCase().includes(search.toLowerCase()))
     && (!filters.closer || l.closer === filters.closer)
     && (!filters.temperatura || l.temperatura === filters.temperatura)
@@ -115,7 +154,7 @@ export default function LeadsPage() {
     && (!filters.mes_rr || mesAno(l.data_rr) === filters.mes_rr)
     && (!filters.mes_venda || mesAno(l.data_assinatura) === filters.mes_venda)
     && (!filters.mes_ativacao || mesAno(l.data_ativacao) === filters.mes_ativacao)
-  )
+  ), [leads, search, filters])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pagedLeads = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -147,6 +186,20 @@ export default function LeadsPage() {
     )
   }
 
+  if (fetchError) {
+    return (
+      <CRMLayout>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, flexDirection: 'column', gap: 14 }}>
+          <div style={{ fontSize: 32 }}>⚠️</div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#B91C1C' }}>{fetchError}</span>
+          <button onClick={fetchLeads} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: R, color: '#FFF', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Tentar novamente
+          </button>
+        </div>
+      </CRMLayout>
+    )
+  }
+
   return (
     <CRMLayout>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -157,7 +210,11 @@ export default function LeadsPage() {
             <h1 style={{ fontSize: 22, fontWeight: 800, color: GRAY1, margin: 0 }}>Leads</h1>
             <p style={{ fontSize: 13, color: GRAY2, marginTop: 4 }}>{filtered.length} de {leads.length} leads • página {page} de {totalPages}</p>
           </div>
-          {selected.size > 0 && (
+          <button onClick={exportCSV} style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:10, border:'1px solid #E5E7EB', background:WHITE, color:GRAY1, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M5 8l3 3 3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Exportar CSV
+          </button>
+          {canEdit && selected.size > 0 && (
             <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px', background:`${R}10`, border:`1px solid ${R}33`, borderRadius:10 }}>
               <span style={{ fontSize:13, fontWeight:700, color:R }}>{selected.size} lead{selected.size > 1 ? 's' : ''} selecionado{selected.size > 1 ? 's' : ''}</span>
               <button onClick={deleteSelected} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', background:R, color:WHITE, border:'none', borderRadius:7, fontSize:12, fontWeight:700, cursor:'pointer' }}>
@@ -195,7 +252,7 @@ export default function LeadsPage() {
                         <label style={labelCls}>Closer</label>
                         <select style={inputCls} value={draftFilters.closer} onChange={e => setDraftFilters(p=>({...p,closer:e.target.value}))}>
                           <option value="">Todos</option>
-                          {CLOSERS.map(c=><option key={c}>{c}</option>)}
+                          {closerUsers.map(u=><option key={u.nome} value={u.nome}>{u.nome}</option>)}
                         </select>
                       </div>
                       <div>
@@ -281,7 +338,7 @@ export default function LeadsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #E5E7EB', background: GRAY4 }}>
-                  <th style={{ padding:'10px 12px', width:40, minWidth:40 }}>
+                  {canEdit && <th style={{ padding:'10px 12px', width:40, minWidth:40 }}>
                     <input type="checkbox" checked={allPageSelected}
                       onChange={e => {
                         const next = new Set(selected)
@@ -290,14 +347,16 @@ export default function LeadsPage() {
                         setSelected(next)
                       }}
                       style={{ cursor:'pointer', width:15, height:15, accentColor:R }} />
-                  </th>
+                  </th>}
                   {[
                     { h:'Empresa', w:200 },
                     { h:'Lead', w:150 },
+                    { h:'Faturamento / Tier', w:140 },
                     { h:'Etapa', w:160 },
                     { h:'Última Interação', w:130 },
                     { h:'Pré-Venda', w:180 },
                     { h:'Venda', w:160 },
+                    ...(filters.origem === 'Lead Broker' ? [{ h:'Custo Broker', w:130 }] : []),
                     { h:'', w:72 },
                   ].map(({ h, w }) => (
                     <th key={h} style={{ textAlign:'left', padding:'10px 12px', fontSize:10, fontWeight:700, color:GRAY2, textTransform:'uppercase', letterSpacing:'0.07em', whiteSpace:'nowrap', minWidth:w, width:w }}>{h}</th>
@@ -306,8 +365,8 @@ export default function LeadsPage() {
               </thead>
               <tbody>
                 {pagedLeads.map((l, i) => (
-                  <tr key={l.id} style={{ borderBottom:'1px solid #F3F4F6', background: selected.has(l.id) ? `${R}08` : i%2 ? GRAY4 : WHITE }}>
-                    <td style={{ padding:'10px 12px' }}>
+                  <tr key={l.id} className="table-row" style={{ borderBottom:'1px solid #F3F4F6', background: selected.has(l.id) ? `${R}08` : i%2 ? GRAY4 : WHITE, animation: `fadeUp .3s cubic-bezier(.22,1,.36,1) ${i * 20}ms both` }}>
+                    {canEdit && <td style={{ padding:'10px 12px' }}>
                       <input type="checkbox" checked={selected.has(l.id)}
                         onChange={e => {
                           const next = new Set(selected)
@@ -315,20 +374,27 @@ export default function LeadsPage() {
                           setSelected(next)
                         }}
                         style={{ cursor:'pointer', width:15, height:15, accentColor:R }} />
-                    </td>
+                    </td>}
                     {/* Empresa */}
                     <td style={{ padding:'10px 12px' }}>
-                      <div onClick={() => router.push(`/leads/${l.id}?from=leads`)} style={{ fontWeight:700, color:R, cursor:'pointer' }}
+                      <a href={`/leads/${l.id}?from=leads`} onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); router.push(`/leads/${l.id}?from=leads`) } }} style={{ fontWeight:700, color:R, cursor:'pointer', textDecoration:'none' }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration='underline'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.textDecoration='none'}>
                         {l.empresa}
-                      </div>
+                      </a>
                       {l.segmento && <div style={{ fontSize:11, color:GRAY2, marginTop:1 }}>{l.segmento}</div>}
                     </td>
                     {/* Lead */}
                     <td style={{ padding:'10px 12px' }}>
                       <div style={{ fontSize:13, fontWeight:500, color:GRAY1 }}>{(l as any).nome_lead || '—'}</div>
                       {l.cargo && <div style={{ fontSize:11, color:GRAY2, marginTop:1 }}>{l.cargo}</div>}
+                    </td>
+                    {/* Faturamento / Tier */}
+                    <td style={{ padding:'10px 12px' }}>
+                      {l.faturamento
+                        ? <div style={{ fontSize:12, fontWeight:600, color:GRAY1 }}>{l.faturamento}</div>
+                        : <div style={{ fontSize:12, color:GRAY3 }}>—</div>}
+                      {l.tier && <span style={{ display:'inline-block', marginTop:3, fontSize:10, fontWeight:800, padding:'2px 7px', borderRadius:20, background:`${R}12`, color:R }}>{l.tier}</span>}
                     </td>
                     {/* Etapa */}
                     <td style={{ padding:'10px 12px' }}>
@@ -351,11 +417,19 @@ export default function LeadsPage() {
                     <td style={{ padding:'10px 12px' }}>
                       <SitBadge s={l.situacao_closer} />
                     </td>
+                    {/* Custo Broker */}
+                    {filters.origem === 'Lead Broker' && (
+                      <td style={{ padding:'10px 12px' }}>
+                        <span style={{ fontSize:13, fontWeight:700, color: (l as any).custo_broker ? GRAY1 : GRAY3 }}>
+                          {(l as any).custo_broker ? fmt((l as any).custo_broker) : '—'}
+                        </span>
+                      </td>
+                    )}
                     {/* Ações */}
                     <td style={{ padding:'10px 12px' }}>
                       <div style={{ display:'flex', gap:4 }}>
                         <button onClick={() => router.push(`/leads/${l.id}?from=leads`)} style={{ background:`${R}12`, border:'none', borderRadius:6, padding:6, cursor:'pointer', color:R, display:'flex' }}><Edit2 size={13}/></button>
-                        <button onClick={() => deleteLead(l.id)} style={{ background:GRAY4, border:'none', borderRadius:6, padding:6, cursor:'pointer', color:GRAY2, display:'flex' }}><Trash2 size={13}/></button>
+                        {canEdit && <button onClick={() => deleteLead(l.id)} style={{ background:GRAY4, border:'none', borderRadius:6, padding:6, cursor:'pointer', color:GRAY2, display:'flex' }}><Trash2 size={13}/></button>}
                       </div>
                     </td>
                   </tr>
