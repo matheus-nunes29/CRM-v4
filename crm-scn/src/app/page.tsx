@@ -11,7 +11,7 @@ import { AnimatedText } from '@/components/ui/animated-text'
 import { TempBadge } from '@/lib/crm-badges'
 import { getPipelineStage } from '@/lib/crm-pipeline'
 import {
-  R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GREEN, BLUE, YELLOW, PURPLE,
+  R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE,
   CANAIS, CANAIS_METAS, TIERS, SEGMENTOS,
   mesAno, fmt, fmtDate, mesFmt, inputCls, labelCls,
 } from '@/lib/crm-constants'
@@ -142,7 +142,7 @@ export default function DashboardPage() {
   const tcvMes = lm.venda.reduce((s, l) => s + (l.tcv || 0), 0)
   const conv = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0
   const convBar = (a: number, b: number) => Math.min(conv(a, b), 100)
-  const tooltipStyle = { background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8, color: GRAY1, fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.10)' }
+  const tooltipStyle = { background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 8, color: GRAY1, fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.10)' }
 
   const lmPrev = useMemo(() => {
     const [y, m] = mesSel.split('-').map(Number)
@@ -246,7 +246,7 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ position: 'relative' }}>
                   <button onClick={() => { setDraftCanal(canalSel); setDraftMes(mesSel); setDraftTier(tierSel); setDraftCloser(closerSel); setDashFilterOpen(v => !v) }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, border: '1px solid #E5E7EB', background: WHITE, color: GRAY1, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY1, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                     Adicionar Filtro
                     {activeFilters.length > 0 && <span style={{ background: R, color: WHITE, borderRadius: '50%', width: 17, height: 17, fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilters.length}</span>}
@@ -254,7 +254,7 @@ export default function DashboardPage() {
                   {dashFilterOpen && (
                     <>
                       <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setDashFilterOpen(false)} />
-                      <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 50, width: 340, padding: 24 }}>
+                      <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 50, width: 340, padding: 24 }}>
                         <div style={{ fontSize: 15, fontWeight: 800, color: GRAY1, marginBottom: 4 }}>Personalize seu filtro</div>
                         <div style={{ fontSize: 12, color: GRAY2, marginBottom: 20 }}>Escolha os filtros e as opções desejadas.</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -287,7 +287,7 @@ export default function DashboardPage() {
                         </div>
                         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                           <button onClick={() => { setCanalSel('Canal'); const n = new Date(); const m = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; setMesSel(m); setDraftMes(m); setDraftCanal('Canal'); setTierSel(''); setCloserSel(''); setDraftTier(''); setDraftCloser(''); setDashFilterOpen(false) }}
-                            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #E5E7EB', background: WHITE, color: GRAY1, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Limpar</button>
+                            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY1, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Limpar</button>
                           <button onClick={() => { setCanalSel(draftCanal); setMesSel(draftMes); setTierSel(draftTier); setCloserSel(draftCloser); setDashFilterOpen(false) }}
                             style={{ flex: 2, padding: '10px 0', borderRadius: 10, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Aplicar</button>
                         </div>
@@ -323,7 +323,7 @@ export default function DashboardPage() {
               ].map(item => {
                 const isOpen = healthInfoOpen === item.label
                 return (
-                  <div key={item.label} style={{ background: WHITE, borderRadius: 12, padding: '14px 16px', border: item.alert ? `1px solid ${R}30` : '1px solid #E5E7EB', boxShadow: '0 1px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
+                  <div key={item.label} style={{ background: WHITE, borderRadius: 12, padding: '14px 16px', border: item.alert ? `1px solid ${R}30` : `1px solid ${GRAY5}`, boxShadow: '0 1px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 9, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>{item.label}</div>
                       <div style={{ fontSize: 20, fontWeight: 900, color: item.alert ? R : GRAY1, lineHeight: 1 }}>{item.value}</div>
@@ -337,9 +337,9 @@ export default function DashboardPage() {
                       style={{ width: 18, height: 18, borderRadius: '50%', border: `1.5px solid ${isOpen ? R : GRAY3}`, background: isOpen ? `${R}12` : 'transparent', color: isOpen ? R : GRAY3, fontSize: 10, fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s', padding: 0, alignSelf: 'flex-start' }}
                     >i</button>
                     {isOpen && (
-                      <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 280, background: '#FFFFFF', border: `1px solid #E5E7EB`, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 999, padding: '14px 16px', animation: 'scaleIn .15s cubic-bezier(.22,1,.36,1)' }}>
+                      <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 280, background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 999, padding: '14px 16px', animation: 'scaleIn .15s cubic-bezier(.22,1,.36,1)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                          <div style={{ width: 16, height: 16, borderRadius: '50%', background: R, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: '#FFFFFF', flexShrink: 0 }}>i</div>
+                          <div style={{ width: 16, height: 16, borderRadius: '50%', background: R, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: WHITE, flexShrink: 0 }}>i</div>
                           <span style={{ fontSize: 10, fontWeight: 800, color: R, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{item.label}</span>
                         </div>
                         <p style={{ fontSize: 12, color: GRAY1, lineHeight: 1.6, margin: 0 }}>{item.info}</p>
@@ -396,7 +396,7 @@ export default function DashboardPage() {
                       style={{
                         background: WHITE, borderRadius: 16, padding: '20px 20px 18px',
                         boxShadow: isHovered ? '0 8px 28px rgba(0,0,0,.10)' : '0 1px 8px rgba(0,0,0,.05)',
-                        border: '1px solid #E5E7EB',
+                        border: `1px solid ${GRAY5}`,
                         position: 'relative', overflow: 'hidden',
                         transition: 'border-color .2s, box-shadow .2s',
                         cursor: k.leads.length > 0 ? 'pointer' : 'default',
@@ -416,7 +416,7 @@ export default function DashboardPage() {
                               <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {k.meta}</span>
                               <span style={{ fontSize: 10, fontWeight: 700, color: GRAY2 }}>{pct}%</span>
                             </div>
-                            <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                            <div style={{ height: 3, background: GRAY5, borderRadius: 2 }}>
                               <div className="progress-bar-fill" style={{ height: 3, borderRadius: 2, background: R, width: `${pct}%`, animationDelay: `${ki * 80 + 200}ms` }} />
                             </div>
                           </div>
@@ -452,13 +452,13 @@ export default function DashboardPage() {
               <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => { setKpiHover(null); setKpiPopoverRect(null) }} />
               <div style={{
                 position: 'fixed', left, top, transform, width: 290, zIndex: 999,
-                background: '#FFFFFF',
-                border: '1px solid #E5E7EB', borderRadius: 14,
+                background: WHITE,
+                border: `1px solid ${GRAY5}`, borderRadius: 14,
                 boxShadow: '0 8px 32px rgba(0,0,0,.14)',
                 overflow: 'hidden',
                 animation: 'scaleIn .18s cubic-bezier(.22,1,.36,1)',
               }}>
-                <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ padding: '10px 14px 8px', borderBottom: `1px solid ${GRAY5}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 11, fontWeight: 800, color: k.color, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{k.label}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: GRAY2 }}>{k.leads.length} lead{k.leads.length !== 1 ? 's' : ''}</span>
@@ -467,26 +467,26 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ maxHeight: 280, overflowY: 'auto' }}>
                   {pageLeads.map((l, i) => (
-                    <div key={l.id} onClick={() => router.push(`/leads/${l.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: i < pageLeads.length - 1 ? '1px solid #F9FAFB' : 'none', background: i % 2 ? '#FAFAFA' : WHITE, cursor: 'pointer', transition: 'background .1s' }}
+                    <div key={l.id} onClick={() => router.push(`/leads/${l.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: i < pageLeads.length - 1 ? `1px solid ${GRAY5}` : 'none', background: i % 2 ? GRAY4 : WHITE, cursor: 'pointer', transition: 'background .1s' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${k.color}08` }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = i % 2 ? '#FAFAFA' : WHITE }}>
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = i % 2 ? GRAY4 : WHITE }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: GRAY1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.empresa}</div>
                         <div style={{ fontSize: 10, color: GRAY3, marginTop: 1 }}>{fmtDate(l[k.dateKey] as string) || '—'}</div>
                       </div>
                       {l.closer && (
-                        <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, background: '#F0F0F0', color: GRAY2, whiteSpace: 'nowrap', flexShrink: 0 }}>{l.closer}</span>
+                        <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, background: GRAY5, color: GRAY2, whiteSpace: 'nowrap', flexShrink: 0 }}>{l.closer}</span>
                       )}
                     </div>
                   ))}
                 </div>
                 {totalKpiPages > 1 && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: '1px solid #F3F4F6', background: '#FAFAFA' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: `1px solid ${GRAY5}`, background: GRAY4 }}>
                     <button onClick={e => { e.stopPropagation(); setKpiPopoverPage(p => Math.max(0, p - 1)) }} disabled={kpiPopoverPage === 0}
-                      style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #E5E7EB', background: kpiPopoverPage === 0 ? GRAY4 : WHITE, color: kpiPopoverPage === 0 ? GRAY3 : GRAY1, fontSize: 11, fontWeight: 700, cursor: kpiPopoverPage === 0 ? 'default' : 'pointer' }}>‹ Anterior</button>
+                      style={{ padding: '4px 10px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: kpiPopoverPage === 0 ? GRAY4 : WHITE, color: kpiPopoverPage === 0 ? GRAY3 : GRAY1, fontSize: 11, fontWeight: 700, cursor: kpiPopoverPage === 0 ? 'default' : 'pointer' }}>‹ Anterior</button>
                     <span style={{ fontSize: 10, color: GRAY2, fontWeight: 600 }}>{kpiPopoverPage + 1} / {totalKpiPages}</span>
                     <button onClick={e => { e.stopPropagation(); setKpiPopoverPage(p => Math.min(totalKpiPages - 1, p + 1)) }} disabled={kpiPopoverPage === totalKpiPages - 1}
-                      style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #E5E7EB', background: kpiPopoverPage === totalKpiPages - 1 ? GRAY4 : WHITE, color: kpiPopoverPage === totalKpiPages - 1 ? GRAY3 : GRAY1, fontSize: 11, fontWeight: 700, cursor: kpiPopoverPage === totalKpiPages - 1 ? 'default' : 'pointer' }}>Próxima ›</button>
+                      style={{ padding: '4px 10px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: kpiPopoverPage === totalKpiPages - 1 ? GRAY4 : WHITE, color: kpiPopoverPage === totalKpiPages - 1 ? GRAY3 : GRAY1, fontSize: 11, fontWeight: 700, cursor: kpiPopoverPage === totalKpiPages - 1 ? 'default' : 'pointer' }}>Próxima ›</button>
                   </div>
                 )}
               </div>
@@ -519,7 +519,7 @@ export default function DashboardPage() {
           const ticketOver = !!(metaTicket && ticketMedioMes >= metaTicket)
 
           const cardTCV = (
-            <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
+            <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.14em' }}>TCV do Mês</div>
@@ -533,7 +533,7 @@ export default function DashboardPage() {
                     <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {fmt(mt)}</span>
                     <span style={{ fontSize: 12, fontWeight: 900, color: over ? GREEN : R }}>{pct}%</span>
                   </div>
-                  <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                  <div style={{ height: 3, background: GRAY5, borderRadius: 2 }}>
                     <div style={{ height: 3, borderRadius: 2, background: over ? GREEN : R, width: `${Math.min(pct || 0, 100)}%`, transition: 'width .7s' }} />
                   </div>
                   <div style={{ fontSize: 10, color: GRAY2, marginTop: 7 }}>{over ? `Meta batida! +${fmt(tcvMes - mt)}` : `Falta ${fmt(mt - tcvMes)}`}</div>
@@ -541,7 +541,7 @@ export default function DashboardPage() {
               ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 14 }}>Sem meta definida</div>}
 
               {/* Ticket Médio */}
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #F0F0F0' }}>
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${GRAY5}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.14em' }}>Ticket Médio</div>
                   {ticketPct !== null && <span style={{ fontSize: 10, fontWeight: 700, color: GRAY2 }}>{ticketPct}%</span>}
@@ -553,11 +553,11 @@ export default function DashboardPage() {
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                       <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {fmt(metaTicket)}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: ticketOver ? GRAY1 : R, background: ticketOver ? '#F0F0F0' : `${R}12`, padding: '2px 7px', borderRadius: 20 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: ticketOver ? GRAY1 : R, background: ticketOver ? GRAY5 : `${R}12`, padding: '2px 7px', borderRadius: 20 }}>
                         {ticketOver ? 'Acima' : `Falta ${fmt(metaTicket - ticketMedioMes)}`}
                       </span>
                     </div>
-                    <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                    <div style={{ height: 3, background: GRAY5, borderRadius: 2 }}>
                       <div style={{ height: 3, borderRadius: 2, background: R, width: `${Math.min(ticketPct || 0, 100)}%`, transition: 'width .7s' }} />
                     </div>
                   </>
@@ -569,9 +569,9 @@ export default function DashboardPage() {
                 const cov = forecastPipeline / mt
                 const covGood = cov >= 3
                 return (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${GRAY5}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: 10, color: GRAY2 }}>Cobertura pipeline</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: covGood ? GRAY1 : R, background: covGood ? '#F0F0F0' : `${R}12`, padding: '2px 8px', borderRadius: 20 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: covGood ? GRAY1 : R, background: covGood ? GRAY5 : `${R}12`, padding: '2px 8px', borderRadius: 20 }}>
                       {cov.toFixed(1)}x {covGood ? '' : '— baixo'}
                     </span>
                   </div>
@@ -582,7 +582,7 @@ export default function DashboardPage() {
 
           const noShows = lm.ra.filter((l: any) => l.situacao_pre_vendas === 'NO SHOW/REMARCANDO')
           const cardConversao = (
-            <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', animationDelay: '60ms' }}>
+            <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, animationDelay: '60ms' }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Taxas de Conversão</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {[
@@ -597,7 +597,7 @@ export default function DashboardPage() {
                       <span style={{ fontSize: 11, color: GRAY2, fontWeight: 600 }}>{c.label}</span>
                       <span style={{ fontSize: 15, fontWeight: 900, color: R }}>{conv(c.a, c.b)}<span style={{ fontSize: 10, fontWeight: 700 }}>%</span></span>
                     </div>
-                    <div style={{ height: 3, background: '#EBEBEB', borderRadius: 3 }}>
+                    <div style={{ height: 3, background: GRAY5, borderRadius: 3 }}>
                       <div style={{ height: 3, borderRadius: 3, background: R, width: `${convBar(c.a, c.b)}%`, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }} />
                     </div>
                   </div>
@@ -607,7 +607,7 @@ export default function DashboardPage() {
           )
 
           const cardFunil = (
-            <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', animationDelay: '120ms' }}>
+            <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, animationDelay: '120ms' }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Funil do Mês</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
@@ -622,9 +622,9 @@ export default function DashboardPage() {
                   return (
                     <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 11, color: GRAY2, width: 82, flexShrink: 0, fontWeight: 500 }}>{f.label}</span>
-                      <div style={{ flex: 1, height: 22, background: '#F0F0F0', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ flex: 1, height: 22, background: GRAY5, borderRadius: 4, overflow: 'hidden' }}>
                         <div style={{ height: '100%', borderRadius: 4, background: R, width: `${w}%`, maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8, transition: 'width .7s cubic-bezier(.4,0,.2,1)' }}>
-                          {f.value > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: '#FFFFFF' }}>{f.value}</span>}
+                          {f.value > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: WHITE }}>{f.value}</span>}
                         </div>
                       </div>
                       {f.value === 0 && <span style={{ fontSize: 11, color: GRAY3, fontWeight: 700, width: 14 }}>0</span>}
@@ -650,7 +650,7 @@ export default function DashboardPage() {
                   }).filter(t => t.volume > 0)
                   const maxVI = Math.max(...tierVI.map(t => t.custo), 1)
                   return (
-                    <div style={{ background: WHITE, borderRadius: 16, padding: '22px 20px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ background: WHITE, borderRadius: 16, padding: '22px 20px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Valor Investido</div>
                         <div style={{ fontSize: 26, fontWeight: 900, color: GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>{fmt(valorInvestido)}</div>
@@ -661,14 +661,14 @@ export default function DashboardPage() {
                               <span style={{ fontSize: 10, color: GRAY2 }}>Meta: {fmt(metaVI)}</span>
                               <span style={{ fontSize: 10, fontWeight: 700, color: GRAY2 }}>{pctVI}%</span>
                             </div>
-                            <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                            <div style={{ height: 3, background: GRAY5, borderRadius: 2 }}>
                               <div style={{ height: 3, borderRadius: 2, background: R, width: `${pctVI}%`, transition: 'width .7s' }} />
                             </div>
                           </div>
                         )}
                       </div>
                       {tierVI.length > 0 && (
-                        <div style={{ borderTop: '1px solid #F0F0F0', paddingTop: 12 }}>
+                        <div style={{ borderTop: `1px solid ${GRAY5}`, paddingTop: 12 }}>
                           <div style={{ fontSize: 9, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Por Tier</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                             {tierVI.map(t => (
@@ -680,7 +680,7 @@ export default function DashboardPage() {
                                     <span style={{ fontSize: 10, fontWeight: 800, color: GRAY1 }}>{fmt(t.custo)}</span>
                                   </div>
                                 </div>
-                                <div style={{ height: 2, background: '#EBEBEB', borderRadius: 1 }}>
+                                <div style={{ height: 2, background: GRAY5, borderRadius: 1 }}>
                                   <div style={{ height: 2, borderRadius: 1, background: R, width: `${Math.round(t.custo / maxVI * 100)}%`, transition: 'width .6s' }} />
                                 </div>
                               </div>
@@ -704,7 +704,7 @@ export default function DashboardPage() {
                     return { tier: tier ?? 'S/ TIER', volume: tLeads.length, custo, cpmqlT, roasT }
                   }).filter(t => t.volume > 0)
                   return (
-                    <div style={{ background: WHITE, borderRadius: 16, padding: '22px 20px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ background: WHITE, borderRadius: 16, padding: '22px 20px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>CPMQL</div>
                         <div style={{ fontSize: 26, fontWeight: 900, color: cpmqlBom === false ? R : GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>{cpmql != null ? fmt(cpmql) : '—'}</div>
@@ -719,7 +719,7 @@ export default function DashboardPage() {
                         )}
                       </div>
                       {tierData.length > 0 && (
-                        <div style={{ borderTop: '1px solid #F0F0F0', paddingTop: 12 }}>
+                        <div style={{ borderTop: `1px solid ${GRAY5}`, paddingTop: 12 }}>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '4px 0', marginBottom: 6 }}>
                             <span style={{ fontSize: 9, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tier</span>
                             <span style={{ fontSize: 9, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center' }}>Leads</span>
@@ -728,7 +728,7 @@ export default function DashboardPage() {
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                             {tierData.map(t => (
-                              <div key={t.tier} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #F9FAFB' }}>
+                              <div key={t.tier} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', alignItems: 'center', padding: '5px 0', borderBottom: `1px solid ${GRAY5}` }}>
                                 <span style={{ fontSize: 10, fontWeight: 700, color: GRAY1 }}>{t.tier}</span>
                                 <span style={{ fontSize: 10, color: GRAY2, textAlign: 'center' }}>{t.volume}</span>
                                 <span style={{ fontSize: 10, fontWeight: 700, color: t.cpmqlT && metaCpmql && t.cpmqlT > metaCpmql ? R : GRAY1, textAlign: 'right' }}>
@@ -749,7 +749,7 @@ export default function DashboardPage() {
                 {(() => {
                   const roasBom = roas != null && metaRoas != null ? roas >= metaRoas : null
                   return (
-                    <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid #E5E7EB', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>ROAS</div>
                         <div style={{ fontSize: 28, fontWeight: 900, color: roasBom === false ? R : GRAY1, lineHeight: 1, letterSpacing: '-0.02em' }}>
@@ -767,7 +767,7 @@ export default function DashboardPage() {
                           </div>
                           {roas != null && (
                             <div style={{ marginTop: 5 }}>
-                              <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2 }}>
+                              <div style={{ height: 3, background: GRAY5, borderRadius: 2 }}>
                                 <div style={{ height: 3, borderRadius: 2, background: R, width: `${Math.min(roas / metaRoas * 100, 100)}%`, transition: 'width .7s' }} />
                               </div>
                             </div>
@@ -794,11 +794,11 @@ export default function DashboardPage() {
 
         {/* ── Charts row ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
-          <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', animationDelay: '100ms' }}>
+          <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, animationDelay: '100ms' }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Evolução Mensal</div>
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={dadosMensais}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#EBEBEB" />
+                <CartesianGrid strokeDasharray="2 4" stroke={GRAY5} />
                 <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="left" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fill: `${R}99`, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
@@ -813,11 +813,11 @@ export default function DashboardPage() {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)', animationDelay: '180ms' }}>
+          <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, animationDelay: '180ms' }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>TCV por Mês</div>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={dadosMensais} barCategoryGap="30%">
-                <CartesianGrid strokeDasharray="2 4" stroke="#EBEBEB" />
+                <CartesianGrid strokeDasharray="2 4" stroke={GRAY5} />
                 <XAxis dataKey="mes" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
                 <Tooltip contentStyle={{ ...tooltipStyle, boxShadow: '0 8px 24px rgba(0,0,0,.12)' }} formatter={(v: any) => [fmt(v), 'TCV']} cursor={{ fill: `${R}08` }} />
@@ -853,7 +853,7 @@ export default function DashboardPage() {
           if (closerStats.every(s => s.rrs === 0 && s.vendas === 0)) return null
           const maxTcv = Math.max(...closerStats.map(s => s.tcvTotal), 1)
           return (
-            <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+            <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}` }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Comparativo de Closers — {mesFmt(mesSel)}</div>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${closerUsers.length}, 1fr)`, gap: 16 }}>
                 {closerStats.map((s, i) => {
@@ -887,7 +887,7 @@ export default function DashboardPage() {
                         <div style={{ marginBottom: 10 }}>
                           <div style={{ fontSize: 9, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>TCV Total</div>
                           <div style={{ fontSize: 16, fontWeight: 900, color: GREEN }}>{fmt(s.tcvTotal)}</div>
-                          <div style={{ height: 3, background: '#EBEBEB', borderRadius: 2, marginTop: 5 }}>
+                          <div style={{ height: 3, background: GRAY5, borderRadius: 2, marginTop: 5 }}>
                             <div style={{ height: 3, borderRadius: 2, background: R, width: `${(s.tcvTotal / maxTcv) * 100}%`, transition: 'width .6s' }} />
                           </div>
                         </div>
@@ -925,7 +925,7 @@ export default function DashboardPage() {
         {/* ── Análise por Canal ── */}
         {(() => {
           const CANAIS_LIST = ['Recovery', 'Lead Broker', 'Recomendação', 'Eventos', 'Indicação']
-          const CANAL_COLORS: Record<string, string> = { 'Recovery': BLUE, 'Lead Broker': YELLOW, 'Recomendação': GREEN, 'Eventos': PURPLE, 'Indicação': '#F97316' }
+          const CANAL_COLORS: Record<string, string> = { 'Recovery': BLUE, 'Lead Broker': YELLOW, 'Recomendação': GREEN, 'Eventos': PURPLE, 'Indicação': R }
           const canalData = CANAIS_LIST.map(canal => {
             const entradas = leads.filter(l => mesAno(l.data_entrada as string) === mesSel && l.origem === canal)
             const ras      = leads.filter(l => mesAno(l.data_ra as string)      === mesSel && l.origem === canal)
@@ -946,12 +946,12 @@ export default function DashboardPage() {
           if (canalData.length === 0) return null
           const maxEnt = Math.max(...canalData.map(c => c.entradas), 1)
           return (
-            <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+            <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}` }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Análise por Canal — {mesFmt(mesSel)}</div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #F0F0F0' }}>
+                    <tr style={{ borderBottom: `2px solid ${GRAY5}` }}>
                       {['Canal','Entradas','RAs','RRs','E2E%','Ent→RA','No-Show','RA→RR','RR→Venda','Vendas','TCV','Ticket Médio','Ativação%'].map(h => (
                         <th key={h} style={{ textAlign: h === 'Canal' ? 'left' : 'center', padding: '8px 12px', fontSize: 10, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
@@ -961,13 +961,13 @@ export default function DashboardPage() {
                     {canalData.map((c, i) => {
                       const cor = CANAL_COLORS[c.canal] || GRAY2
                       return (
-                        <tr key={c.canal} style={{ borderBottom: '1px solid #F9F9F9', background: i % 2 ? '#FAFAFA' : WHITE }}>
+                        <tr key={c.canal} style={{ borderBottom: `1px solid ${GRAY5}`, background: i % 2 ? GRAY4 : WHITE }}>
                           <td style={{ padding: '10px 12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <div style={{ width: 3, height: 28, borderRadius: 2, background: cor, flexShrink: 0 }} />
                               <div>
                                 <div style={{ fontWeight: 700, color: GRAY1 }}>{c.canal}</div>
-                                <div style={{ height: 3, background: '#F0F0F0', borderRadius: 2, marginTop: 4, width: 80 }}>
+                                <div style={{ height: 3, background: GRAY5, borderRadius: 2, marginTop: 4, width: 80 }}>
                                   <div style={{ height: 3, borderRadius: 2, background: cor, width: `${(c.entradas / maxEnt) * 100}%` }} />
                                 </div>
                               </div>
@@ -1012,7 +1012,7 @@ export default function DashboardPage() {
           const ACTIVE_STAGES = ['ENTRADA','TENTANDO CONTATO','EM QUALIFICAÇÃO','REUNIÃO AGENDADA','NO-SHOW/REMARCANDO','REUNIÃO REALIZADA','FOLLOW UP']
           const limiteDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
           const diasSem = (d: string) => Math.floor((Date.now() - new Date(d).getTime()) / 86400000)
-          const STAGE_COLORS: Record<string,string> = { 'ENTRADA': BLUE, 'TENTANDO CONTATO': '#F97316', 'EM QUALIFICAÇÃO': YELLOW, 'REUNIÃO AGENDADA': '#0D9488', 'NO-SHOW/REMARCANDO': '#92400E', 'REUNIÃO REALIZADA': PURPLE, 'FOLLOW UP': '#8B5CF6' }
+          const STAGE_COLORS: Record<string,string> = { 'ENTRADA': BLUE, 'TENTANDO CONTATO': YELLOW, 'EM QUALIFICAÇÃO': YELLOW, 'REUNIÃO AGENDADA': GREEN, 'NO-SHOW/REMARCANDO': GRAY2, 'REUNIÃO REALIZADA': PURPLE, 'FOLLOW UP': PURPLE }
 
           const leadsComTcv = leads.filter(l => ACTIVE_STAGES.includes(getPipelineStage(l)) && (l.tcv || 0) > 0)
           const quentes = leadsComTcv.filter(l => l.temperatura === 'QUENTE')
@@ -1043,9 +1043,9 @@ export default function DashboardPage() {
                     <div style={{ fontSize:16, fontWeight:900, color:R }}>{fmt(tcvQ*0.7)}</div>
                     <div style={{ fontSize:10, color:GRAY2, marginTop:2 }}>{quentes.length} leads · {fmt(tcvQ)} raw</div>
                   </div>
-                  <div style={{ flex:1, background:'#FEF3C708', borderRadius:10, padding:'10px 12px', border:'1px solid #FDE68A' }}>
-                    <div style={{ fontSize:9, fontWeight:800, color:'#B45309', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>☀️ Morno · 30%</div>
-                    <div style={{ fontSize:16, fontWeight:900, color:'#B45309' }}>{fmt(tcvM*0.3)}</div>
+                  <div style={{ flex:1, background:`${YELLOW}08`, borderRadius:10, padding:'10px 12px', border:`1px solid ${YELLOW}40` }}>
+                    <div style={{ fontSize:9, fontWeight:800, color:YELLOW, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>☀️ Morno · 30%</div>
+                    <div style={{ fontSize:16, fontWeight:900, color:YELLOW }}>{fmt(tcvM*0.3)}</div>
                     <div style={{ fontSize:10, color:GRAY2, marginTop:2 }}>{mornos.length} leads · {fmt(tcvM)} raw</div>
                   </div>
                 </div>
@@ -1053,12 +1053,12 @@ export default function DashboardPage() {
                   <>
                     <div style={{ fontSize:9, fontWeight:800, color:GRAY3, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>Maiores oportunidades</div>
                     {topLeads.map(l => (
-                      <div key={l.id} onClick={() => router.push(`/leads/${l.id}`)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid #F3F4F6', cursor:'pointer' }}>
+                      <div key={l.id} onClick={() => router.push(`/leads/${l.id}`)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:`1px solid ${GRAY5}`, cursor:'pointer' }}>
                         <div style={{ minWidth:0 }}>
                           <div style={{ fontSize:12, fontWeight:700, color:GRAY1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{l.empresa}</div>
                           <div style={{ fontSize:10, color:GRAY3 }}>{l.closer || '—'}</div>
                         </div>
-                        <span style={{ fontSize:12, fontWeight:800, color: l.temperatura==='QUENTE' ? R : '#B45309', flexShrink:0, marginLeft:8 }}>{fmt(l.tcv||0)}</span>
+                        <span style={{ fontSize:12, fontWeight:800, color: l.temperatura==='QUENTE' ? R : YELLOW, flexShrink:0, marginLeft:8 }}>{fmt(l.tcv||0)}</span>
                       </div>
                     ))}
                   </>
@@ -1071,7 +1071,7 @@ export default function DashboardPage() {
               <div style={{ background:WHITE, borderRadius:16, padding:'22px 22px', boxShadow:'0 1px 8px rgba(0,0,0,.05)', border:'1px solid rgba(0,0,0,.05)' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
                   <div style={{ fontSize:10, fontWeight:800, color:GRAY2, textTransform:'uppercase', letterSpacing:'0.12em' }}>Leads Travados</div>
-                  {travados.length > 0 && <span style={{ fontSize:10, fontWeight:800, color:'#F97316', background:'#FFF7ED', border:'1px solid #FED7AA', padding:'2px 8px', borderRadius:20 }}>{travados.length} lead{travados.length>1?'s':''}</span>}
+                  {travados.length > 0 && <span style={{ fontSize:10, fontWeight:800, color:YELLOW, background:`${YELLOW}10`, border:`1px solid ${YELLOW}40`, padding:'2px 8px', borderRadius:20 }}>{travados.length} lead{travados.length>1?'s':''}</span>}
                 </div>
                 <div style={{ fontSize:10, color:GRAY3, marginBottom:16 }}>Sem interação há mais de 7 dias</div>
                 {travados.length === 0 ? (
@@ -1083,7 +1083,7 @@ export default function DashboardPage() {
                       const stage = getPipelineStage(l)
                       const sc = STAGE_COLORS[stage] || GRAY2
                       return (
-                        <div key={l.id} onClick={() => router.push(`/leads/${l.id}`)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 12px', background:'#FFF7ED', borderRadius:10, border:'1px solid #FED7AA', cursor:'pointer' }}>
+                        <div key={l.id} onClick={() => router.push(`/leads/${l.id}`)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 12px', background:`${YELLOW}08`, borderRadius:10, border:`1px solid ${YELLOW}30`, cursor:'pointer' }}>
                           <div style={{ minWidth:0 }}>
                             <div style={{ fontSize:12, fontWeight:700, color:GRAY1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{l.empresa}</div>
                             <div style={{ fontSize:10, color:GRAY2, marginTop:2 }}>
@@ -1091,7 +1091,7 @@ export default function DashboardPage() {
                               {l.closer ? ` · ${l.closer}` : ''}
                             </div>
                           </div>
-                          <span style={{ fontSize:11, fontWeight:800, color:'#C2410C', background:'#FED7AA', padding:'3px 9px', borderRadius:20, flexShrink:0, marginLeft:8, whiteSpace:'nowrap' }}>{dias}d parado</span>
+                          <span style={{ fontSize:11, fontWeight:800, color:R, background:`${YELLOW}40`, padding:'3px 9px', borderRadius:20, flexShrink:0, marginLeft:8, whiteSpace:'nowrap' }}>{dias}d parado</span>
                         </div>
                       )
                     })}
@@ -1109,9 +1109,9 @@ export default function DashboardPage() {
           const naoEhPerdido = (l: any) => getPipelineStage(l) !== 'PERDIDO'
           const vencidos = leads.filter(l => l.data_fup && l.data_fup < hoje && naoEhPerdido(l)).sort((a,b) => new Date(a.data_fup!).getTime() - new Date(b.data_fup!).getTime())
           const proximos = leads.filter(l => l.data_fup && l.data_fup >= hoje && naoEhPerdido(l)).sort((a,b) => new Date(a.data_fup!).getTime() - new Date(b.data_fup!).getTime()).slice(0, 8)
-          const fupCardStyle = (overdue: boolean) => ({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: overdue ? `${R}06` : '#F9F8F6', borderRadius: 10, border: `1px solid ${overdue ? `${R}30` : '#EEEDE8'}`, cursor: 'pointer', textDecoration: 'none', transition: 'opacity .15s' })
+          const fupCardStyle = (overdue: boolean) => ({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: overdue ? `${R}06` : GRAY4, borderRadius: 10, border: `1px solid ${overdue ? `${R}30` : GRAY5}`, cursor: 'pointer', textDecoration: 'none', transition: 'opacity .15s' })
           return (
-            <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: '1px solid rgba(0,0,0,.05)' }}>
+            <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                 <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Follow Ups</div>
                 {vencidos.length > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: R, background: `${R}12`, border: `1px solid ${R}30`, padding: '2px 8px', borderRadius: 20 }}>{vencidos.length} vencido{vencidos.length > 1 ? 's' : ''}</span>}
@@ -1193,7 +1193,7 @@ export default function DashboardPage() {
                         <span style={{ fontSize:11, color:GRAY1, fontWeight:600 }}>{motivo}</span>
                         <span style={{ fontSize:11, fontWeight:800, color:R }}>{count}</span>
                       </div>
-                      <div style={{ height:4, background:'#F0F0F0', borderRadius:2 }}>
+                      <div style={{ height:4, background:GRAY5, borderRadius:2 }}>
                         <div style={{ height:4, borderRadius:2, background:R, width:`${(count/maxPV)*100}%`, transition:'width .6s' }} />
                       </div>
                     </div>
@@ -1207,7 +1207,7 @@ export default function DashboardPage() {
                         <span style={{ fontSize:11, color:GRAY1, fontWeight:600 }}>{motivo}</span>
                         <span style={{ fontSize:11, fontWeight:800, color:PURPLE }}>{count}</span>
                       </div>
-                      <div style={{ height:4, background:'#F0F0F0', borderRadius:2 }}>
+                      <div style={{ height:4, background:GRAY5, borderRadius:2 }}>
                         <div style={{ height:4, borderRadius:2, background:PURPLE, width:`${(count/maxC)*100}%`, transition:'width .6s' }} />
                       </div>
                     </div>
