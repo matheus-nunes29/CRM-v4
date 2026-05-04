@@ -187,11 +187,95 @@ export default function DashboardPage() {
   }
 
   if (loading) {
+    const Sk = ({ w, h, r = 6, delay = 0 }: { w: number | string; h: number; r?: number; delay?: number }) => (
+      <div style={{ width: w, height: h, borderRadius: r, background: GRAY5, animation: `skPulse 1.6s ease-in-out ${delay}ms infinite`, flexShrink: 0 }} />
+    )
+    const card = (children: React.ReactNode) => (
+      <div style={{ background: WHITE, borderRadius: 16, padding: '20px 20px', border: `1px solid ${GRAY5}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {children}
+      </div>
+    )
     return (
       <CRMLayout>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, flexDirection: 'column', gap: 12 }}>
-          <div style={{ width: 36, height: 36, border: `3px solid ${GRAY3}`, borderTopColor: PURPLE, borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
-          <span style={{ fontSize: 13, color: GRAY2 }}>Carregando...</span>
+        <style>{`@keyframes skPulse { 0%,100%{opacity:1} 50%{opacity:.35} }`}</style>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Sk w={100} h={9} delay={0} />
+              <Sk w={180} h={28} delay={60} />
+            </div>
+            <Sk w={200} h={20} delay={120} />
+            <Sk w={130} h={38} r={10} delay={180} />
+          </div>
+
+          {/* Health Score — 4 cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
+            {[0,1,2,3].map(i => (
+              <div key={i} style={{ background: WHITE, borderRadius: 12, padding: '14px 16px', border: `1px solid ${GRAY5}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Sk w="55%" h={9} delay={i*50} />
+                <Sk w="40%" h={22} delay={i*50+40} />
+                <Sk w="65%" h={9} delay={i*50+80} />
+              </div>
+            ))}
+          </div>
+
+          {/* KPI Cards — 5 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10 }}>
+            {[0,1,2,3,4].map(i => (
+              <div key={i} style={{ background: WHITE, borderRadius: 16, padding: '20px 20px 18px', border: `1px solid ${GRAY5}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Sk w="60%" h={10} delay={i*50} />
+                <Sk w="45%" h={44} delay={i*50+40} />
+                <Sk w="75%" h={9} delay={i*50+80} />
+                <Sk w="100%" h={3} r={2} delay={i*50+120} />
+              </div>
+            ))}
+          </div>
+
+          {/* TCV + Conversão + Funil */}
+          <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 1fr', gap: 10 }}>
+            {card(<>
+              <Sk w="50%" h={10} delay={0} />
+              <Sk w="70%" h={28} delay={50} />
+              <Sk w="100%" h={3} r={2} delay={100} />
+              {[0,1,2,3].map(i => <div key={i} style={{ display:'flex', flexDirection:'column', gap:6 }}><Sk w="100%" h={9} delay={150+i*40} /><Sk w="100%" h={3} r={2} delay={170+i*40} /></div>)}
+            </>)}
+            {card(<>
+              <Sk w="55%" h={10} delay={80} />
+              {[0,1,2,3,4].map(i => <div key={i} style={{ display:'flex', flexDirection:'column', gap:6 }}><Sk w="100%" h={9} delay={130+i*40} /><Sk w="100%" h={3} r={2} delay={150+i*40} /></div>)}
+            </>)}
+            {card(<>
+              <Sk w="45%" h={10} delay={120} />
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <Sk w={80} h={22} r={4} delay={170+i*40} />
+                  <Sk w="100%" h={22} r={4} delay={190+i*40} />
+                </div>
+              ))}
+            </>)}
+          </div>
+
+          {/* Charts */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+            {card(<><Sk w="30%" h={10} delay={0} /><Sk w="100%" h={220} r={8} delay={60} /></>)}
+            {card(<><Sk w="40%" h={10} delay={80} /><Sk w="100%" h={220} r={8} delay={140} /></>)}
+          </div>
+
+          {/* Forecast + Leads Travados */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {card(<>
+              <Sk w="40%" h={10} delay={0} />
+              <Sk w="60%" h={36} delay={60} />
+              <div style={{ display:'flex', gap:8 }}><Sk w="100%" h={70} r={10} delay={100} /><Sk w="100%" h={70} r={10} delay={140} /></div>
+              {[0,1,2,3,4].map(i => <Sk key={i} w="100%" h={34} r={8} delay={180+i*40} />)}
+            </>)}
+            {card(<>
+              <Sk w="45%" h={10} delay={40} />
+              {[0,1,2,3,4,5].map(i => <Sk key={i} w="100%" h={48} r={10} delay={90+i*40} />)}
+            </>)}
+          </div>
+
         </div>
       </CRMLayout>
     )
