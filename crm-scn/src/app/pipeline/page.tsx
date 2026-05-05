@@ -225,6 +225,7 @@ export default function PipelinePage() {
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [landedStage, setLandedStage] = useState<string | null>(null)
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null)
+  const [copiedCardId, setCopiedCardId] = useState<string | null>(null)
   const [fupFilter, setFupFilter] = useState<string>('')
   const [search, setSearch] = useState('')
 
@@ -654,9 +655,14 @@ export default function PipelinePage() {
                             {hoveredCardId === l.id && l.telefone && (
                               <div style={{ display:'flex', gap:6, marginTop:8, paddingTop:8, borderTop:'1px solid #F0F0F0' }} onClick={e => e.preventDefault()}>
                                 <button
-                                  onClick={e => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(l.telefone) }}
-                                  style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 9px', borderRadius:6, border:'1px solid #E5E7EB', background:'#F9FAFB', color:GRAY2, fontSize:11, fontWeight:600, cursor:'pointer' }}>
-                                  📞 Copiar
+                                  onClick={e => {
+                                    e.preventDefault(); e.stopPropagation()
+                                    navigator.clipboard.writeText(l.telefone)
+                                    setCopiedCardId(l.id)
+                                    setTimeout(() => setCopiedCardId(null), 1500)
+                                  }}
+                                  style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 9px', borderRadius:6, border: copiedCardId === l.id ? `1px solid ${GREEN}` : '1px solid #E5E7EB', background: copiedCardId === l.id ? `${GREEN}12` : '#F9FAFB', color: copiedCardId === l.id ? GREEN : GRAY2, fontSize:11, fontWeight:600, cursor:'pointer', transition:'all .2s' }}>
+                                  {copiedCardId === l.id ? '✓ Copiado!' : '📞 Copiar'}
                                 </button>
                                 {String(l.telefone).replace(/\D/g,'').length >= 10 && (
                                   <a href={`https://wa.me/55${String(l.telefone).replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
