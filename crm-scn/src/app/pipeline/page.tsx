@@ -224,6 +224,7 @@ export default function PipelinePage() {
   const [dragModal, setDragModal] = useState<{ open: boolean; lead: any; targetStage: string } | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [landedStage, setLandedStage] = useState<string | null>(null)
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null)
   const [fupFilter, setFupFilter] = useState<string>('')
   const [search, setSearch] = useState('')
 
@@ -297,6 +298,19 @@ export default function PipelinePage() {
       setLeads(prev => prev.map(l => l.id === lead.id ? lead : l))
       toast.error('Erro ao mover lead: ' + updateError.message)
     }
+  }
+
+  function diasSemAtividade(lead: any): number | null {
+    const hist = Array.isArray(lead.historico_anotacoes_pre_vendas) ? lead.historico_anotacoes_pre_vendas : []
+    const ativs = hist.filter((e: any) => e.tipo === 'cadencia')
+    if (ativs.length === 0) return null
+    const dataStr: string = ativs[0].data || ''
+    const [datePart, timePart = '00:00'] = dataStr.split(' ')
+    const [d, m, y] = datePart.split('/')
+    if (!d || !m || !y) return null
+    const parsed = new Date(`${y}-${m}-${d}T${timePart}`)
+    if (isNaN(parsed.getTime())) return null
+    return Math.floor((Date.now() - parsed.getTime()) / 86400000)
   }
 
   const funilPipeline = useMemo(() => {
@@ -569,8 +583,8 @@ export default function PipelinePage() {
                             onDragStart={e => { if (!canEdit) return; e.dataTransfer.setData('lead', JSON.stringify(l)); e.dataTransfer.effectAllowed = 'move' }}
                             onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); router.push(`/leads/${l.id}?from=pipeline`) } }}
                             style={{ display:'block', textDecoration:'none', color:'inherit', background:WHITE, borderRadius:10, padding:'12px 14px', border:'1px solid #EBEBEB', cursor:'grab', userSelect:'none', boxShadow:'0 1px 4px rgba(0,0,0,.05)', transition:'border-color .12s, box-shadow .12s' }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor=etapa.color; (e.currentTarget as HTMLElement).style.boxShadow=`0 3px 10px ${etapa.color}28` }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor='#EBEBEB'; (e.currentTarget as HTMLElement).style.boxShadow='0 1px 4px rgba(0,0,0,.05)' }}>
+                            onMouseEnter={e => { setHoveredCardId(l.id); (e.currentTarget as HTMLElement).style.borderColor=etapa.color; (e.currentTarget as HTMLElement).style.boxShadow=`0 3px 10px ${etapa.color}28` }}
+                            onMouseLeave={e => { setHoveredCardId(null); (e.currentTarget as HTMLElement).style.borderColor='#EBEBEB'; (e.currentTarget as HTMLElement).style.boxShadow='0 1px 4px rgba(0,0,0,.05)' }}>
 
                             <div style={{ fontSize:13, fontWeight:800, color:GRAY1, lineHeight:1.35, marginBottom:3 }}>{l.empresa}</div>
                             {l.nome_lead && <div style={{ fontSize:11, fontWeight:600, color:GRAY2, marginBottom:2 }}>{l.nome_lead}</div>}
@@ -580,6 +594,15 @@ export default function PipelinePage() {
                                 🤝 {l.recomendacoes ? l.recomendacoes : <span style={{ color:GRAY3, fontStyle:'italic' }}>Sem indicador</span>}
                               </div>
                             )}
+
+                            {isPreVendas && (() => {
+                              const dias = diasSemAtividade(l)
+                              return dias !== null && dias > 3 ? (
+                                <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:6, padding:'3px 8px', borderRadius:6, background:'#FFF7ED', border:'1px solid #FED7AA' }}>
+                                  <span style={{ fontSize:10, fontWeight:700, color:'#C2410C' }}>⚠ {dias}d sem contato</span>
+                                </div>
+                              ) : null
+                            })()}
 
                             {isPreVendas && (
                               <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:9 }}>
@@ -626,6 +649,22 @@ export default function PipelinePage() {
                                     <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:`${YELLOW}18`, color:YELLOW, whiteSpace:'nowrap' }}>📅 {new Date(l.data_fup + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
                                   )}
                                 </div>
+                              </div>
+                            )}
+                            {hoveredCardId === l.id && l.telefone && (
+                              <div style={{ display:'flex', gap:6, marginTop:8, paddingTop:8, borderTop:'1px solid #F0F0F0' }} onClick={e => e.preventDefault()}>
+                                <button
+                                  onClick={e => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(l.telefone) }}
+                                  style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 9px', borderRadius:6, border:'1px solid #E5E7EB', background:'#F9FAFB', color:GRAY2, fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                                  📞 Copiar
+                                </button>
+                                {String(l.telefone).replace(/\D/g,'').length >= 10 && (
+                                  <a href={`https://wa.me/55${String(l.telefone).replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 9px', borderRadius:6, border:`1px solid ${GREEN}50`, background:`${GREEN}08`, color:GREEN, fontSize:11, fontWeight:600, textDecoration:'none', cursor:'pointer' }}>
+                                    💬 WhatsApp
+                                  </a>
+                                )}
                               </div>
                             )}
                           </a>

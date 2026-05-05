@@ -1,13 +1,13 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Lead } from '@/lib/supabase'
 import { Users, Search, Edit2, Trash2 } from 'lucide-react'
 import CRMLayout from '../_components/CRMLayout'
 import { useUserRole } from '@/lib/useUserRole'
-import { confirmDialog } from '@/lib/confirmDialog'
+import { toast } from '@/lib/toast'
 import { SpvBadge, SitBadge } from '@/lib/crm-badges'
 import {
   R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GREEN,
@@ -34,6 +34,8 @@ function tempoRelativo(dateStr: string | null | undefined): string {
   return `há ${mo} mes${mo !== 1 ? 'es' : ''}`
 }
 
+const EMPTY_FILTERS = { closer:'', temperatura:'', situacao:'', origem:'', tier:'', mes_entrada:'', mes_ra:'', mes_rr:'', mes_venda:'', mes_ativacao:'', situacao_pre_vendas:'' }
+
 const STAGE_COLOR: Record<string, string> = Object.fromEntries(
   PIPELINE_STAGES.map(s => [s.key, s.color])
 )
@@ -59,12 +61,16 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({
-    closer: '', temperatura: '', situacao: '',
-    origem: '', tier: '',
-    mes_entrada: '', mes_ra: '', mes_rr: '', mes_venda: '', mes_ativacao: '',
-    situacao_pre_vendas: '',
+  const [search, setSearch] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return sessionStorage.getItem('leads-search') || ''
+  })
+  const [filters, setFilters] = useState(() => {
+    if (typeof window === 'undefined') return EMPTY_FILTERS
+    try {
+      const stored = sessionStorage.getItem('leads-filters')
+      return stored ? { ...EMPTY_FILTERS, ...JSON.parse(stored) } : EMPTY_FILTERS
+    } catch { return EMPTY_FILTERS }
   })
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -91,6 +97,8 @@ export default function LeadsPage() {
   }, [])
 
   useEffect(() => { setPage(1); setSelected(new Set()) }, [search, filters])
+  useEffect(() => { sessionStorage.setItem('leads-search', search) }, [search])
+  useEffect(() => { sessionStorage.setItem('leads-filters', JSON.stringify(filters)) }, [filters])
 
   async function fetchLeads() {
     setLoading(true)
@@ -125,23 +133,49 @@ export default function LeadsPage() {
     URL.revokeObjectURL(url)
   }
 
-  async function deleteLead(id: string) {
-    const ok = await confirmDialog.show({ title: 'Excluir este lead?', confirmLabel: 'Excluir', danger: true })
-    if (!ok) return
-    await supabase.from('leads').delete().eq('id', id)
-    fetchLeads()
+  function deleteLead(id: string) {
+    const lead = leads.find(l => l.id === id)
+    if (!lead) return
+    setLeads(prev => prev.filter(l => l.id !== id))
+    let undone = false
+    const timer = setTimeout(() => { if (!undone) supabase.from('leads').delete().eq('id', id) }, 5000)
+    toast.info(`"${lead.empresa}" excluído`, {
+      duration: 5200,
+      action: {
+        label: 'Desfazer',
+        onClick: () => {
+          undone = true
+          clearTimeout(timer)
+          setLeads(prev => [lead, ...prev].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()))
+        },
+      },
+    })
   }
 
-  async function deleteSelected() {
-    const ok = await confirmDialog.show({ title: `Excluir ${selected.size} lead${selected.size > 1 ? 's' : ''}?`, message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir todos', danger: true })
-    if (!ok) return
+  function deleteSelected() {
     const ids = Array.from(selected)
-    const CHUNK = 50
-    for (let i = 0; i < ids.length; i += CHUNK) {
-      await supabase.from('leads').delete().in('id', ids.slice(i, i + CHUNK))
-    }
+    const removed = leads.filter(l => ids.includes(l.id))
+    setLeads(prev => prev.filter(l => !ids.includes(l.id)))
     setSelected(new Set())
-    fetchLeads()
+    let undone = false
+    const timer = setTimeout(async () => {
+      if (undone) return
+      const CHUNK = 50
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        await supabase.from('leads').delete().in('id', ids.slice(i, i + CHUNK))
+      }
+    }, 5000)
+    toast.info(`${ids.length} lead${ids.length > 1 ? 's' : ''} excluído${ids.length > 1 ? 's' : ''}`, {
+      duration: 5200,
+      action: {
+        label: 'Desfazer',
+        onClick: () => {
+          undone = true
+          clearTimeout(timer)
+          setLeads(prev => [...prev, ...removed].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()))
+        },
+      },
+    })
   }
 
   const filtered = useMemo(() => leads.filter(l =>
@@ -163,7 +197,7 @@ export default function LeadsPage() {
   const pagedLeads = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const allPageSelected = pagedLeads.length > 0 && pagedLeads.every(l => selected.has(l.id))
 
-  const emptyFilters = { closer:'', temperatura:'', situacao:'', origem:'', tier:'', mes_entrada:'', mes_ra:'', mes_rr:'', mes_venda:'', mes_ativacao:'', situacao_pre_vendas:'' }
+  const emptyFilters = EMPTY_FILTERS
   const activeFilters = [
     filters.closer && { key:'closer', label:`Closer: ${filters.closer}`, onRemove:()=>setFilters(p=>({...p,closer:''})) },
     filters.temperatura && { key:'temperatura', label:filters.temperatura, onRemove:()=>setFilters(p=>({...p,temperatura:''})) },
@@ -440,9 +474,20 @@ export default function LeadsPage() {
               </tbody>
             </table>
             {filtered.length === 0 && (
-              <div style={{ textAlign:'center', padding:60, color:GRAY2 }}>
-                <Users size={36} style={{ margin:'0 auto 12px', opacity:0.3, display:'block' }}/>
-                Nenhum lead encontrado
+              <div style={{ textAlign:'center', padding:60, color:GRAY2, display:'flex', flexDirection:'column', alignItems:'center', gap:14 }}>
+                <Users size={36} style={{ opacity:0.3 }}/>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:14, color:GRAY1, marginBottom:6 }}>
+                    {leads.length === 0 ? 'Nenhum lead cadastrado' : 'Nenhum resultado para os filtros aplicados'}
+                  </div>
+                  <div style={{ fontSize:13, color:GRAY2 }}>
+                    {leads.length === 0 ? 'Crie seu primeiro lead para começar.' : 'Tente ajustar ou limpar os filtros.'}
+                  </div>
+                </div>
+                {leads.length === 0
+                  ? <button onClick={() => router.push('/leads/new')} style={{ padding:'9px 20px', borderRadius:9, border:'none', background:R, color:'#FFF', fontSize:13, fontWeight:700, cursor:'pointer' }}>+ Criar primeiro lead</button>
+                  : <button onClick={() => { setFilters(EMPTY_FILTERS); setSearch('') }} style={{ padding:'9px 20px', borderRadius:9, border:`1px solid ${R}`, background:'transparent', color:R, fontSize:13, fontWeight:700, cursor:'pointer' }}>Limpar filtros</button>
+                }
               </div>
             )}
           </div>

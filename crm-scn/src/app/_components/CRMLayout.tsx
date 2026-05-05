@@ -52,6 +52,18 @@ export default function CRMLayout({ children, title, subtitle }: { children: Rea
     }
   }, [pathname])
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase()
+      if (['input', 'textarea', 'select'].includes(tag)) return
+      if ((e.target as HTMLElement)?.isContentEditable) return
+      if (e.key === 'n' || e.key === 'N') { e.preventDefault(); router.push('/leads/new') }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [router])
+
   const navigate = (v: string) => router.push(v === 'dashboard' ? '/' : `/${v}`)
 
   return (

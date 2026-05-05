@@ -470,6 +470,7 @@ function LeadPageInner() {
 
   const [pageLoading, setPageLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<'pre-vendas' | 'vendas'>('pre-vendas')
@@ -585,8 +586,9 @@ function LeadPageInner() {
       if (error) { toast.error('Erro ao salvar: ' + error.message); setSaving(false); return }
     }
     setSaving(false)
+    setSaved(true)
     toast.success(isNew ? 'Lead criado com sucesso!' : 'Lead salvo com sucesso!')
-    setTimeout(() => router.push(fromView === 'pipeline' ? '/pipeline' : '/'), 800)
+    setTimeout(() => router.push(fromView === 'pipeline' ? '/pipeline' : '/'), 900)
   }
 
   const hasErrors = Object.values(errors).some(Boolean)
@@ -1225,8 +1227,8 @@ function LeadPageInner() {
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => router.back()} style={{ padding: '10px 20px', borderRadius: 10, border: `1px solid ${BORDER}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Voltar</button>
               {canEdit && (
-                <button onClick={handleSave} disabled={saving} style={{ padding: '10px 28px', borderRadius: 10, border: 'none', background: saving ? GRAY3 : 'linear-gradient(135deg, #E8001C, #B91C1C)', color: WHITE, fontSize: 13, fontWeight: 800, cursor: saving ? 'default' : 'pointer', boxShadow: saving ? 'none' : '0 4px 14px rgba(232,0,28,0.3)' }}>
-                  {saving ? 'Salvando...' : 'SALVAR'}
+                <button onClick={handleSave} disabled={saving || saved} style={{ padding: '10px 28px', borderRadius: 10, border: 'none', background: saved ? GREEN : saving ? GRAY3 : 'linear-gradient(135deg, #E8001C, #B91C1C)', color: WHITE, fontSize: 13, fontWeight: 800, cursor: (saving || saved) ? 'default' : 'pointer', boxShadow: saved ? '0 4px 14px rgba(22,163,74,0.3)' : saving ? 'none' : '0 4px 14px rgba(232,0,28,0.3)', transition: 'background .2s, box-shadow .2s' }}>
+                  {saved ? '✓ SALVO!' : saving ? 'Salvando...' : 'SALVAR'}
                 </button>
               )}
             </div>

@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench } from 'lucide-react'
+import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { LOGO_SRC } from './logo'
 
@@ -36,7 +36,17 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [indicatorTop, setIndicatorTop] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('sidebar-collapsed') === 'true'
+  })
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+
+  const toggleCollapse = () => setCollapsed(v => {
+    const next = !v
+    localStorage.setItem('sidebar-collapsed', String(next))
+    return next
+  })
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -62,7 +72,7 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
 
   return (
     <aside style={{
-      width: 220,
+      width: collapsed ? 64 : 220,
       background: '#0E0D0B',
       display: 'flex',
       flexDirection: 'column',
@@ -71,11 +81,12 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
       boxShadow: '1px 0 0 rgba(255,255,255,0.04)',
       zIndex: 10,
       opacity: mounted ? 1 : 0,
-      transition: 'opacity .3s',
+      transition: 'opacity .3s, width .22s cubic-bezier(.22,1,.36,1)',
+      overflow: 'hidden',
     }}>
 
       {/* Logo */}
-      <div style={{ padding: '20px 18px 18px', borderBottom: `1px solid ${BORDER}` }}>
+      <div style={{ padding: collapsed ? '16px 0' : '20px 18px 18px', borderBottom: `1px solid ${BORDER}`, display:'flex', justifyContent: collapsed ? 'center' : 'flex-start' }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           animation: 'fadeUp .4s cubic-bezier(.22,1,.36,1) both',
@@ -90,15 +101,17 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
           }}>
             <img src={LOGO_SRC} alt="V4" style={{ width: 34, height: 34, objectFit: 'contain' }} />
           </div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: TEXT_ACT, letterSpacing: '0.08em', lineHeight: 1 }}>V4 COMPANY</div>
-            <div style={{ fontSize: 10, color: TEXT_MUT, marginTop: 3, letterSpacing: '0.06em' }}>SCN & CO</div>
-          </div>
+          {!collapsed && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: TEXT_ACT, letterSpacing: '0.08em', lineHeight: 1 }}>V4 COMPANY</div>
+              <div style={{ fontSize: 10, color: TEXT_MUT, marginTop: 3, letterSpacing: '0.06em' }}>SCN & CO</div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: 1, position: 'relative' }}>
+      <nav style={{ flex: 1, padding: collapsed ? '14px 6px' : '14px 10px', display: 'flex', flexDirection: 'column', gap: 1, position: 'relative' }}>
         {/* Sliding glass indicator */}
         {indicatorTop !== null && (
           <div style={{
@@ -123,15 +136,16 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
               onClick={() => onNavigate(item.id)}
               onMouseEnter={() => setHovered(item.id)}
               onMouseLeave={() => setHovered(null)}
+              title={collapsed ? item.label : undefined}
               style={{
-                display: 'flex', alignItems: 'center', gap: 9,
-                padding: '9px 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 9,
+                padding: collapsed ? '9px 0' : '9px 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
                 textAlign: 'left', width: '100%', position: 'relative', zIndex: 1,
                 background: isHover ? 'rgba(255,255,255,0.07)' : 'transparent',
                 color: active ? WHITE : isHover ? 'rgba(237,232,225,0.85)' : TEXT_MUT,
                 fontWeight: active ? 700 : 500, fontSize: 13,
                 transition: 'background .16s ease, color .16s ease, transform .18s cubic-bezier(.22,1,.36,1)',
-                transform: isHover ? 'translateX(3px)' : 'translateX(0)',
+                transform: !collapsed && isHover ? 'translateX(3px)' : 'translateX(0)',
                 animation: `slideRight .35s cubic-bezier(.22,1,.36,1) ${idx * 40}ms both`,
               }}
             >
@@ -139,26 +153,37 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
                 size={15} strokeWidth={active ? 2.5 : 2}
                 style={{ transition: 'transform .2s', transform: isHover ? 'scale(1.15)' : 'scale(1)', flexShrink: 0, filter: active ? 'drop-shadow(0 0 6px rgba(255,255,255,0.5))' : 'none' }}
               />
-              {item.label}
+              {!collapsed && item.label}
             </button>
           )
         })}
+
+        {/* Toggle collapse */}
+        <button
+          onClick={toggleCollapse}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          style={{ display:'flex', alignItems:'center', justifyContent: collapsed ? 'center' : 'flex-end', gap:6, padding: collapsed ? '8px 0' : '8px 12px', borderRadius:9, border:'none', cursor:'pointer', background:'transparent', color:TEXT_MUT, width:'100%', marginTop:8, transition:'color .15s' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(237,232,225,0.60)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = TEXT_MUT }}
+        >
+          {collapsed ? <ChevronRight size={14} /> : <><span style={{ fontSize:11, fontWeight:500 }}>Recolher</span><ChevronLeft size={14} /></>}
+        </button>
       </nav>
 
       {/* Bottom */}
-      <div style={{ padding: '12px 10px', borderTop: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: collapsed ? '12px 6px' : '12px 10px', borderTop: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 8, alignItems: collapsed ? 'center' : 'stretch' }}>
         {/* Novo Lead */}
         <button
           onClick={() => router.push('/leads/new')}
-          className="btn-press"
+          title={collapsed ? 'Novo Lead' : undefined}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            padding: '10px 12px', borderRadius: 9,
+            padding: collapsed ? '10px 0' : '10px 12px', borderRadius: 9,
             border: `1px solid rgba(232,0,28,0.45)`,
             background: 'rgba(232,0,28,0.10)',
             backdropFilter: 'blur(12px)',
             color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            letterSpacing: '0.05em',
+            letterSpacing: collapsed ? 0 : '0.05em',
             transition: 'background .18s, border-color .18s, box-shadow .18s',
             boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
           }}
@@ -176,38 +201,42 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
           }}
         >
           <Plus size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-          NOVO LEAD
+          {!collapsed && 'NOVO LEAD'}
         </button>
 
         {/* User */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px' }}>
-          {session?.user?.user_metadata?.avatar_url
-            ? <img src={session.user.user_metadata.avatar_url}
-                style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, border: '1.5px solid rgba(255,255,255,0.18)' }} alt="" />
-            : <div style={{
-                width: 28, height: 28, borderRadius: '50%',
-                background: `linear-gradient(135deg, ${R}, #FF4040)`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 800, color: WHITE, flexShrink: 0,
-                boxShadow: `0 0 14px ${R}50, 0 2px 8px rgba(0,0,0,0.4)`,
-                border: '1px solid rgba(255,255,255,0.18)',
-              }}>
-                {initials}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px', justifyContent: collapsed ? 'center' : 'flex-start' }}>
+          <button onClick={handleSignOut} title={collapsed ? 'Sair' : undefined} style={{ background:'none', border:'none', cursor:'pointer', padding:0, display:'flex', flexShrink:0 }}>
+            {session?.user?.user_metadata?.avatar_url
+              ? <img src={session.user.user_metadata.avatar_url}
+                  style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, border: '1.5px solid rgba(255,255,255,0.18)' }} alt="" />
+              : <div style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${R}, #FF4040)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 800, color: WHITE, flexShrink: 0,
+                  boxShadow: `0 0 14px ${R}50, 0 2px 8px rgba(0,0,0,0.4)`,
+                  border: '1px solid rgba(255,255,255,0.18)',
+                }}>
+                  {initials}
+                </div>
+            }
+          </button>
+          {!collapsed && (
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(237,232,225,0.72)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                {session?.user?.user_metadata?.full_name || session?.user?.email || ''}
               </div>
-          }
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(237,232,225,0.72)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1 }}>
-              {session?.user?.user_metadata?.full_name || session?.user?.email || ''}
+              <button
+                onClick={handleSignOut}
+                style={{ fontSize: 10, color: TEXT_MUT, marginTop: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, transition: 'color .15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(237,232,225,0.60)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = TEXT_MUT }}
+              >
+                <LogOut size={10} /> Sair
+              </button>
             </div>
-            <button
-              onClick={handleSignOut}
-              style={{ fontSize: 10, color: TEXT_MUT, marginTop: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, transition: 'color .15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(237,232,225,0.60)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = TEXT_MUT }}
-            >
-              <LogOut size={10} /> Sair
-            </button>
-          </div>
+          )}
         </div>
       </div>
     </aside>
