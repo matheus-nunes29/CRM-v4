@@ -235,7 +235,7 @@ export default function PipelinePage() {
   useEffect(() => {
     const channel = supabase
       .channel('pipeline-leads-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchLeads)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, silentFetchLeads)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
@@ -250,6 +250,16 @@ export default function PipelinePage() {
       setLeads([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function silentFetchLeads() {
+    try {
+      const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
+      if (error) throw error
+      setLeads(data || [])
+    } catch {
+      // silently ignore — UI keeps current state
     }
   }
 
@@ -272,10 +282,17 @@ export default function PipelinePage() {
       updates.situacao_closer = 'PERDIDO CLOSER'
     }
     if (targetStage === 'VENDA' && formData.data_assinatura) updates.venda = 'SIM'
-    const { error: updateError } = await supabase.from('leads').update(updates).eq('id', lead.id)
-    if (updateError) { alert('Erro ao mover lead: ' + updateError.message); return }
-    await fetchLeads()
+
+    // Optimistic update — move the card locally before the API call
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updates } : l))
     setDragModal(null)
+
+    const { error: updateError } = await supabase.from('leads').update(updates).eq('id', lead.id)
+    if (updateError) {
+      // Revert on failure
+      setLeads(prev => prev.map(l => l.id === lead.id ? lead : l))
+      alert('Erro ao mover lead: ' + updateError.message)
+    }
   }
 
   const funilPipeline = useMemo(() => {
