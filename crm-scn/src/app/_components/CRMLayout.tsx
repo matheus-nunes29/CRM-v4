@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '../Sidebar'
 import { Toaster } from '@/components/Toaster'
+import { ConfirmModal } from '@/components/ConfirmModal'
 import { GRAY1, GRAY2, GRAY3, R } from '@/lib/crm-constants'
 
 const VIEW_MAP: Record<string, string> = {
@@ -109,6 +110,7 @@ export default function CRMLayout({ children, title, subtitle }: { children: Rea
       </div>
 
       <Toaster />
+      <ConfirmModal />
     </div>
   )
 }

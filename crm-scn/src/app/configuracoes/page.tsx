@@ -10,6 +10,8 @@ import {
   inputCls, labelCls,
 } from '@/lib/crm-constants'
 import { PAPEL_LABELS, PAPEL_COLORS, type Papel } from '@/lib/useUserRole'
+import { confirmDialog } from '@/lib/confirmDialog'
+import { toast } from '@/lib/toast'
 
 const ADMIN_EMAIL = 'matheus.nunes@v4company.com'
 
@@ -111,7 +113,8 @@ function UsuariosCard({ currentEmail }: { currentEmail?: string }) {
   }
 
   async function removeUsuario(id: string) {
-    if (!confirm('Remover este usuário?')) return
+    const ok = await confirmDialog.show({ title: 'Remover este usuário?', confirmLabel: 'Remover', danger: true })
+    if (!ok) return
     await supabase.from('usuarios_permitidos').delete().eq('id', id)
     fetchUsuarios()
   }
@@ -360,7 +363,7 @@ function ConfiguracoesContent({ onImport, userEmail }: { onImport: (leads: any[]
       try {
         const data = e.target?.result
         const XLSX = (window as any).XLSX
-        if (!XLSX) { alert('Aguarde o carregamento da biblioteca e tente novamente.'); return }
+        if (!XLSX) { toast.info('Aguarde o carregamento da biblioteca e tente novamente.'); return }
         const workbook = XLSX.read(data, { type: 'binary', cellDates: true })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
@@ -388,7 +391,7 @@ function ConfiguracoesContent({ onImport, userEmail }: { onImport: (leads: any[]
         setPreview(dataRows)
         setStep('map')
       } catch(err) {
-        alert('Erro ao ler arquivo. Certifique-se que é um arquivo .xlsx ou .csv válido.')
+        toast.error('Erro ao ler arquivo. Certifique-se que é um arquivo .xlsx ou .csv válido.')
       }
     }
     reader.readAsBinaryString(f)
@@ -403,7 +406,7 @@ function ConfiguracoesContent({ onImport, userEmail }: { onImport: (leads: any[]
       try {
         const data = e.target?.result
         const XLSX = (window as any).XLSX
-        if (!XLSX) { alert('Aguarde o carregamento da biblioteca e tente novamente.'); return }
+        if (!XLSX) { toast.info('Aguarde o carregamento da biblioteca e tente novamente.'); return }
         const workbook = XLSX.read(data, { type: 'binary', cellDates: true })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
@@ -447,7 +450,7 @@ function ConfiguracoesContent({ onImport, userEmail }: { onImport: (leads: any[]
         setResult(res)
         setStep('done')
       } catch(err: any) {
-        alert('Erro na importação: ' + err.message)
+        toast.error('Erro na importação: ' + err.message)
       }
       setImporting(false)
     }

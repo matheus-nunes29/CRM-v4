@@ -7,6 +7,7 @@ import type { Lead } from '@/lib/supabase'
 import { Users, Search, Edit2, Trash2 } from 'lucide-react'
 import CRMLayout from '../_components/CRMLayout'
 import { useUserRole } from '@/lib/useUserRole'
+import { confirmDialog } from '@/lib/confirmDialog'
 import { SpvBadge, SitBadge } from '@/lib/crm-badges'
 import {
   R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GREEN,
@@ -125,13 +126,15 @@ export default function LeadsPage() {
   }
 
   async function deleteLead(id: string) {
-    if (!confirm('Excluir este lead?')) return
+    const ok = await confirmDialog.show({ title: 'Excluir este lead?', confirmLabel: 'Excluir', danger: true })
+    if (!ok) return
     await supabase.from('leads').delete().eq('id', id)
     fetchLeads()
   }
 
   async function deleteSelected() {
-    if (!confirm(`Excluir ${selected.size} leads selecionados? Esta ação não pode ser desfeita.`)) return
+    const ok = await confirmDialog.show({ title: `Excluir ${selected.size} lead${selected.size > 1 ? 's' : ''}?`, message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir todos', danger: true })
+    if (!ok) return
     const ids = Array.from(selected)
     const CHUNK = 50
     for (let i = 0; i < ids.length; i += CHUNK) {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Copy, Check, Pencil, Save, X, ChevronDown, ChevronRight, RotateCcw, Search } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import CRMLayout from '../_components/CRMLayout'
+import { confirmDialog } from '@/lib/confirmDialog'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GREEN } from '@/lib/crm-constants'
 
 const BORDER = '#E5E7EB'
@@ -808,8 +809,9 @@ export default function ScriptsPage() {
                                 <Save size={12} />Salvar
                               </button>
                               <button onClick={() => setObjEdit(null)} style={{ padding: '7px 12px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, color: GRAY2, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
-                              <button onClick={() => {
-                                if (!confirm('Deletar esta objeção?')) return
+                              <button onClick={async () => {
+                                const ok = await confirmDialog.show({ title: 'Deletar esta objeção?', confirmLabel: 'Deletar', danger: true })
+                                if (!ok) return
                                 const updated = objections.filter(o => o.id !== obj.id)
                                 saveObjections(updated); setObjExpanded(null)
                               }} style={{ marginLeft: 'auto', padding: '7px 12px', borderRadius: 8, border: `1px solid ${R}30`, background: `${R}06`, color: R, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Deletar</button>

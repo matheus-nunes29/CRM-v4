@@ -19,6 +19,7 @@ import {
 } from '@/lib/crm-pipeline'
 import { useUserRole } from '@/lib/useUserRole'
 import { UserSelect } from '@/components/UserSelect'
+import { toast } from '@/lib/toast'
 
 function DragModal({ info, onConfirm, onClose }: {
   info: { lead: any; targetStage: string }
@@ -294,7 +295,7 @@ export default function PipelinePage() {
     if (updateError) {
       // Revert on failure
       setLeads(prev => prev.map(l => l.id === lead.id ? lead : l))
-      alert('Erro ao mover lead: ' + updateError.message)
+      toast.error('Erro ao mover lead: ' + updateError.message)
     }
   }
 
