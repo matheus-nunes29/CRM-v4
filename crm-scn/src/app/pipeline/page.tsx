@@ -321,6 +321,20 @@ export default function PipelinePage() {
     }))
   }, [leads, pipelineCanal, pipelineCloser, pipelineTemp, pipelineUltimaAtiv, pipelineCadencia, search])
 
+  const weightTrembleStyle = `
+    @keyframes weight-tremble {
+      0%   { transform: translate(0px,   0px) rotate(0deg);    }
+      12%  { transform: translate(-2px,  3px) rotate(-0.5deg); }
+      24%  { transform: translate( 2px,  4px) rotate( 0.5deg); }
+      36%  { transform: translate(-1px,  2px) rotate(-0.3deg); }
+      48%  { transform: translate( 1px,  3px) rotate( 0.3deg); }
+      60%  { transform: translate(-1px,  2px) rotate(-0.2deg); }
+      72%  { transform: translate( 1px,  2px) rotate( 0.2deg); }
+      86%  { transform: translate(-0.5px,1px) rotate(-0.1deg); }
+      100% { transform: translate(0px,   0px) rotate(0deg);    }
+    }
+  `
+
   if (loading) {
     return (
       <CRMLayout>
@@ -334,6 +348,7 @@ export default function PipelinePage() {
 
   return (
     <CRMLayout>
+      <style>{weightTrembleStyle}</style>
       <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
 
         {/* ── Header ── */}
@@ -521,7 +536,7 @@ export default function PipelinePage() {
                         else applyDragUpdate(leadData, etapa.key, {})
                       }
                     }}
-                    style={{ background: dragOver === etapa.key ? `${etapa.color}10` : '#FAFAFA', borderRadius:14, border: dragOver === etapa.key ? `2px dashed ${etapa.color}` : '1px solid #E8E8EE', overflow:'hidden', borderTop:`4px solid ${etapa.color}`, boxShadow:'0 2px 8px rgba(0,0,0,.05)', transition:'all .15s' }}>
+                    style={{ background: dragOver === etapa.key ? `${etapa.color}10` : '#FAFAFA', borderRadius:14, border: dragOver === etapa.key ? `2px dashed ${etapa.color}` : '1px solid #E8E8EE', overflow:'hidden', borderTop:`4px solid ${etapa.color}`, boxShadow: dragOver === etapa.key ? `0 6px 24px ${etapa.color}40` : '0 2px 8px rgba(0,0,0,.05)', transition:'background .15s, border .15s, box-shadow .15s', animation: dragOver === etapa.key ? 'weight-tremble 0.65s ease-in-out infinite' : 'none' }}>
 
                     {/* Column header */}
                     <div style={{ padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', background:WHITE, borderBottom:'1px solid #F0F0F0' }}>
