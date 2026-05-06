@@ -459,6 +459,22 @@ const initForm = {
   responsavel_bdr: null,
 }
 
+const LOGGED_FIELDS: Record<string, string> = {
+  situacao_pre_vendas:    'Situação BDR',
+  situacao_closer:        'Situação Closer',
+  closer:                 'Closer',
+  data_ra:                'Data RA',
+  data_rr:                'Data RR',
+  data_assinatura:        'Data de Venda',
+  data_ativacao:          'Data de Ativação',
+  data_fup:               'FUP',
+  temperatura:            'Temperatura',
+  venda:                  'Venda',
+  motivo_perda_pre_vendas:'Motivo de perda (BDR)',
+  motivo_perda_closer:    'Motivo de perda (Closer)',
+  responsavel_bdr:        'Responsável BDR',
+}
+
 const LINK_DEFS = [
   { key: 'link_site',                 label: 'Site',                   placeholder: 'https://site.com.br',              icon: Globe,       color: '#3B82F6' },
   { key: 'link_instagram',            label: 'Instagram',              placeholder: 'https://instagram.com/...',         icon: AtSign,      color: '#E1306C' },
@@ -538,12 +554,43 @@ function LeadPageInner() {
     }, 2000)
   }
 
+  const makeLogEntry = (texto: string) => {
+    const agora = new Date()
+    const dataStr = `${agora.toLocaleDateString('pt-BR')} ${String(agora.getHours()).padStart(2,'0')}:${String(agora.getMinutes()).padStart(2,'0')}`
+    return { data: dataStr, texto, tipo: 'log', usuario: nomeUsuario || null }
+  }
+
   const set = (k: string, v: any) => {
+    const newVal = v === '' ? null : v
+    const oldVal = formRef.current[k]
+    let logEntry: any = null
+
+    if (!isNew && k in LOGGED_FIELDS && oldVal !== newVal) {
+      const label = LOGGED_FIELDS[k]
+      let texto = ''
+      if (k.startsWith('data_')) {
+        texto = newVal
+          ? `${label}: ${new Date(newVal + 'T12:00:00').toLocaleDateString('pt-BR')}`
+          : `${label} removida`
+      } else if (oldVal && newVal) {
+        texto = `${label}: ${oldVal} → ${newVal}`
+      } else if (newVal) {
+        texto = `${label}: ${newVal}`
+      } else {
+        texto = `${label} removido`
+      }
+      logEntry = makeLogEntry(texto)
+    }
+
     setFormState((f: any) => {
-      const updated = { ...f, [k]: v === '' ? null : v }
+      const updated = { ...f, [k]: newVal }
       if (k === 'data_ra' && v) updated.situacao_pre_vendas = 'REUNIÃO AGENDADA'
       if (k === 'data_ra' && !v && f.situacao_pre_vendas === 'REUNIÃO AGENDADA') updated.situacao_pre_vendas = null
       if (k === 'faturamento') updated.tier = fatToTier(v)
+      if (logEntry) {
+        const hist = Array.isArray(f.historico_anotacoes_pre_vendas) ? f.historico_anotacoes_pre_vendas : []
+        updated.historico_anotacoes_pre_vendas = [logEntry, ...hist]
+      }
       return updated
     })
     setErrors((e: any) => ({ ...e, [k]: '' }))
@@ -551,9 +598,15 @@ function LeadPageInner() {
   }
 
   const toggleBant = (k: string) => {
+    const bantNames: Record<string, string> = { bant_budget: 'Budget', bant_authority: 'Authority', bant_need: 'Need', bant_timing: 'Timing' }
     setFormState((f: any) => {
       const nf = { ...f, [k]: !f[k] }
       nf.bant = ['bant_budget', 'bant_authority', 'bant_need', 'bant_timing'].filter(key => nf[key]).length
+      if (!isNew) {
+        const entry = makeLogEntry(`BANT: ${bantNames[k]} ${nf[k] ? '✓ confirmado' : '✗ removido'}`)
+        const hist = Array.isArray(f.historico_anotacoes_pre_vendas) ? f.historico_anotacoes_pre_vendas : []
+        nf.historico_anotacoes_pre_vendas = [entry, ...hist]
+      }
       return nf
     })
     triggerAutoSave()
@@ -1173,9 +1226,9 @@ function LeadPageInner() {
                       + Adicionar
                     </button>
                   </div>
-                  {Array.isArray(form.historico_anotacoes_pre_vendas) && form.historico_anotacoes_pre_vendas.length > 0 && (
+                  {Array.isArray(form.historico_anotacoes_pre_vendas) && form.historico_anotacoes_pre_vendas.filter((e: any) => e.tipo !== 'log').length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {form.historico_anotacoes_pre_vendas.map((entry: any, i: number) => {
+                      {form.historico_anotacoes_pre_vendas.filter((e: any) => e.tipo !== 'log').map((entry: any, i: number) => {
                         if (entry.tipo === 'cadencia_completa') return (
                           <div key={i} style={{ background: `${GREEN}10`, border: `1px solid ${GREEN}40`, borderRadius: 8, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ fontSize: 16 }}>✅</span>
@@ -1268,6 +1321,18 @@ function LeadPageInner() {
                             {entry.usuario && <div style={{ fontSize: 10, fontWeight: 700, color: '#0EA5E9', background: '#E0F2FE', padding: '1px 7px', borderRadius: 20 }}>{entry.usuario.split(' ')[0]}</div>}
                           </div>
                           <div style={{ fontSize: 12, color: '#0369A1', fontWeight: 600 }}>{entry.texto}</div>
+                        </div>
+                      </div>
+                    )
+                    if (entry.tipo === 'log') return (
+                      <div key={`a-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', borderRadius: 7, border: `1px solid ${BORDER}`, background: WHITE }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#D1D5DB', flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, color: GRAY2, fontWeight: 500 }}>{entry.texto}</div>
+                          <div style={{ fontSize: 9, color: GRAY3, marginTop: 1, display: 'flex', gap: 6 }}>
+                            <span>{entry.data}</span>
+                            {entry.usuario && <span style={{ fontWeight: 700 }}>{entry.usuario.split(' ')[0]}</span>}
+                          </div>
                         </div>
                       </div>
                     )
