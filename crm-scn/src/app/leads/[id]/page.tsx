@@ -3,12 +3,13 @@ import React, { useState, useEffect, Suspense, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Lead } from '@/lib/supabase'
-import { Building2, AlertCircle, CheckCircle2, ExternalLink, Lock, ChevronRight, Mic, Upload, X, Loader2, ChevronDown, ChevronUp, Sparkles, FileText } from 'lucide-react'
+import { Building2, AlertCircle, CheckCircle2, ExternalLink, Lock, ChevronRight, Mic, Upload, X, Loader2, ChevronDown, ChevronUp, Sparkles, FileText, MessageCircle, Globe, Link2, TrendingUp, AtSign, Layers } from 'lucide-react'
 import Sidebar from '../../Sidebar'
 import { toast } from '@/lib/toast'
 import { Toaster } from '@/components/Toaster'
 import { UserSelect } from '@/components/UserSelect'
 import { useUserRole } from '@/lib/useUserRole'
+import { getPipelineStage, PIPELINE_STAGES } from '@/lib/crm-pipeline'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const R = '#E8001C'
@@ -455,7 +456,19 @@ const initForm = {
   historico_proximos_passos: [], historico_anotacoes_pre_vendas: [], custo_broker: null,
   motivo_perda_pre_vendas: null, motivo_perda_closer: null,
   link_gravacao: '', link_plano_roi: '', link_contrato: '',
+  responsavel_bdr: null,
 }
+
+const LINK_DEFS = [
+  { key: 'link_site',                 label: 'Site',                   placeholder: 'https://site.com.br',              icon: Globe,       color: '#3B82F6' },
+  { key: 'link_instagram',            label: 'Instagram',              placeholder: 'https://instagram.com/...',         icon: AtSign,      color: '#E1306C' },
+  { key: 'link_biblioteca_anuncios',  label: 'Biblioteca de Anúncios', placeholder: 'https://facebook.com/ads/library/', icon: Layers,      color: '#1877F2' },
+  { key: 'link_qualificacao',         label: 'Qualificação',           placeholder: 'https://...',                       icon: CheckCircle2,color: '#7C3AED' },
+  { key: 'link_transcricao',          label: 'Transcrição',            placeholder: 'https://...',                       icon: FileText,    color: '#0D9488' },
+  { key: 'link_gravacao',             label: 'Gravação',               placeholder: 'https://...',                       icon: Mic,         color: '#DC2626' },
+  { key: 'link_plano_roi',            label: 'Plano de ROI',           placeholder: 'https://...',                       icon: TrendingUp,  color: '#059669' },
+  { key: 'link_outros',               label: 'Outros',                 placeholder: 'https://...',                       icon: Link2,       color: '#6B7280' },
+] as const
 
 function LeadPageInner() {
   const params = useParams()
@@ -473,11 +486,16 @@ function LeadPageInner() {
   const [saved, setSaved] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = useState<'pre-vendas' | 'vendas'>('pre-vendas')
+  const [activeTab, setActiveTab] = useState<'qualificacao' | 'negociacao' | 'historico'>('qualificacao')
   const [novoPassoTexto, setNovoPassoTexto] = useState('')
   const [novaAnotacaoTexto, setNovaAnotacaoTexto] = useState('')
   const [form, setFormState] = useState<any>(initForm)
+  const [initialForm, setInitialForm] = useState<any>(initForm)
   const [nomeUsuario, setNomeUsuario] = useState('')
+  const [linksExpanded, setLinksExpanded] = useState(false)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved'>('idle')
+  const autoSaveTimer = useRef<any>(null)
+  const formRef = useRef<any>(initForm)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -488,12 +506,37 @@ function LeadPageInner() {
     if (!isNew) {
       supabase.from('leads').select('*').eq('id', id).single().then(({ data, error }) => {
         if (error || !data) { setNotFound(true); setPageLoading(false); return }
-        setFormState({ ...initForm, ...data })
+        const loaded = { ...initForm, ...data }
+        setFormState(loaded)
+        setInitialForm(loaded)
         setPageLoading(false)
       })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  useEffect(() => { formRef.current = form }, [form])
+
+  const triggerAutoSave = () => {
+    if (isNew) return
+    setAutoSaveStatus('pending')
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(async () => {
+      const current = formRef.current
+      const { id: formId, created_at, updated_at, ...data } = current as any
+      if (!formId) return
+      setAutoSaveStatus('saving')
+      const { error } = await supabase.from('leads').update({ ...data, updated_at: new Date().toISOString() }).eq('id', formId)
+      if (error) {
+        toast.error('Erro ao salvar: ' + error.message)
+        setAutoSaveStatus('idle')
+      } else {
+        setInitialForm({ ...current })
+        setAutoSaveStatus('saved')
+        setTimeout(() => setAutoSaveStatus('idle'), 3000)
+      }
+    }, 2000)
+  }
 
   const set = (k: string, v: any) => {
     setFormState((f: any) => {
@@ -504,6 +547,7 @@ function LeadPageInner() {
       return updated
     })
     setErrors((e: any) => ({ ...e, [k]: '' }))
+    triggerAutoSave()
   }
 
   const toggleBant = (k: string) => {
@@ -512,9 +556,39 @@ function LeadPageInner() {
       nf.bant = ['bant_budget', 'bant_authority', 'bant_need', 'bant_timing'].filter(key => nf[key]).length
       return nf
     })
+    triggerAutoSave()
   }
 
   const bantScore = [form.bant_budget, form.bant_authority, form.bant_need, form.bant_timing].filter(Boolean).length
+
+  const TRACKABLE = ['empresa', 'nome_lead', 'telefone', 'email', 'origem', 'segmento', 'cargo', 'faturamento',
+    'temperatura', 'situacao_pre_vendas', 'situacao_closer', 'closer', 'data_entrada', 'data_ra', 'data_rr',
+    'data_assinatura', 'data_ativacao', 'data_fup', 'tcv', 'venda', 'bant_budget', 'bant_authority',
+    'bant_need', 'bant_timing', 'cadencia', 'urgencia', 'link_qualificacao', 'link_site', 'link_instagram',
+    'link_biblioteca_anuncios', 'link_outros', 'link_transcricao', 'link_gravacao', 'link_plano_roi',
+    'custo_broker', 'motivo_perda_pre_vendas', 'motivo_perda_closer', 'contato_agendado', 'responsavel_bdr']
+  const hasUnsavedChanges = !isNew && !saved && autoSaveStatus === 'idle' && TRACKABLE.some(k => form[k] !== initialForm[k])
+
+  const diasNoFunil = form.data_entrada
+    ? Math.floor((Date.now() - new Date(form.data_entrada + 'T12:00:00').getTime()) / 86400000)
+    : null
+  const fupVencido = form.data_fup ? new Date(form.data_fup + 'T23:59:59') < new Date() : false
+  const fupDias = form.data_fup ? Math.ceil((new Date(form.data_fup + 'T12:00:00').getTime() - Date.now()) / 86400000) : null
+  const ultimaAtividade = (() => {
+    const all = [...(Array.isArray(form.historico_anotacoes_pre_vendas) ? form.historico_anotacoes_pre_vendas : []),
+                 ...(Array.isArray(form.historico_proximos_passos) ? form.historico_proximos_passos : [])]
+    return all.length > 0 ? all[0] : null
+  })()
+  const proximoPasso = Array.isArray(form.historico_proximos_passos) && form.historico_proximos_passos.length > 0
+    ? form.historico_proximos_passos[0] : null
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = '' }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [hasUnsavedChanges])
 
   const registrarAtividade = async (tipo: string, label: string) => {
     if (isNew) return
@@ -570,8 +644,8 @@ function LeadPageInner() {
     }
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
-      if (errs.data_ra || errs.bant) setActiveTab('pre-vendas')
-      else if (errs.closer) setActiveTab('vendas')
+      if (errs.data_ra || errs.bant) setActiveTab('qualificacao')
+      else if (errs.closer) setActiveTab('negociacao')
       return
     }
     setSaving(true)
@@ -587,6 +661,7 @@ function LeadPageInner() {
     }
     setSaving(false)
     setSaved(true)
+    setInitialForm({ ...form })
     toast.success(isNew ? 'Lead criado com sucesso!' : 'Lead salvo com sucesso!')
     setTimeout(() => router.push(fromView === 'pipeline' ? '/pipeline' : '/'), 900)
   }
@@ -682,7 +757,15 @@ function LeadPageInner() {
           </InfoField>
 
           <InfoField label="Telefone" required error={errors.telefone}>
-            <input style={{ ...inputStyle, borderColor: errors.telefone ? R : BORDER }} value={form.telefone || ''} onChange={e => set('telefone', formatPhone(e.target.value))} placeholder="(43) 99999-9999" />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input style={{ ...inputStyle, borderColor: errors.telefone ? R : BORDER, flex: 1 }} value={form.telefone || ''} onChange={e => set('telefone', formatPhone(e.target.value))} placeholder="(43) 99999-9999" />
+              {form.telefone && (
+                <a href={`https://wa.me/55${form.telefone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" title="Abrir WhatsApp"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, flexShrink: 0, borderRadius: 8, border: '1px solid #25D36660', background: '#F0FFF4', color: '#25D366', textDecoration: 'none', pointerEvents: 'auto' }}>
+                  <MessageCircle size={14} />
+                </a>
+              )}
+            </div>
           </InfoField>
 
           <InfoField label="E-mail do Lead" error={errors.email}>
@@ -694,6 +777,10 @@ function LeadPageInner() {
               <input style={inputStyle} value={form.recomendacoes || ''} onChange={e => set('recomendacoes', e.target.value)} placeholder="Nome de quem indicou" />
             </InfoField>
           )}
+
+          <div style={{ borderTop: `1px solid ${BORDER}`, margin: '4px 0 16px' }}>
+            <div style={{ marginTop: 12, fontSize: 9, fontWeight: 900, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.14em' }}>Perfil & ICP</div>
+          </div>
 
           <InfoField label="Data de Entrada" required error={errors.data_entrada}>
             <input type="date" style={{ ...inputStyle, borderColor: errors.data_entrada ? R : BORDER }} value={form.data_entrada || ''} onChange={e => { set('data_entrada', e.target.value); if (!e.target.value) { set('data_ra', null); set('data_rr', null); set('data_assinatura', null); set('data_ativacao', null) } }} />
@@ -743,18 +830,151 @@ function LeadPageInner() {
               <input type="number" style={inputStyle} value={form.custo_broker ?? ''} onChange={e => set('custo_broker', e.target.value ? Number(e.target.value) : null)} placeholder="Ex: 500" min={0} />
             </InfoField>
           )}
+
+          <InfoField label="Responsável BDR">
+            <input style={inputStyle} value={form.responsavel_bdr || ''} onChange={e => set('responsavel_bdr', e.target.value)} placeholder="Nome do BDR" />
+          </InfoField>
+
+          {/* ── Links compactos ── */}
+          <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 14, marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontSize: 9, fontWeight: 900, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.14em' }}>Links</div>
+              <button onClick={() => setLinksExpanded(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: GRAY2, padding: 0, fontWeight: 700, pointerEvents: 'auto' }}>
+                {linksExpanded ? 'Recolher' : 'Editar'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: linksExpanded ? 12 : 0 }}>
+              {LINK_DEFS.map(({ key, label, icon: Icon, color }) => {
+                const url = (form as any)[key]
+                return url ? (
+                  <a key={key} href={url} target="_blank" rel="noopener noreferrer" title={label}
+                    style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${color}18`, border: `1px solid ${color}50`, color, textDecoration: 'none', pointerEvents: 'auto', flexShrink: 0 }}>
+                    <Icon size={13} />
+                  </a>
+                ) : (
+                  <div key={key} title={label}
+                    style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F3F4F6', border: `1px solid ${BORDER}`, color: GRAY3, flexShrink: 0 }}>
+                    <Icon size={13} />
+                  </div>
+                )
+              })}
+            </div>
+            {linksExpanded && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {LINK_DEFS.map(({ key, label, placeholder, icon: Icon, color }) => (
+                  <div key={key}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: GRAY2, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Icon size={10} color={color} />{label}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input style={{ ...inputStyle, flex: 1, fontSize: 11 }} value={(form as any)[key] || ''} onChange={e => set(key, e.target.value)} placeholder={placeholder} />
+                      {(form as any)[key] && (
+                        <a href={(form as any)[key]} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', padding: '0 8px', borderRadius: 6, border: `1px solid ${BORDER}`, color: '#3B82F6', background: WHITE, textDecoration: 'none', pointerEvents: 'auto' }}>
+                          <ExternalLink size={11} />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Right Panel ── */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: WHITE, borderRadius: '0 16px 16px 0', border: `1px solid ${BORDER}`, minWidth: 0, overflow: 'hidden' }}>
 
+          {/* ── Timeline de datas ── */}
+          {!isNew && (() => {
+            const fmt = (d: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
+            const TIMELINE = [
+              { label: 'Entrada',  key: 'data_entrada'   },
+              { label: 'Reu. AG',  key: 'data_ra'        },
+              { label: 'Reu. RR',  key: 'data_rr'        },
+              { label: 'Venda',    key: 'data_assinatura' },
+              { label: 'Ativação', key: 'data_ativacao'  },
+            ] as const
+            return (
+              <div style={{ padding: '12px 24px 14px', borderBottom: `1px solid ${BORDER}`, background: '#FAFAFA', flexShrink: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Timeline</span>
+                  {diasNoFunil !== null && (
+                    <span style={{ fontSize: 10, fontWeight: 700, color: diasNoFunil > 30 ? R : diasNoFunil > 14 ? '#F59E0B' : GRAY2 }}>
+                      {diasNoFunil}d no funil
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+                  {TIMELINE.map(({ label, key }, idx) => {
+                    const hasDate = !!form[key]
+                    const nextHas = idx < TIMELINE.length - 1 && !!form[TIMELINE[idx + 1].key]
+                    return (
+                      <React.Fragment key={key}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: hasDate ? GREEN : '#D1D5DB', border: `2px solid ${hasDate ? GREEN : '#D1D5DB'}` }} />
+                          <div style={{ fontSize: 9, fontWeight: hasDate ? 700 : 500, color: hasDate ? GRAY1 : GRAY3, marginTop: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>{label}</div>
+                          <div style={{ fontSize: 9, color: hasDate ? GREEN : GRAY3, fontWeight: 600, marginTop: 1 }}>{fmt(form[key])}</div>
+                        </div>
+                        {idx < TIMELINE.length - 1 && (
+                          <div style={{ flex: 1, height: 2, background: hasDate && nextHas ? GREEN : '#E5E7EB', marginTop: 4, minWidth: 6 }} />
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ── Card de resumo ── */}
+          {!isNew && (
+            <div style={{ padding: '10px 24px 12px', borderBottom: `1px solid ${BORDER}`, background: WHITE, flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {/* FUP */}
+                <div style={{ flex: 1, background: fupVencido ? `${R}06` : '#FAFAFA', borderRadius: 9, border: `1px solid ${fupVencido ? R + '40' : BORDER}`, padding: '8px 10px', minWidth: 0 }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>FUP</div>
+                  {!form.data_fup
+                    ? <div style={{ fontSize: 11, color: GRAY3 }}>Sem data</div>
+                    : fupVencido
+                      ? <div style={{ fontSize: 11, fontWeight: 700, color: R }}>⚠ Vencido {Math.abs(fupDias!)}d</div>
+                      : <div style={{ fontSize: 11, fontWeight: 600, color: fupDias! <= 2 ? '#F59E0B' : GREEN }}>Em {fupDias}d · {new Date(form.data_fup + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</div>
+                  }
+                </div>
+                {/* Último registro */}
+                <div style={{ flex: 2, background: '#FAFAFA', borderRadius: 9, border: `1px solid ${BORDER}`, padding: '8px 10px', minWidth: 0 }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Último Registro</div>
+                  {!ultimaAtividade
+                    ? <div style={{ fontSize: 11, color: GRAY3 }}>Nenhum</div>
+                    : <>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: GRAY1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ultimaAtividade.texto}</div>
+                        <div style={{ fontSize: 9, color: GRAY3, marginTop: 2 }}>{ultimaAtividade.data}</div>
+                      </>
+                  }
+                </div>
+                {/* Próximo passo */}
+                <div style={{ flex: 2, background: proximoPasso ? `${GREEN}06` : '#FAFAFA', borderRadius: 9, border: `1px solid ${proximoPasso ? GREEN + '40' : BORDER}`, padding: '8px 10px', minWidth: 0 }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Próx. Passo</div>
+                  {!proximoPasso
+                    ? <div style={{ fontSize: 11, color: GRAY3 }}>Nenhum</div>
+                    : <>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: GREEN, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proximoPasso.texto}</div>
+                        <div style={{ fontSize: 9, color: GRAY3, marginTop: 2 }}>{proximoPasso.data}</div>
+                      </>
+                  }
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Tab bar */}
           <div style={{ display: 'flex', borderBottom: `1px solid ${BORDER}`, flexShrink: 0, padding: '0 24px' }}>
-            {(['pre-vendas', 'vendas'] as const).map(tab => {
+            {(['qualificacao', 'negociacao', 'historico'] as const).map(tab => {
               const active = activeTab === tab
+              const labels = { qualificacao: 'Qualificação', negociacao: 'Negociação', historico: 'Histórico' }
               return (
                 <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '14px 4px', marginRight: 24, border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: active ? R : GRAY2, borderBottom: `2px solid ${active ? R : 'transparent'}`, transition: 'all .15s', marginBottom: -1 }}>
-                  {tab === 'pre-vendas' ? 'Pré-Vendas' : 'Vendas'}
+                  {labels[tab]}
                 </button>
               )
             })}
@@ -763,8 +983,8 @@ function LeadPageInner() {
           {/* Tab content */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '22px 24px', pointerEvents: !canEdit ? 'none' : undefined }}>
 
-            {/* ─── PRÉ-VENDAS ─── */}
-            {activeTab === 'pre-vendas' && (
+            {/* ─── QUALIFICAÇÃO ─── */}
+            {activeTab === 'qualificacao' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                 <div>
                   <SectionTitle>Tags do Lead</SectionTitle>
@@ -927,42 +1147,6 @@ function LeadPageInner() {
                 />
 
                 <div>
-                  <SectionTitle>Link da Qualificação</SectionTitle>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input style={{ ...inputStyle, flex: 1 }} value={form.link_qualificacao || ''} onChange={e => set('link_qualificacao', e.target.value)} placeholder="https://..." />
-                    {form.link_qualificacao && (
-                      <button type="button" onClick={() => window.open(form.link_qualificacao, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', color: '#3B82F6', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, pointerEvents: 'auto' }}>
-                        <ExternalLink size={13} />Abrir
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <SectionTitle>Links do Lead</SectionTitle>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {([
-                      { key: 'link_site', label: 'Site', placeholder: 'https://site.com.br' },
-                      { key: 'link_instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
-                      { key: 'link_biblioteca_anuncios', label: 'Biblioteca de Anúncios', placeholder: 'https://facebook.com/ads/library/...' },
-                      { key: 'link_outros', label: 'Outros', placeholder: 'https://...' },
-                    ] as { key: string; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
-                      <div key={key}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 5 }}>{label}</div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <input style={{ ...inputStyle, flex: 1 }} value={form[key] || ''} onChange={e => set(key, e.target.value)} placeholder={placeholder} />
-                          {form[key] && (
-                            <button type="button" onClick={() => window.open(form[key], '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', color: '#3B82F6', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, pointerEvents: 'auto' }}>
-                              <ExternalLink size={13} />Abrir
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
                   <SectionTitle>Anotações</SectionTitle>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                     <textarea rows={2} style={{ ...inputStyle, flex: 1, resize: 'none', lineHeight: 1.6 }} value={novaAnotacaoTexto} onChange={e => setNovaAnotacaoTexto(e.target.value)} placeholder="Registre objeções, histórico de contato, pontos de atenção..."
@@ -1032,8 +1216,80 @@ function LeadPageInner() {
               </div>
             )}
 
-            {/* ─── VENDAS ─── */}
-            {activeTab === 'vendas' && (
+            {/* ─── HISTÓRICO ─── */}
+            {activeTab === 'historico' && (() => {
+              const anotacoes = (Array.isArray(form.historico_anotacoes_pre_vendas) ? form.historico_anotacoes_pre_vendas : [])
+                .map((e: any) => ({ ...e, source: 'anotacao' as const }))
+              const passos = (Array.isArray(form.historico_proximos_passos) ? form.historico_proximos_passos : [])
+                .map((e: any) => ({ ...e, source: 'passo' as const }))
+              const feed = [...anotacoes, ...passos].sort((a, b) => {
+                const parse = (d: string) => {
+                  if (!d) return 0
+                  const [date, time] = d.split(' ')
+                  if (!date) return 0
+                  const [dd, mm, yyyy] = date.split('/')
+                  return new Date(`${yyyy}-${mm}-${dd}T${time || '00:00'}`).getTime()
+                }
+                return parse(b.data) - parse(a.data)
+              })
+              const icons: Record<string, string> = { ligacao_api: '📞', ligacao_whatsapp: '📱', mensagem_whatsapp: '💬' }
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {feed.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '40px 0', color: GRAY3, fontSize: 13 }}>Nenhum histórico registrado</div>
+                  )}
+                  {feed.map((entry: any, i: number) => {
+                    if (entry.source === 'passo') return (
+                      <div key={`p-${i}`} style={{ background: '#F0FDF4', border: `1px solid #BBF7D0`, borderLeft: '3px solid #16A34A', borderRadius: 8, padding: '9px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 7px', borderRadius: 20, background: '#BBF7D0', color: '#15803D', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Próx. Passo</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: GRAY3 }}>{entry.data}</span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#15803D', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontWeight: 600 }}>{entry.texto}</div>
+                      </div>
+                    )
+                    if (entry.tipo === 'cadencia_completa') return (
+                      <div key={`a-${i}`} style={{ background: `${GREEN}10`, border: `1px solid ${GREEN}40`, borderRadius: 8, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 16 }}>✅</span>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: GRAY3, marginBottom: 2 }}>{entry.data}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: GREEN }}>{entry.texto}</div>
+                        </div>
+                      </div>
+                    )
+                    if (entry.tipo === 'cadencia') return (
+                      <div key={`a-${i}`} style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderLeft: '3px solid #0EA5E9', borderRadius: 8, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 14 }}>{icons[entry.atividade] || '📋'}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 1 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: GRAY3 }}>{entry.data} · Dia {entry.dia}</div>
+                            {entry.usuario && <div style={{ fontSize: 10, fontWeight: 700, color: '#0EA5E9', background: '#E0F2FE', padding: '1px 7px', borderRadius: 20 }}>{entry.usuario.split(' ')[0]}</div>}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#0369A1', fontWeight: 600 }}>{entry.texto}</div>
+                        </div>
+                      </div>
+                    )
+                    return (
+                      <div key={`a-${i}`} style={{ background: '#F8F9FB', border: `1px solid ${BORDER}`, borderRadius: 8, padding: '9px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 7px', borderRadius: 20, background: '#E5E7EB', color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Anotação</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3 }}>{entry.data}</span>
+                          </div>
+                          {entry.usuario && <div style={{ fontSize: 10, fontWeight: 700, color: GRAY2, background: '#E5E7EB', padding: '1px 7px', borderRadius: 20 }}>{entry.usuario.split(' ')[0]}</div>}
+                        </div>
+                        <div style={{ fontSize: 12, color: GRAY1, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{entry.texto}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
+            {/* ─── NEGOCIAÇÃO ─── */}
+            {activeTab === 'negociacao' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                 <div>
                   <SectionTitle>Closer</SectionTitle>
@@ -1103,30 +1359,6 @@ function LeadPageInner() {
                 </div>
 
                 <div>
-                  <SectionTitle>Link da Transcrição da Reunião</SectionTitle>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input style={{ ...inputStyle, flex: 1 }} value={form.link_transcricao || ''} onChange={e => set('link_transcricao', e.target.value)} placeholder="https://..." />
-                    {form.link_transcricao && (
-                      <button type="button" onClick={() => window.open(form.link_transcricao, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', color: '#3B82F6', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, pointerEvents: 'auto' }}>
-                        <ExternalLink size={13} />Abrir
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <SectionTitle>Link da Gravação da Reunião</SectionTitle>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input style={{ ...inputStyle, flex: 1 }} value={form.link_gravacao || ''} onChange={e => set('link_gravacao', e.target.value)} placeholder="https://..." />
-                    {form.link_gravacao && (
-                      <button type="button" onClick={() => window.open(form.link_gravacao, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', color: '#3B82F6', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, pointerEvents: 'auto' }}>
-                        <ExternalLink size={13} />Abrir
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
                   <SectionTitle>Contrato (PDF)</SectionTitle>
                   {isNew ? (
                     <LockedField message="Salve o lead primeiro para anexar o contrato" />
@@ -1141,18 +1373,6 @@ function LeadPageInner() {
                       }}
                     />
                   )}
-                </div>
-
-                <div>
-                  <SectionTitle>Link do Plano de ROI</SectionTitle>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input style={{ ...inputStyle, flex: 1 }} value={form.link_plano_roi || ''} onChange={e => set('link_plano_roi', e.target.value)} placeholder="https://..." />
-                    {form.link_plano_roi && (
-                      <button type="button" onClick={() => window.open(form.link_plano_roi, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', color: '#3B82F6', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, pointerEvents: 'auto' }}>
-                        <ExternalLink size={13} />Abrir
-                      </button>
-                    )}
-                  </div>
                 </div>
 
                 <div>
@@ -1222,6 +1442,17 @@ function LeadPageInner() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: R, fontWeight: 600 }}>
                   <AlertCircle size={14} /><span>Corrija os erros antes de salvar</span>
                 </div>
+              )}
+              {canEdit && !hasErrors && autoSaveStatus === 'saving' && (
+                <div style={{ fontSize: 11, color: GRAY2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />Salvando...
+                </div>
+              )}
+              {canEdit && !hasErrors && autoSaveStatus === 'saved' && (
+                <div style={{ fontSize: 11, color: GREEN, fontWeight: 700 }}>✓ Salvo automaticamente</div>
+              )}
+              {canEdit && !hasErrors && (autoSaveStatus === 'idle' || autoSaveStatus === 'pending') && (autoSaveStatus === 'pending' || hasUnsavedChanges) && (
+                <div style={{ fontSize: 12, color: '#F59E0B', fontWeight: 700 }}>● Mudanças não salvas</div>
               )}
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
