@@ -1190,9 +1190,9 @@ export default function DashboardPage() {
         {/* ── Próximos FUPs ── */}
         {(() => {
           const hoje = new Date().toISOString().slice(0, 10)
-          const naoEhPerdido = (l: any) => getPipelineStage(l) !== 'PERDIDO'
-          const vencidos = leads.filter(l => l.data_fup && l.data_fup < hoje && naoEhPerdido(l)).sort((a,b) => new Date(a.data_fup!).getTime() - new Date(b.data_fup!).getTime())
-          const proximos = leads.filter(l => l.data_fup && l.data_fup >= hoje && naoEhPerdido(l)).sort((a,b) => new Date(a.data_fup!).getTime() - new Date(b.data_fup!).getTime()).slice(0, 8)
+          const naoEhFechado = (l: any) => !['PERDIDO', 'VENDA', 'ATIVADO'].includes(getPipelineStage(l))
+          const vencidos = leads.filter(l => l.data_fup && l.data_fup < hoje && naoEhFechado(l)).sort((a,b) => new Date(a.data_fup!).getTime() - new Date(b.data_fup!).getTime())
+          const proximos = leads.filter(l => l.data_fup && l.data_fup >= hoje && naoEhFechado(l)).sort((a,b) => new Date(a.data_fup!).getTime() - new Date(b.data_fup!).getTime()).slice(0, 8)
           const fupCardStyle = (overdue: boolean) => ({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: overdue ? `${R}06` : GRAY4, borderRadius: 10, border: `1px solid ${overdue ? `${R}30` : GRAY5}`, cursor: 'pointer', textDecoration: 'none', transition: 'opacity .15s' })
           return (
             <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}` }}>
