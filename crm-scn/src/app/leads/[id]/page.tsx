@@ -625,7 +625,8 @@ function LeadPageInner() {
   const diasNoFunil = form.data_entrada
     ? Math.floor((Date.now() - new Date(form.data_entrada + 'T12:00:00').getTime()) / 86400000)
     : null
-  const fupVencido = form.data_fup ? new Date(form.data_fup + 'T23:59:59') < new Date() : false
+  const isClosedLead = ['VENDA', 'ATIVADO', 'PERDIDO'].includes(getPipelineStage(form))
+  const fupVencido = !isClosedLead && !!form.data_fup && new Date(form.data_fup + 'T23:59:59') < new Date()
   const fupDias = form.data_fup ? Math.ceil((new Date(form.data_fup + 'T12:00:00').getTime() - Date.now()) / 86400000) : null
   const ultimaAtividade = (() => {
     const all = [...(Array.isArray(form.historico_anotacoes_pre_vendas) ? form.historico_anotacoes_pre_vendas : []),
@@ -987,11 +988,13 @@ function LeadPageInner() {
                 {/* FUP */}
                 <div style={{ flex: 1, background: fupVencido ? `${R}06` : '#FAFAFA', borderRadius: 9, border: `1px solid ${fupVencido ? R + '40' : BORDER}`, padding: '8px 10px', minWidth: 0 }}>
                   <div style={{ fontSize: 9, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>FUP</div>
-                  {!form.data_fup
-                    ? <div style={{ fontSize: 11, color: GRAY3 }}>Sem data</div>
-                    : fupVencido
-                      ? <div style={{ fontSize: 11, fontWeight: 700, color: R }}>⚠ Vencido {Math.abs(fupDias!)}d</div>
-                      : <div style={{ fontSize: 11, fontWeight: 600, color: fupDias! <= 2 ? '#F59E0B' : GREEN }}>Em {fupDias}d · {new Date(form.data_fup + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</div>
+                  {isClosedLead
+                    ? <div style={{ fontSize: 11, color: GRAY3 }}>—</div>
+                    : !form.data_fup
+                      ? <div style={{ fontSize: 11, color: GRAY3 }}>Sem data</div>
+                      : fupVencido
+                        ? <div style={{ fontSize: 11, fontWeight: 700, color: R }}>⚠ Vencido {Math.abs(fupDias!)}d</div>
+                        : <div style={{ fontSize: 11, fontWeight: 600, color: fupDias! <= 2 ? '#F59E0B' : GREEN }}>Em {fupDias}d · {new Date(form.data_fup + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</div>
                   }
                 </div>
                 {/* Último registro */}
