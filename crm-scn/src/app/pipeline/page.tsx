@@ -646,9 +646,6 @@ export default function PipelinePage() {
                                   {l.situacao_closer && (
                                     <span style={{ fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:20, background:`${PURPLE}15`, color:PURPLE, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.situacao_closer}</span>
                                   )}
-                                  {l.data_fup && (
-                                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:`${YELLOW}18`, color:YELLOW, whiteSpace:'nowrap' }}>📅 {new Date(l.data_fup + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-                                  )}
                                 </div>
                               </div>
                             )}
