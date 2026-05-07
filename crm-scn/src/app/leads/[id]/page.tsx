@@ -769,7 +769,7 @@ function LeadPageInner() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, minWidth: 0 }}>
             <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: GRAY2, fontWeight: 600, fontSize: 13, padding: 0 }}>CRM</button>
             <ChevronRight size={13} color={GRAY3} />
-            <button onClick={() => router.push(`/?view=${fromView}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: GRAY2, fontWeight: 600, fontSize: 13, padding: 0 }}>{fromLabel}</button>
+            <button onClick={() => router.push(fromView === 'pipeline' ? '/pipeline' : '/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: GRAY2, fontWeight: 600, fontSize: 13, padding: 0 }}>{fromLabel}</button>
             <ChevronRight size={13} color={GRAY3} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
               <div style={{ width: 22, height: 22, borderRadius: 6, background: 'linear-gradient(135deg, #E8001C, #B91C1C)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
