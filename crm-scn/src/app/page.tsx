@@ -40,6 +40,15 @@ export default function DashboardPage() {
   const [canalSel, setCanalSel] = useState<string>('Canal')
   const [tierSel, setTierSel] = useState('')
   const [closerSel, setCloserSel] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState<'mes' | 'periodo'>('mes')
+  const [dataInicio, setDataInicio] = useState(() => {
+    const n = new Date(); n.setDate(1)
+    return n.toISOString().slice(0, 10)
+  })
+  const [dataFim, setDataFim] = useState(() => {
+    const n = new Date(); n.setMonth(n.getMonth() + 1, 0)
+    return n.toISOString().slice(0, 10)
+  })
 
   const [dashFilterOpen, setDashFilterOpen] = useState(false)
   const [draftCanal, setDraftCanal] = useState('Canal')
@@ -49,6 +58,15 @@ export default function DashboardPage() {
   })
   const [draftTier, setDraftTier] = useState('')
   const [draftCloser, setDraftCloser] = useState('')
+  const [draftFiltroTipo, setDraftFiltroTipo] = useState<'mes' | 'periodo'>('mes')
+  const [draftDataInicio, setDraftDataInicio] = useState(() => {
+    const n = new Date(); n.setDate(1)
+    return n.toISOString().slice(0, 10)
+  })
+  const [draftDataFim, setDraftDataFim] = useState(() => {
+    const n = new Date(); n.setMonth(n.getMonth() + 1, 0)
+    return n.toISOString().slice(0, 10)
+  })
 
   const [healthInfoOpen, setHealthInfoOpen] = useState<string | null>(null)
   const [kpiHover, setKpiHover] = useState<string | null>(null)
@@ -125,19 +143,36 @@ export default function DashboardPage() {
     }))
   }, [leads, canalSel])
 
+  const inPeriodo = (d: any) => {
+    if (!d) return false
+    if (filtroTipo === 'mes') return mesAno(String(d)) === mesSel
+    const ds = String(d).slice(0, 10)
+    return ds >= dataInicio && ds <= dataFim
+  }
+
+  const periodoLabel = filtroTipo === 'mes'
+    ? mesFmt(mesSel)
+    : `${dataInicio.slice(8, 10)}/${dataInicio.slice(5, 7)} – ${dataFim.slice(8, 10)}/${dataFim.slice(5, 7)}`
+
   const lm = useMemo(() => {
     const byCanal = (l: any) => canalSel === 'Canal' || l.origem === canalSel
     const byTier = (l: any) => !tierSel || l.tier === tierSel
     const byCloser = (l: any) => !closerSel || l.closer === closerSel
     const match = (l: any) => byCanal(l) && byTier(l) && byCloser(l)
-    return {
-      entrada: leads.filter(l => mesAno(l.data_entrada as string) === mesSel && match(l)),
-      ra: leads.filter(l => mesAno(l.data_ra as string) === mesSel && match(l)),
-      rr: leads.filter(l => mesAno(l.data_rr as string) === mesSel && match(l)),
-      venda: leads.filter(l => mesAno(l.data_assinatura as string) === mesSel && match(l)),
-      ativacao: leads.filter(l => mesAno(l.data_ativacao as string) === mesSel && match(l)),
+    const inP = (d: any) => {
+      if (!d) return false
+      if (filtroTipo === 'mes') return mesAno(String(d)) === mesSel
+      const ds = String(d).slice(0, 10)
+      return ds >= dataInicio && ds <= dataFim
     }
-  }, [leads, mesSel, canalSel, tierSel, closerSel])
+    return {
+      entrada: leads.filter(l => inP(l.data_entrada) && match(l)),
+      ra: leads.filter(l => inP(l.data_ra) && match(l)),
+      rr: leads.filter(l => inP(l.data_rr) && match(l)),
+      venda: leads.filter(l => inP(l.data_assinatura) && match(l)),
+      ativacao: leads.filter(l => inP(l.data_ativacao) && match(l)),
+    }
+  }, [leads, mesSel, dataInicio, dataFim, filtroTipo, canalSel, tierSel, closerSel])
 
   const tcvMes = lm.venda.reduce((s, l) => s + (l.tcv || 0), 0)
   const conv = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0
@@ -145,21 +180,32 @@ export default function DashboardPage() {
   const tooltipStyle = { background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 8, color: GRAY1, fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.10)' }
 
   const lmPrev = useMemo(() => {
-    const [y, m] = mesSel.split('-').map(Number)
-    const d = new Date(y, m - 2)
-    const pm = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     const byCanal = (l: any) => canalSel === 'Canal' || l.origem === canalSel
     const byTier  = (l: any) => !tierSel   || l.tier   === tierSel
     const byClose = (l: any) => !closerSel || l.closer === closerSel
     const match   = (l: any) => byCanal(l) && byTier(l) && byClose(l)
-    return {
-      entrada:  leads.filter(l => mesAno(l.data_entrada)   === pm && match(l)).length,
-      ra:       leads.filter(l => mesAno(l.data_ra)         === pm && match(l)).length,
-      rr:       leads.filter(l => mesAno(l.data_rr)         === pm && match(l)).length,
-      venda:    leads.filter(l => mesAno(l.data_assinatura) === pm && match(l)).length,
-      ativacao: leads.filter(l => mesAno(l.data_ativacao)   === pm && match(l)).length,
+    const inP = (d: any) => {
+      if (!d) return false
+      if (filtroTipo === 'mes') {
+        const [y, m] = mesSel.split('-').map(Number)
+        const dp = new Date(y, m - 2)
+        const pm = `${dp.getFullYear()}-${String(dp.getMonth() + 1).padStart(2, '0')}`
+        return mesAno(String(d)) === pm
+      }
+      const rangeMs = new Date(dataFim).getTime() - new Date(dataInicio).getTime()
+      const prevEnd = new Date(new Date(dataInicio).getTime() - 86400000).toISOString().slice(0, 10)
+      const prevStart = new Date(new Date(dataInicio).getTime() - rangeMs - 86400000).toISOString().slice(0, 10)
+      const ds = String(d).slice(0, 10)
+      return ds >= prevStart && ds <= prevEnd
     }
-  }, [leads, mesSel, canalSel, tierSel, closerSel])
+    return {
+      entrada:  leads.filter(l => inP(l.data_entrada)   && match(l)).length,
+      ra:       leads.filter(l => inP(l.data_ra)         && match(l)).length,
+      rr:       leads.filter(l => inP(l.data_rr)         && match(l)).length,
+      venda:    leads.filter(l => inP(l.data_assinatura) && match(l)).length,
+      ativacao: leads.filter(l => inP(l.data_ativacao)   && match(l)).length,
+    }
+  }, [leads, mesSel, dataInicio, dataFim, filtroTipo, canalSel, tierSel, closerSel])
 
   const pipelineHealth = useMemo(() => {
     const active = leads.filter(l => !['VENDA', 'ATIVADO', 'PERDIDO'].includes(getPipelineStage(l)))
@@ -296,9 +342,19 @@ export default function DashboardPage() {
             }
             return months
           })()
+          const now0 = new Date()
+          const currentMes = `${now0.getFullYear()}-${String(now0.getMonth()+1).padStart(2,'0')}`
+          const currentIni = new Date(now0.getFullYear(), now0.getMonth(), 1).toISOString().slice(0, 10)
+          const currentFim = new Date(now0.getFullYear(), now0.getMonth() + 1, 0).toISOString().slice(0, 10)
+          const periodoChanged = filtroTipo === 'periodo' || mesSel !== currentMes
           const activeFilters = [
             canalSel !== 'Canal' && { key: 'canal', label: canalSel, onRemove: () => setCanalSel('Canal') },
-            mesSel !== draftMes && { key: 'mes', label: mesFmt(mesSel), onRemove: () => { const n = new Date(); const m = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; setMesSel(m); setDraftMes(m) } },
+            periodoChanged && { key: 'periodo', label: periodoLabel, onRemove: () => {
+              setFiltroTipo('mes'); setDraftFiltroTipo('mes')
+              setMesSel(currentMes); setDraftMes(currentMes)
+              setDataInicio(currentIni); setDraftDataInicio(currentIni)
+              setDataFim(currentFim); setDraftDataFim(currentFim)
+            }},
             tierSel && { key: 'tier', label: `Tier: ${tierSel}`, onRemove: () => { setTierSel(''); setDraftTier('') } },
             closerSel && { key: 'closer', label: `Closer: ${closerSel}`, onRemove: () => { setCloserSel(''); setDraftCloser('') } },
           ].filter(Boolean) as { key: string; label: string; onRemove: () => void }[]
@@ -329,7 +385,7 @@ export default function DashboardPage() {
                   })()}
                 </div>
                 <div style={{ position: 'relative' }}>
-                  <button onClick={() => { setDraftCanal(canalSel); setDraftMes(mesSel); setDraftTier(tierSel); setDraftCloser(closerSel); setDashFilterOpen(v => !v) }}
+                  <button onClick={() => { setDraftCanal(canalSel); setDraftMes(mesSel); setDraftTier(tierSel); setDraftCloser(closerSel); setDraftFiltroTipo(filtroTipo); setDraftDataInicio(dataInicio); setDraftDataFim(dataFim); setDashFilterOpen(v => !v) }}
                     style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY1, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                     Adicionar Filtro
@@ -341,17 +397,45 @@ export default function DashboardPage() {
                       <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 50, width: 340, padding: 24 }}>
                         <div style={{ fontSize: 15, fontWeight: 800, color: GRAY1, marginBottom: 4 }}>Personalize seu filtro</div>
                         <div style={{ fontSize: 12, color: GRAY2, marginBottom: 20 }}>Escolha os filtros e as opções desejadas.</div>
+                        {/* Segmented toggle: Mês vs Período */}
+                        <div style={{ display: 'flex', background: GRAY4, borderRadius: 10, padding: 3, marginBottom: 18 }}>
+                          {(['mes', 'periodo'] as const).map(tipo => (
+                            <button key={tipo} onClick={() => setDraftFiltroTipo(tipo)}
+                              style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all .15s',
+                                background: draftFiltroTipo === tipo ? WHITE : 'transparent',
+                                color: draftFiltroTipo === tipo ? GRAY1 : GRAY3,
+                                boxShadow: draftFiltroTipo === tipo ? '0 1px 4px rgba(0,0,0,.08)' : 'none',
+                              }}>
+                              {tipo === 'mes' ? 'Mês' : 'Período personalizado'}
+                            </button>
+                          ))}
+                        </div>
+
+                        {draftFiltroTipo === 'mes' ? (
+                          <div style={{ marginBottom: 14 }}>
+                            <label style={labelCls}>Mês de referência</label>
+                            <select style={inputCls} value={draftMes} onChange={e => setDraftMes(e.target.value)}>
+                              {allMonthsOpts.map(m => <option key={m} value={m}>{mesFmt(m)}</option>)}
+                            </select>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                            <div>
+                              <label style={labelCls}>De</label>
+                              <input type="date" style={inputCls} value={draftDataInicio} onChange={e => setDraftDataInicio(e.target.value)} />
+                            </div>
+                            <div>
+                              <label style={labelCls}>Até</label>
+                              <input type="date" style={inputCls} value={draftDataFim} onChange={e => setDraftDataFim(e.target.value)} />
+                            </div>
+                          </div>
+                        )}
+
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                           <div>
                             <label style={labelCls}>Canal</label>
                             <select style={inputCls} value={draftCanal} onChange={e => setDraftCanal(e.target.value)}>
                               {CANAIS.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label style={labelCls}>Mês</label>
-                            <select style={inputCls} value={draftMes} onChange={e => setDraftMes(e.target.value)}>
-                              {allMonthsOpts.map(m => <option key={m} value={m}>{mesFmt(m)}</option>)}
                             </select>
                           </div>
                           <div>
@@ -361,7 +445,7 @@ export default function DashboardPage() {
                               {TIERS.map(t => <option key={t}>{t}</option>)}
                             </select>
                           </div>
-                          <div>
+                          <div style={{ gridColumn: '1 / -1' }}>
                             <label style={labelCls}>Closer</label>
                             <select style={inputCls} value={draftCloser} onChange={e => setDraftCloser(e.target.value)}>
                               <option value="">Selecione</option>
@@ -370,10 +454,23 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-                          <button onClick={() => { setCanalSel('Canal'); const n = new Date(); const m = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; setMesSel(m); setDraftMes(m); setDraftCanal('Canal'); setTierSel(''); setCloserSel(''); setDraftTier(''); setDraftCloser(''); setDashFilterOpen(false) }}
-                            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY1, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Limpar</button>
-                          <button onClick={() => { setCanalSel(draftCanal); setMesSel(draftMes); setTierSel(draftTier); setCloserSel(draftCloser); setDashFilterOpen(false) }}
-                            style={{ flex: 2, padding: '10px 0', borderRadius: 10, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Aplicar</button>
+                          <button onClick={() => {
+                            const n = new Date()
+                            const m = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`
+                            const ini = new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0, 10)
+                            const fim = new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().slice(0, 10)
+                            setCanalSel('Canal'); setMesSel(m); setDraftMes(m); setDraftCanal('Canal')
+                            setTierSel(''); setCloserSel(''); setDraftTier(''); setDraftCloser('')
+                            setFiltroTipo('mes'); setDraftFiltroTipo('mes')
+                            setDataInicio(ini); setDraftDataInicio(ini)
+                            setDataFim(fim); setDraftDataFim(fim)
+                            setDashFilterOpen(false)
+                          }} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY1, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Limpar</button>
+                          <button onClick={() => {
+                            setCanalSel(draftCanal); setMesSel(draftMes); setTierSel(draftTier); setCloserSel(draftCloser)
+                            setFiltroTipo(draftFiltroTipo); setDataInicio(draftDataInicio); setDataFim(draftDataFim)
+                            setDashFilterOpen(false)
+                          }} style={{ flex: 2, padding: '10px 0', borderRadius: 10, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Aplicar</button>
                         </div>
                       </div>
                     </>
@@ -606,7 +703,7 @@ export default function DashboardPage() {
             <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '24px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 180 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.14em' }}>TCV do Mês</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.14em' }}>TCV — {periodoLabel}</div>
                   <div style={{ fontSize: 10, fontWeight: 800, color: R, background: `${R}12`, border: `1px solid ${R}30`, padding: '3px 9px', borderRadius: 20 }}>{lm.venda.length} venda{lm.venda.length !== 1 ? 's' : ''}</div>
                 </div>
                 <div style={{ fontSize: 26, fontWeight: 900, color: GREEN, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{fmt(tcvMes)}</div>
@@ -938,7 +1035,7 @@ export default function DashboardPage() {
           const maxTcv = Math.max(...closerStats.map(s => s.tcvTotal), 1)
           return (
             <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}` }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Comparativo de Closers — {mesFmt(mesSel)}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Comparativo de Closers — {periodoLabel}</div>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${closerUsers.length}, 1fr)`, gap: 16 }}>
                 {closerStats.map((s, i) => {
                   const clColor = s.clColor
@@ -1011,13 +1108,13 @@ export default function DashboardPage() {
           const CANAIS_LIST = ['Recovery', 'Lead Broker', 'Recomendação', 'Eventos', 'Indicação']
           const CANAL_COLORS: Record<string, string> = { 'Recovery': BLUE, 'Lead Broker': YELLOW, 'Recomendação': GREEN, 'Eventos': PURPLE, 'Indicação': R }
           const canalData = CANAIS_LIST.map(canal => {
-            const entradas = leads.filter(l => mesAno(l.data_entrada as string) === mesSel && l.origem === canal)
-            const ras      = leads.filter(l => mesAno(l.data_ra as string)      === mesSel && l.origem === canal)
-            const rrs      = leads.filter(l => mesAno(l.data_rr as string)      === mesSel && l.origem === canal)
-            const vendas   = leads.filter(l => mesAno(l.data_assinatura as string) === mesSel && l.origem === canal)
+            const entradas = leads.filter(l => inPeriodo(l.data_entrada) && l.origem === canal)
+            const ras      = leads.filter(l => inPeriodo(l.data_ra)      && l.origem === canal)
+            const rrs      = leads.filter(l => inPeriodo(l.data_rr)      && l.origem === canal)
+            const vendas   = leads.filter(l => inPeriodo(l.data_assinatura) && l.origem === canal)
             const tcvTotal = vendas.reduce((s, l) => s + (l.tcv || 0), 0)
-            const noShows   = leads.filter(l => mesAno(l.data_ra as string) === mesSel && l.origem === canal && (l as any).situacao_pre_vendas === 'NO SHOW/REMARCANDO')
-            const ativacoes = leads.filter(l => mesAno(l.data_ativacao as string) === mesSel && l.origem === canal)
+            const noShows   = leads.filter(l => inPeriodo(l.data_ra) && l.origem === canal && (l as any).situacao_pre_vendas === 'NO SHOW/REMARCANDO')
+            const ativacoes = leads.filter(l => inPeriodo(l.data_ativacao) && l.origem === canal)
             const convEntRA = entradas.length > 0 ? Math.round(ras.length    / entradas.length * 100) : 0
             const convRARR  = ras.length     > 0 ? Math.round(rrs.length    / ras.length      * 100) : 0
             const convRRV   = rrs.length     > 0 ? Math.round(vendas.length / rrs.length      * 100) : 0
@@ -1031,7 +1128,7 @@ export default function DashboardPage() {
           const maxEnt = Math.max(...canalData.map(c => c.entradas), 1)
           return (
             <div style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}` }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Análise por Canal — {mesFmt(mesSel)}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Análise por Canal — {periodoLabel}</div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
