@@ -595,6 +595,7 @@ export default function PipelinePage() {
                             <div style={{ fontSize:13, fontWeight:800, color:GRAY1, lineHeight:1.35, marginBottom:3, display:'flex', alignItems:'center', gap:5 }}>
                               {l.empresa}
                               {(() => {
+                                if (isVendaPlus) return null
                                 const dias = Math.floor((Date.now() - new Date(l.updated_at).getTime()) / 86400000)
                                 if (dias <= 2) return null
                                 const cor = dias > 5 ? R : YELLOW
