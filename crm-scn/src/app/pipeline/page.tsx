@@ -592,7 +592,20 @@ export default function PipelinePage() {
                             onMouseEnter={e => { setHoveredCardId(l.id); (e.currentTarget as HTMLElement).style.borderColor=etapa.color; (e.currentTarget as HTMLElement).style.boxShadow=`0 3px 10px ${etapa.color}28` }}
                             onMouseLeave={e => { setHoveredCardId(null); (e.currentTarget as HTMLElement).style.borderColor='#EBEBEB'; (e.currentTarget as HTMLElement).style.boxShadow='0 1px 4px rgba(0,0,0,.05)' }}>
 
-                            <div style={{ fontSize:13, fontWeight:800, color:GRAY1, lineHeight:1.35, marginBottom:3 }}>{l.empresa}</div>
+                            <div style={{ fontSize:13, fontWeight:800, color:GRAY1, lineHeight:1.35, marginBottom:3, display:'flex', alignItems:'center', gap:5 }}>
+                              {l.empresa}
+                              {(() => {
+                                const dias = Math.floor((Date.now() - new Date(l.updated_at).getTime()) / 86400000)
+                                if (dias <= 2) return null
+                                const cor = dias > 5 ? R : YELLOW
+                                return (
+                                  <svg aria-label={`${dias} dias sem atividade`} width="11" height="13" viewBox="0 0 11 13" fill="none" style={{ flexShrink:0 }}>
+                                    <line x1="1" y1="0" x2="1" y2="13" stroke={cor} strokeWidth="1.8" strokeLinecap="round"/>
+                                    <path d="M1 1.5 L10 4.5 L1 7.5 Z" fill={cor}/>
+                                  </svg>
+                                )
+                              })()}
+                            </div>
                             {l.nome_lead && <div style={{ fontSize:11, fontWeight:600, color:GRAY2, marginBottom:2 }}>{l.nome_lead}</div>}
                             {l.telefone && <div style={{ fontSize:11, color:GRAY3, display:'flex', alignItems:'center', gap:4, marginBottom:2 }}>📞 {l.telefone}</div>}
                             {l.origem === 'Recomendação' && (
