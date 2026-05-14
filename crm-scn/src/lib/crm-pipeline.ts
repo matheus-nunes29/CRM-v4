@@ -13,7 +13,6 @@ export const STAGE_REQUIREMENTS: Record<string, StageReq> = {
   'REUNIÃO AGENDADA': { label: 'Reunião Agendada', fields: [
     { key: 'data_ra', label: 'Data da Reunião Agendada', type: 'date' },
     { key: 'closer', label: 'Closer Responsável', type: 'select', options: CLOSERS },
-    { key: 'situacao_pre_vendas', label: 'Situação Pré-Vendas', type: 'select', options: SITUACOES_PRE_VENDAS },
     { key: 'bant', label: 'Nota BANT (mín. 3)', type: 'bant' },
     { key: 'segmento', label: 'Segmento', type: 'select', options: SEGMENTOS },
     { key: 'faturamento', label: 'Faturamento', type: 'select', options: FATURAMENTOS },

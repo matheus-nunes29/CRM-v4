@@ -26,7 +26,10 @@ function DragModal({ info, onConfirm, onClose }: {
   onConfirm: (lead: any, stage: string, data: Record<string,any>) => void
   onClose: () => void
 }) {
-  const [form, setForm] = useState<Record<string,any>>({})
+  const today = new Date().toISOString().slice(0, 10)
+  const [form, setForm] = useState<Record<string,any>>(
+    info.targetStage === 'REUNIÃO AGENDADA' ? { data_ra: today } : {}
+  )
   const [errors, setErrors] = useState<Record<string,string>>({})
   const [uploading, setUploading] = useState<Record<string,boolean>>({})
   const reqs = STAGE_REQUIREMENTS[info.targetStage]
