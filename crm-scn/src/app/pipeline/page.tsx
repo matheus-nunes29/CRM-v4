@@ -28,7 +28,8 @@ function DragModal({ info, onConfirm, onClose }: {
 }) {
   const today = new Date().toISOString().slice(0, 10)
   const [form, setForm] = useState<Record<string,any>>(
-    info.targetStage === 'REUNIÃO AGENDADA' ? { data_ra: today } : {}
+    info.targetStage === 'REUNIÃO AGENDADA'  ? { data_ra: today } :
+    info.targetStage === 'REUNIÃO REALIZADA' ? { data_rr: today } : {}
   )
   const [errors, setErrors] = useState<Record<string,string>>({})
   const [uploading, setUploading] = useState<Record<string,boolean>>({})
@@ -182,6 +183,7 @@ function DragModal({ info, onConfirm, onClose }: {
           <button onClick={() => {
             const errs: Record<string,string> = {}
             effectiveFields.forEach((f: any) => {
+              if (f.optional) return
               if (f.type === 'bant') {
                 const score = form.bant ?? info.lead.bant ?? 0
                 if (score < 3) errs[f.key] = 'BANT mínimo 3 para avançar'

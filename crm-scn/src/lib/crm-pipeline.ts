@@ -1,6 +1,6 @@
 import { BLUE, YELLOW, PURPLE, GREEN, GRAY2, R, SITUACOES_PRE_VENDAS, SITUACOES, CLOSERS, SEGMENTOS, FATURAMENTOS, CARGOS_OPTIONS, TEMPERATURAS, MOTIVOS_PERDA_PRE_VENDAS, MOTIVOS_PERDA_CLOSER } from './crm-constants'
 
-export type StageField = { key: string; label: string; type: 'date' | 'select' | 'bant' | 'number' | 'text' | 'file'; options?: string[] }
+export type StageField = { key: string; label: string; type: 'date' | 'select' | 'bant' | 'number' | 'text' | 'file'; options?: string[]; optional?: boolean }
 export type StageReq = { label: string; fields: StageField[]; extraFields?: (lead: any) => StageField[] }
 
 export const STAGE_REQUIREMENTS: Record<string, StageReq> = {
@@ -29,8 +29,7 @@ export const STAGE_REQUIREMENTS: Record<string, StageReq> = {
   'REUNIÃO REALIZADA': { label: 'Reunião Realizada', fields: [
     { key: 'data_rr', label: 'Data da Reunião Realizada', type: 'date' },
     { key: 'closer', label: 'Closer Responsável', type: 'select', options: CLOSERS },
-    { key: 'situacao_pre_vendas', label: 'Situação Pré-Vendas', type: 'select', options: SITUACOES_PRE_VENDAS },
-    { key: 'data_fup', label: 'Data do FUP', type: 'date' },
+    { key: 'data_fup', label: 'Data do FUP', type: 'date', optional: true },
     { key: 'link_transcricao', label: 'Link da Transcrição', type: 'text' },
     { key: 'temperatura', label: 'Temperatura', type: 'select', options: TEMPERATURAS },
     { key: 'tcv', label: 'TCV (R$)', type: 'number' },
