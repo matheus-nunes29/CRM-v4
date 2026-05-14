@@ -608,10 +608,16 @@ export default function PipelinePage() {
                               })()}
                             </div>
                             {l.nome_lead && <div style={{ fontSize:11, fontWeight:600, color:GRAY2, marginBottom:2 }}>{l.nome_lead}</div>}
-                            {l.telefone && <div style={{ fontSize:11, color:GRAY3, display:'flex', alignItems:'center', gap:4, marginBottom:2 }}>📞 {l.telefone}</div>}
+                            {l.telefone && (
+                              <div style={{ fontSize:11, color:GRAY3, display:'flex', alignItems:'center', gap:4, marginBottom:2 }}>
+                                <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 2h3l1.5 3.5-1.75 1.25a9 9 0 0 0 3.5 3.5L10.5 8.5 14 10v3a1 1 0 0 1-1 1C5.5 14 2 7.5 2 3a1 1 0 0 1 1-1z" stroke={GRAY3} strokeWidth="1.3" strokeLinejoin="round"/></svg>
+                                {l.telefone}
+                              </div>
+                            )}
                             {l.origem === 'Recomendação' && (
                               <div style={{ fontSize:11, color:GRAY2, display:'flex', alignItems:'center', gap:4, marginBottom:2 }}>
-                                🤝 {l.recomendacoes ? l.recomendacoes : <span style={{ color:GRAY3, fontStyle:'italic' }}>Sem indicador</span>}
+                                <svg width="11" height="10" viewBox="0 0 18 16" fill="none"><circle cx="6" cy="4" r="2.5" stroke={GRAY2} strokeWidth="1.3"/><circle cx="12" cy="4" r="2.5" stroke={GRAY2} strokeWidth="1.3"/><path d="M1 14c0-2.76 2.24-5 5-5h6c2.76 0 5 2.24 5 5" stroke={GRAY2} strokeWidth="1.3" strokeLinecap="round"/></svg>
+                                {l.recomendacoes ? l.recomendacoes : <span style={{ color:GRAY3, fontStyle:'italic' }}>Sem indicador</span>}
                               </div>
                             )}
 
@@ -619,7 +625,8 @@ export default function PipelinePage() {
                               const dias = diasSemAtividade(l)
                               return dias !== null && dias > 3 ? (
                                 <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:6, padding:'3px 8px', borderRadius:6, background:'#FFF7ED', border:'1px solid #FED7AA' }}>
-                                  <span style={{ fontSize:10, fontWeight:700, color:'#C2410C' }}>⚠ {dias}d sem contato</span>
+                                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M8 2L14.5 13H1.5L8 2z" stroke="#C2410C" strokeWidth="1.4" strokeLinejoin="round"/><path d="M8 7v3" stroke="#C2410C" strokeWidth="1.4" strokeLinecap="round"/><circle cx="8" cy="11.5" r="0.6" fill="#C2410C"/></svg>
+                                  <span style={{ fontSize:10, fontWeight:700, color:'#C2410C' }}>{dias}d sem contato</span>
                                 </div>
                               ) : null
                             })()}
@@ -630,12 +637,18 @@ export default function PipelinePage() {
                                   <span style={{ fontSize:10, fontWeight:800, padding:'2px 8px', borderRadius:20, background: l.bant >= 3 ? `${GREEN}18` : `${R}18`, color: l.bant >= 3 ? GREEN : R, border: `1px solid ${l.bant >= 3 ? `${GREEN}40` : `${R}40`}` }}>BANT {l.bant}/4</span>
                                 )}
                                 {l.cadencia && (
-                                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background: l.cadencia >= 5 && !l.contato_agendado ? R : '#78350F', color: l.cadencia >= 5 && !l.contato_agendado ? WHITE : '#FCD34D' }}>
-                                    {l.cadencia >= 5 && !l.contato_agendado ? '⚠️ ' : ''}Dia {l.cadencia}
+                                  <span style={{ display:'flex', alignItems:'center', gap:3, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background: l.cadencia >= 5 && !l.contato_agendado ? R : '#78350F', color: l.cadencia >= 5 && !l.contato_agendado ? WHITE : '#FCD34D' }}>
+                                    {l.cadencia >= 5 && !l.contato_agendado && (
+                                      <svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M8 2L14.5 13H1.5L8 2z" stroke={WHITE} strokeWidth="1.5" strokeLinejoin="round"/><path d="M8 7v3" stroke={WHITE} strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="11.5" r="0.7" fill={WHITE}/></svg>
+                                    )}
+                                    Dia {l.cadencia}
                                   </span>
                                 )}
                                 {l.contato_agendado && (
-                                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:`${GREEN}18`, color:GREEN }}>✓ Agendado</span>
+                                  <span style={{ display:'flex', alignItems:'center', gap:3, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:`${GREEN}18`, color:GREEN }}>
+                                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke={GREEN} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                    Agendado
+                                  </span>
                                 )}
                                 {l.origem && (
                                   <span style={{ fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:20, background:`${BLUE}12`, color:BLUE }}>{l.origem}</span>
@@ -652,7 +665,10 @@ export default function PipelinePage() {
                                     <span style={{ fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:20, background:`${PURPLE}15`, color:PURPLE, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.situacao_closer}</span>
                                   )}
                                   {l.data_fup && (
-                                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:`${YELLOW}18`, color:YELLOW, whiteSpace:'nowrap' }}>📅 {new Date(l.data_fup + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                                    <span style={{ display:'flex', alignItems:'center', gap:3, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:`${YELLOW}18`, color:YELLOW, whiteSpace:'nowrap' }}>
+                                      <svg width="9" height="9" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="11" rx="2" stroke={YELLOW} strokeWidth="1.3"/><path d="M1 6h12" stroke={YELLOW} strokeWidth="1.3"/><path d="M4 1v2M10 1v2" stroke={YELLOW} strokeWidth="1.3" strokeLinecap="round"/></svg>
+                                      {new Date(l.data_fup + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                    </span>
                                   )}
                                 </div>
                               </div>
@@ -690,13 +706,24 @@ export default function PipelinePage() {
                                     setTimeout(() => setCopiedCardId(null), 1500)
                                   }}
                                   style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 9px', borderRadius:6, border: copiedCardId === l.id ? `1px solid ${GREEN}` : '1px solid #E5E7EB', background: copiedCardId === l.id ? `${GREEN}12` : '#F9FAFB', color: copiedCardId === l.id ? GREEN : GRAY2, fontSize:11, fontWeight:600, cursor:'pointer', transition:'all .2s' }}>
-                                  {copiedCardId === l.id ? '✓ Copiado!' : '📞 Copiar'}
+                                  {copiedCardId === l.id ? (
+                                    <>
+                                      <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke={GREEN} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                      Copiado!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M3 2h3l1.5 3.5-1.75 1.25a9 9 0 0 0 3.5 3.5L10.5 8.5 14 10v3a1 1 0 0 1-1 1C5.5 14 2 7.5 2 3a1 1 0 0 1 1-1z" stroke={GRAY2} strokeWidth="1.3" strokeLinejoin="round"/></svg>
+                                      Copiar
+                                    </>
+                                  )}
                                 </button>
                                 {String(l.telefone).replace(/\D/g,'').length >= 10 && (
                                   <a href={`https://wa.me/55${String(l.telefone).replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
                                     onClick={e => e.stopPropagation()}
                                     style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 9px', borderRadius:6, border:`1px solid ${GREEN}50`, background:`${GREEN}08`, color:GREEN, fontSize:11, fontWeight:600, textDecoration:'none', cursor:'pointer' }}>
-                                    💬 WhatsApp
+                                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8c0 1.16.3 2.25.83 3.2L1.5 14.5l3.37-.82A6.48 6.48 0 0 0 8 14.5c3.59 0 6.5-2.91 6.5-6.5S11.59 1.5 8 1.5z" stroke={GREEN} strokeWidth="1.3" strokeLinejoin="round"/><path d="M5.5 7.5c.28.84.9 1.56 1.76 2 .35.18.9.36 1.24.24.34-.12.56-.52.7-.84.06-.14 0-.3-.12-.38L7.9 8.1a.3.3 0 0 0-.38.04l-.3.34a3.2 3.2 0 0 1-1.6-1.6l.34-.3a.3.3 0 0 0 .04-.38l-.42-.68c-.08-.12-.24-.18-.38-.12-.32.14-.72.36-.84.7-.1.28.04.72.14.9z" fill={GREEN}/></svg>
+                                    WhatsApp
                                   </a>
                                 )}
                               </div>
