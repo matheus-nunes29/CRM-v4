@@ -44,6 +44,10 @@ export type Lead = {
   proximos_passos: string | null
   data_fup: string | null
   tcv: number | null
+  tcv_saber: number | null
+  tcv_ter: number | null
+  tcv_executar: number | null
+  tcv_executar_meses: number | null
   venda: string | null
   data_assinatura: string | null
   mes_assinatura: string | null

@@ -62,8 +62,55 @@ function DragModal({ info, onConfirm, onClose }: {
           )}
           {effectiveFields.map((f: any) => (
             <div key={f.key}>
-              <label style={labelCls}>{f.label} *</label>
-              {f.type === 'select' && f.key === 'closer' ? (
+              <label style={labelCls}>{f.label}{!f.optional ? ' *' : ''}</label>
+              {f.type === 'tcv-breakdown' ? (() => {
+                const saber   = Number(form.tcv_saber   ?? info.lead.tcv_saber   ?? 0)
+                const ter     = Number(form.tcv_ter     ?? info.lead.tcv_ter     ?? 0)
+                const exec    = Number(form.tcv_executar ?? info.lead.tcv_executar ?? 0)
+                const meses   = Number(form.tcv_executar_meses ?? info.lead.tcv_executar_meses ?? 12)
+                const total   = saber + ter + exec * meses
+                const upd = (key: string, val: any) => setForm((p:any) => ({...p, [key]: val, tcv: saber + ter + exec * meses}))
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, color:GRAY2, marginBottom:4 }}>Saber (consultoria)</div>
+                        <input type="number" placeholder="R$ 0" style={{ ...inputCls, borderColor: errors[f.key] ? R : '#D1D5DB' }}
+                          value={form.tcv_saber ?? info.lead.tcv_saber ?? ''}
+                          onChange={e => { const v = e.target.value ? Number(e.target.value) : 0; setForm((p:any) => { const ns=v, nt=Number(p.tcv_ter??info.lead.tcv_ter??0), ne=Number(p.tcv_executar??info.lead.tcv_executar??0), nm=Number(p.tcv_executar_meses??info.lead.tcv_executar_meses??12); return {...p, tcv_saber:v||null, tcv:ns+nt+ne*nm} }) }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, color:GRAY2, marginBottom:4 }}>Ter (implementação)</div>
+                        <input type="number" placeholder="R$ 0" style={{ ...inputCls, borderColor: errors[f.key] ? R : '#D1D5DB' }}
+                          value={form.tcv_ter ?? info.lead.tcv_ter ?? ''}
+                          onChange={e => { const v = e.target.value ? Number(e.target.value) : 0; setForm((p:any) => { const ns=Number(p.tcv_saber??info.lead.tcv_saber??0), nt=v, ne=Number(p.tcv_executar??info.lead.tcv_executar??0), nm=Number(p.tcv_executar_meses??info.lead.tcv_executar_meses??12); return {...p, tcv_ter:v||null, tcv:ns+nt+ne*nm} }) }} />
+                      </div>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, color:GRAY2, marginBottom:4 }}>Executar (mensal)</div>
+                        <input type="number" placeholder="R$ 0/mês" style={{ ...inputCls, borderColor: errors[f.key] ? R : '#D1D5DB' }}
+                          value={form.tcv_executar ?? info.lead.tcv_executar ?? ''}
+                          onChange={e => { const v = e.target.value ? Number(e.target.value) : 0; setForm((p:any) => { const ns=Number(p.tcv_saber??info.lead.tcv_saber??0), nt=Number(p.tcv_ter??info.lead.tcv_ter??0), ne=v, nm=Number(p.tcv_executar_meses??info.lead.tcv_executar_meses??12); return {...p, tcv_executar:v||null, tcv:ns+nt+ne*nm} }) }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, color:GRAY2, marginBottom:4 }}>Período Executar</div>
+                        <select style={{ ...inputCls }} value={form.tcv_executar_meses ?? info.lead.tcv_executar_meses ?? 12}
+                          onChange={e => { const nm = Number(e.target.value); setForm((p:any) => { const ns=Number(p.tcv_saber??info.lead.tcv_saber??0), nt=Number(p.tcv_ter??info.lead.tcv_ter??0), ne=Number(p.tcv_executar??info.lead.tcv_executar??0); return {...p, tcv_executar_meses:nm, tcv:ns+nt+ne*nm} }) }}>
+                          <option value={6}>6 meses</option>
+                          <option value={12}>12 meses</option>
+                        </select>
+                      </div>
+                    </div>
+                    {total > 0 && (
+                      <div style={{ padding:'8px 12px', background:`${GREEN}10`, borderRadius:8, border:`1px solid ${GREEN}30`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <span style={{ fontSize:11, fontWeight:700, color:GRAY2 }}>TCV Total</span>
+                        <span style={{ fontSize:15, fontWeight:900, color:GREEN }}>{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0}).format(total)}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })() : f.type === 'select' && f.key === 'closer' ? (
                 <UserSelect
                   value={form[f.key] ?? info.lead[f.key] ?? null}
                   onChange={v => { setForm((p:any) => ({...p, [f.key]: v})); setErrors((p:any) => ({...p, [f.key]:''}))}
@@ -184,7 +231,12 @@ function DragModal({ info, onConfirm, onClose }: {
             const errs: Record<string,string> = {}
             effectiveFields.forEach((f: any) => {
               if (f.optional) return
-              if (f.type === 'bant') {
+              if (f.type === 'tcv-breakdown') {
+                const saber = Number(form.tcv_saber ?? info.lead.tcv_saber ?? 0)
+                const ter   = Number(form.tcv_ter   ?? info.lead.tcv_ter   ?? 0)
+                const exec  = Number(form.tcv_executar ?? info.lead.tcv_executar ?? 0)
+                if (saber + ter + exec === 0) errs[f.key] = 'Informe ao menos um valor de TCV'
+              } else if (f.type === 'bant') {
                 const score = form.bant ?? info.lead.bant ?? 0
                 if (score < 3) errs[f.key] = 'BANT mínimo 3 para avançar'
               } else if (f.type === 'file') {
@@ -197,7 +249,21 @@ function DragModal({ info, onConfirm, onClose }: {
             })
             if (Object.keys(errs).length > 0) { setErrors(errs); return }
             const merged: Record<string,any> = {}
-            effectiveFields.forEach((f: any) => { merged[f.key] = form[f.key] ?? info.lead[f.key] })
+            effectiveFields.forEach((f: any) => {
+              if (f.type === 'tcv-breakdown') {
+                const saber = form.tcv_saber ?? info.lead.tcv_saber ?? null
+                const ter   = form.tcv_ter   ?? info.lead.tcv_ter   ?? null
+                const exec  = form.tcv_executar ?? info.lead.tcv_executar ?? null
+                const meses = form.tcv_executar_meses ?? info.lead.tcv_executar_meses ?? 12
+                merged.tcv_saber = saber
+                merged.tcv_ter = ter
+                merged.tcv_executar = exec
+                merged.tcv_executar_meses = meses
+                merged.tcv = (Number(saber)||0) + (Number(ter)||0) + (Number(exec)||0) * Number(meses)
+              } else {
+                merged[f.key] = form[f.key] ?? info.lead[f.key]
+              }
+            })
             onConfirm(info.lead, info.targetStage, merged)
           }} style={{ padding:'10px 24px', borderRadius:8, border:'none', background:R, color:WHITE, fontSize:13, fontWeight:800, cursor:'pointer' }}>
             Confirmar Movimentação

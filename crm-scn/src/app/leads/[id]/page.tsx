@@ -448,7 +448,8 @@ const initForm = {
   empresa: '', nome_lead: '', telefone: '', email: '', origem: null, segmento: null, closer: null,
   temperatura: null, situacao_pre_vendas: null, bant_budget: false, bant_authority: false,
   bant_need: false, bant_timing: false, situacao_closer: null, proximos_passos: '',
-  tcv: undefined, venda: 'NÃO', data_fup: null, tier: null, faturamento: null, cargo: null,
+  tcv: undefined, tcv_saber: null, tcv_ter: null, tcv_executar: null, tcv_executar_meses: 12,
+  venda: 'NÃO', data_fup: null, tier: null, faturamento: null, cargo: null,
   urgencia: null, bant: undefined, data_entrada: null, data_ra: null, data_rr: null,
   data_assinatura: null, data_ativacao: null, anotacoes_pre_vendas: '', cadencia: null,
   contato_agendado: false, link_qualificacao: '', link_transcricao: '',
@@ -616,7 +617,7 @@ function LeadPageInner() {
 
   const TRACKABLE = ['empresa', 'nome_lead', 'telefone', 'email', 'origem', 'segmento', 'cargo', 'faturamento',
     'temperatura', 'situacao_pre_vendas', 'situacao_closer', 'closer', 'data_entrada', 'data_ra', 'data_rr',
-    'data_assinatura', 'data_ativacao', 'data_fup', 'tcv', 'venda', 'bant_budget', 'bant_authority',
+    'data_assinatura', 'data_ativacao', 'data_fup', 'tcv', 'tcv_saber', 'tcv_ter', 'tcv_executar', 'tcv_executar_meses', 'venda', 'bant_budget', 'bant_authority',
     'bant_need', 'bant_timing', 'cadencia', 'urgencia', 'link_qualificacao', 'link_site', 'link_instagram',
     'link_biblioteca_anuncios', 'link_outros', 'link_transcricao', 'link_gravacao', 'link_plano_roi',
     'custo_broker', 'motivo_perda_pre_vendas', 'motivo_perda_closer', 'contato_agendado', 'responsavel_bdr']
@@ -1388,9 +1389,59 @@ function LeadPageInner() {
                         {SITUACOES.map(o => <option key={o}>{o}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 5 }}>TCV (R$)</div>
-                      <input type="number" style={inputStyle} value={form.tcv || ''} onChange={e => set('tcv', e.target.value ? Number(e.target.value) : null)} placeholder="0" />
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: GRAY2, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>TCV — Total Contract Value</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Saber (consultoria)</div>
+                          <input type="number" style={inputStyle} placeholder="R$ 0" value={form.tcv_saber ?? ''}
+                            onChange={e => {
+                              const v = e.target.value ? Number(e.target.value) : null
+                              const total = (v||0) + (form.tcv_ter||0) + (form.tcv_executar||0) * (form.tcv_executar_meses||12)
+                              set('tcv_saber', v); set('tcv', total || null)
+                            }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Ter (implementação)</div>
+                          <input type="number" style={inputStyle} placeholder="R$ 0" value={form.tcv_ter ?? ''}
+                            onChange={e => {
+                              const v = e.target.value ? Number(e.target.value) : null
+                              const total = (form.tcv_saber||0) + (v||0) + (form.tcv_executar||0) * (form.tcv_executar_meses||12)
+                              set('tcv_ter', v); set('tcv', total || null)
+                            }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Executar (mensal)</div>
+                          <input type="number" style={inputStyle} placeholder="R$ 0/mês" value={form.tcv_executar ?? ''}
+                            onChange={e => {
+                              const v = e.target.value ? Number(e.target.value) : null
+                              const total = (form.tcv_saber||0) + (form.tcv_ter||0) + (v||0) * (form.tcv_executar_meses||12)
+                              set('tcv_executar', v); set('tcv', total || null)
+                            }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Período Executar</div>
+                          <select style={inputStyle} value={form.tcv_executar_meses ?? 12}
+                            onChange={e => {
+                              const nm = Number(e.target.value)
+                              const total = (form.tcv_saber||0) + (form.tcv_ter||0) + (form.tcv_executar||0) * nm
+                              set('tcv_executar_meses', nm); set('tcv', total || null)
+                            }}>
+                            <option value={6}>6 meses</option>
+                            <option value={12}>12 meses</option>
+                          </select>
+                        </div>
+                      </div>
+                      {(form.tcv_saber || form.tcv_ter || form.tcv_executar) ? (
+                        <div style={{ marginTop: 10, padding: '8px 12px', background: `${GREEN}10`, borderRadius: 8, border: `1px solid ${GREEN}30`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: GRAY2 }}>TCV Total</span>
+                          <span style={{ fontSize: 15, fontWeight: 900, color: GREEN }}>
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(
+                              (form.tcv_saber||0) + (form.tcv_ter||0) + (form.tcv_executar||0) * (form.tcv_executar_meses||12)
+                            )}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   {form.situacao_closer === 'PERDIDO CLOSER' && (
