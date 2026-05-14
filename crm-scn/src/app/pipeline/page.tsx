@@ -654,6 +654,18 @@ export default function PipelinePage() {
                                 </div>
                               </div>
                             )}
+                            {(() => {
+                              const diffMs = Date.now() - new Date(l.updated_at).getTime()
+                              const mins = Math.floor(diffMs / 60000)
+                              const label = mins < 60 ? `${mins}min` : mins < 1440 ? `${Math.floor(mins / 60)}h` : `${Math.floor(mins / 1440)}d`
+                              return (
+                                <div style={{ display:'flex', alignItems:'center', gap:3, marginTop:8, paddingTop:6, borderTop:`1px solid #F0F0F0` }}>
+                                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke={GRAY3} strokeWidth="1.4"/><path d="M8 5v3.5l2 1.5" stroke={GRAY3} strokeWidth="1.4" strokeLinecap="round"/></svg>
+                                  <span style={{ fontSize:10, color:GRAY3, fontWeight:600 }}>{label}</span>
+                                </div>
+                              )
+                            })()}
+
                             {hoveredCardId === l.id && l.telefone && (
                               <div style={{ display:'flex', gap:6, marginTop:8, paddingTop:8, borderTop:'1px solid #F0F0F0' }} onClick={e => e.preventDefault()}>
                                 <button
