@@ -1176,7 +1176,7 @@ function LeadPageInner() {
                       {(() => {
                         const badge = getStageBDR(form)
                         if (badge) return (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: `1px solid ${BORDER}`, background: GRAY4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: `1px solid ${BORDER}`, background: '#F9FAFB' }}>
                             <span style={{ fontSize: 12, fontWeight: 700, color: GRAY1 }}>{badge.label}</span>
                             <span style={{ fontSize: 10, color: GRAY3 }}>automático</span>
                           </div>
@@ -1438,7 +1438,7 @@ function LeadPageInner() {
                       {(() => {
                         const badge = getStageCloser(form)
                         if (badge) return (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: `1px solid ${BORDER}`, background: GRAY4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: `1px solid ${BORDER}`, background: '#F9FAFB' }}>
                             <span style={{ fontSize: 12, fontWeight: 700, color: GRAY1 }}>{badge.label}</span>
                             <span style={{ fontSize: 10, color: GRAY3 }}>automático</span>
                           </div>
