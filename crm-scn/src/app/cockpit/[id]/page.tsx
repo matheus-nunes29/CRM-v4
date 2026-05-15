@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry } from '@/lib/supabase'
-import Sidebar from '../../Sidebar'
+import CRMLayout from '../../_components/CRMLayout'
+import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE } from '@/lib/crm-constants'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -10,33 +11,9 @@ import {
 import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown,
   Link2, Layers, TrendingUp, Target, AlertTriangle, Users,
-  Calendar, Package, Clock, Trash2, Save, MoreVertical,
-  Building2, Phone, Mail, ExternalLink, Globe, Info,
+  Calendar, Package, Clock, Trash2, Globe, Info,
+  Building2, Phone, Mail, ExternalLink,
 } from 'lucide-react'
-
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const BG      = '#0A0A0A'
-const SURFACE = '#111110'
-const CARD    = '#161614'
-const CARD2   = '#1a1a18'
-const BORDER  = '#222220'
-const TEXT    = '#EDE8E1'
-const MUTED   = 'rgba(237,232,225,0.42)'
-const MUTED2  = 'rgba(237,232,225,0.65)'
-const R       = '#E8001C'
-const GREEN   = '#10B981'
-const YELLOW  = '#F59E0B'
-const BLUE    = '#3B82F6'
-const PURPLE  = '#8B5CF6'
-
-const TABS = [
-  { id: 'visao-geral',   label: 'Visão Geral',   icon: Info },
-  { id: 'projetos',      label: 'Projetos',       icon: Layers },
-  { id: 'health-score',  label: 'Health Score',   icon: TrendingUp },
-  { id: 'metas',         label: 'Metas',          icon: Target },
-  { id: 'oportunidades', label: 'Oportunidades',  icon: Package },
-  { id: 'fca',           label: 'FCA',            icon: AlertTriangle },
-]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(v: number) { return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` }
@@ -48,7 +25,7 @@ function fmtDate(s: string | null) {
 function startOfWeek(d = new Date()): string {
   const day = d.getDay()
   const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  const mon = new Date(d); mon.setDate(diff); mon.setHours(0,0,0,0)
+  const mon = new Date(d); mon.setDate(diff); mon.setHours(0, 0, 0, 0)
   return mon.toISOString().split('T')[0]
 }
 function calcLT(projetos: Projeto[]): string {
@@ -61,6 +38,29 @@ function calcLT(projetos: Projeto[]): string {
   const y = Math.floor(months / 12), m = months % 12
   return m > 0 ? `${y}a ${m}m` : `${y} ${y === 1 ? 'ano' : 'anos'}`
 }
+function healthColor(s: number) { return s >= 7 ? GREEN : s >= 5 ? YELLOW : R }
+
+// ── Shared styles ─────────────────────────────────────────────────────────────
+const card = { background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,.04)' } as const
+const input14 = { padding: '9px 12px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 8, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const }
+const btnPrimary = (disabled = false) => ({ padding: '9px 18px', borderRadius: 8, border: 'none', background: disabled ? GRAY3 : R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer', boxShadow: disabled ? 'none' : `0 2px 8px ${R}40` })
+const btnGhost = { padding: '8px 16px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }
+
+const TABS = [
+  { id: 'visao-geral',   label: 'Visão Geral',   icon: Info },
+  { id: 'projetos',      label: 'Projetos',       icon: Layers },
+  { id: 'health-score',  label: 'Health Score',   icon: TrendingUp },
+  { id: 'metas',         label: 'Metas',          icon: Target },
+  { id: 'oportunidades', label: 'Oportunidades',  icon: Package },
+  { id: 'fca',           label: 'FCA',            icon: AlertTriangle },
+]
+
+const OPP_STAGES: { key: Oportunidade['etapa']; label: string; color: string; bg: string }[] = [
+  { key: 'identificada',      label: 'Identificada',      color: GRAY2,   bg: GRAY4 },
+  { key: 'em_conversa',       label: 'Em Conversa',       color: BLUE,    bg: '#EFF6FF' },
+  { key: 'proposta_enviada',  label: 'Proposta Enviada',  color: '#92400E', bg: '#FEF3C7' },
+  { key: 'fechada',           label: 'Fechada',           color: '#065F46', bg: '#ECFDF5' },
+]
 
 // ── Inline editable field ─────────────────────────────────────────────────────
 function EditableField({ label, value, onSave, multiline = false }: { label: string; value: string; onSave: (v: string) => void; multiline?: boolean }) {
@@ -71,40 +71,41 @@ function EditableField({ label, value, onSave, multiline = false }: { label: str
 
   return (
     <div>
-      <div style={{ fontSize: 11, color: MUTED, fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+      <div style={{ fontSize: 11, color: GRAY3, fontWeight: 600, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
       {editing ? (
         <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
           {multiline
-            ? <textarea value={draft} onChange={e => setDraft(e.target.value)} autoFocus rows={3} style={{ flex: 1, padding: '7px 10px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
-            : <input value={draft} onChange={e => setDraft(e.target.value)} autoFocus onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }} style={{ flex: 1, padding: '7px 10px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, fontSize: 13, outline: 'none' }} />
+            ? <textarea value={draft} onChange={e => setDraft(e.target.value)} autoFocus rows={3} style={{ flex: 1, padding: '8px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+            : <input value={draft} onChange={e => setDraft(e.target.value)} autoFocus onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }} style={{ flex: 1, padding: '8px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 13, outline: 'none' }} />
           }
-          <button onClick={commit} style={{ padding: 7, borderRadius: 6, border: 'none', background: GREEN, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Check size={13} color="#fff" /></button>
-          <button onClick={cancel} style={{ padding: 7, borderRadius: 6, border: `1px solid ${BORDER}`, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={13} color={MUTED} /></button>
+          <button onClick={commit} style={{ padding: '7px', borderRadius: 6, border: 'none', background: GREEN, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Check size={13} color={WHITE} /></button>
+          <button onClick={cancel} style={{ padding: '7px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={13} color={GRAY3} /></button>
         </div>
       ) : (
-        <div onClick={() => { setDraft(value); setEditing(true) }} style={{ fontSize: 13, color: value ? TEXT : MUTED, cursor: 'text', padding: '6px 0', borderBottom: `1px dashed ${BORDER}`, minHeight: 28, display: 'flex', alignItems: 'center', gap: 6, transition: 'border-color .15s' }}
-          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = '#444')}
-          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = BORDER)}
+        <div onClick={() => { setDraft(value); setEditing(true) }}
+          style={{ fontSize: 13, color: value ? GRAY1 : GRAY3, cursor: 'text', padding: '7px 0', borderBottom: `1px dashed ${GRAY5}`, minHeight: 30, display: 'flex', alignItems: 'center', gap: 6, transition: 'border-color .15s' }}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = '#9CA3AF')}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = GRAY5)}
         >
-          {value || <span style={{ fontSize: 12, color: MUTED, fontStyle: 'italic' }}>Clique para editar...</span>}
-          <Edit2 size={11} color={MUTED} style={{ flexShrink: 0, marginLeft: 'auto' }} />
+          {value || <span style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic' }}>Clique para editar...</span>}
+          <Edit2 size={11} color={GRAY3} style={{ flexShrink: 0, marginLeft: 'auto' }} />
         </div>
       )}
     </div>
   )
 }
 
-// ── Score display ─────────────────────────────────────────────────────────────
+// ── Score bar ─────────────────────────────────────────────────────────────────
 function ScoreBar({ label, value, onChange }: { label: string; value: number; onChange?: (v: number) => void }) {
-  const color = value >= 7 ? GREEN : value >= 5 ? YELLOW : R
+  const color = healthColor(value)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <div style={{ fontSize: 12, color: MUTED, width: 130, flexShrink: 0 }}>{label}</div>
-      <div style={{ flex: 1, height: 6, background: BORDER, borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ fontSize: 12, color: GRAY2, width: 140, flexShrink: 0 }}>{label}</div>
+      <div style={{ flex: 1, height: 6, background: GRAY5, borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ width: `${value * 10}%`, height: '100%', background: color, borderRadius: 3, transition: 'width .3s ease' }} />
       </div>
       {onChange ? (
-        <select value={value} onChange={e => onChange(Number(e.target.value))} style={{ width: 50, padding: '3px 4px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 5, color, fontSize: 13, fontWeight: 700, outline: 'none', cursor: 'pointer' }}>
+        <select value={value} onChange={e => onChange(Number(e.target.value))} style={{ width: 52, padding: '3px 4px', background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 5, color, fontSize: 13, fontWeight: 700, outline: 'none', cursor: 'pointer' }}>
           {[0,1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
         </select>
       ) : (
@@ -114,29 +115,62 @@ function ScoreBar({ label, value, onChange }: { label: string; value: number; on
   )
 }
 
-// ── OPORTUNIDADES KANBAN ──────────────────────────────────────────────────────
-const OPP_STAGES: { key: Oportunidade['etapa']; label: string; color: string }[] = [
-  { key: 'identificada',      label: 'Identificada',      color: MUTED2 },
-  { key: 'em_conversa',       label: 'Em Conversa',       color: BLUE },
-  { key: 'proposta_enviada',  label: 'Proposta Enviada',  color: YELLOW },
-  { key: 'fechada',           label: 'Fechada',           color: GREEN },
-]
+// ── Section title ─────────────────────────────────────────────────────────────
+function SectionTitle({ icon: Icon, label }: { icon: React.ComponentType<any>; label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+      <div style={{ width: 28, height: 28, borderRadius: 7, background: GRAY4, border: `1px solid ${GRAY5}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon size={13} color={GRAY2} />
+      </div>
+      <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>{label}</span>
+    </div>
+  )
+}
 
-// ── MAIN PAGE ─────────────────────────────────────────────────────────────────
+// ── Status pill ───────────────────────────────────────────────────────────────
+function StatusPill({ status, onChange }: { status: Cliente['status']; onChange: (s: Cliente['status']) => void }) {
+  const [open, setOpen] = useState(false)
+  const map = {
+    ativo:   { color: '#065F46', bg: '#D1FAE5', border: '#A7F3D0', label: 'Ativo' },
+    pausado: { color: '#92400E', bg: '#FEF3C7', border: '#FDE68A', label: 'Pausado' },
+    churned: { color: '#991B1B', bg: '#FEE2E2', border: '#FECACA', label: 'Churned' },
+  }
+  const s = map[status]
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 5, border: `1px solid ${s.border}`, background: s.bg, color: s.color, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em' }}>
+        {s.label.toUpperCase()} <ChevronDown size={10} />
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 9, padding: 4, zIndex: 50, minWidth: 120, boxShadow: '0 8px 24px rgba(0,0,0,.12)' }}>
+          {(['ativo', 'pausado', 'churned'] as const).map(k => (
+            <button key={k} onClick={() => { onChange(k); setOpen(false) }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', borderRadius: 5, border: 'none', background: k === status ? map[k].bg : 'transparent', color: map[k].color, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              {map[k].label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ══════════════════════════════════════════════════════════════════════════════
 export default function ClienteCockpitPage() {
-  const router = useRouter()
-  const params = useParams()
+  const router   = useRouter()
+  const params   = useParams()
   const clienteId = params.id as string
 
-  const [tab, setTab] = useState('visao-geral')
-  const [cliente, setCliente] = useState<Cliente | null>(null)
-  const [contatos, setContatos] = useState<Contato[]>([])
-  const [projetos, setProjetos] = useState<Projeto[]>([])
-  const [healthEntries, setHealthEntries] = useState<HealthScoreEntry[]>([])
-  const [metas, setMetas] = useState<MetaSemanal[]>([])
-  const [oportunidades, setOportunidades] = useState<Oportunidade[]>([])
-  const [fcaEntries, setFcaEntries] = useState<FcaEntry[]>([])
-  const [loading, setLoading] = useState(true)
+  const [tab, setTab]                 = useState('visao-geral')
+  const [cliente, setCliente]         = useState<Cliente | null>(null)
+  const [contatos, setContatos]       = useState<Contato[]>([])
+  const [projetos, setProjetos]       = useState<Projeto[]>([])
+  const [healthEntries, setHealth]    = useState<HealthScoreEntry[]>([])
+  const [metas, setMetas]             = useState<MetaSemanal[]>([])
+  const [oportunidades, setOps]       = useState<Oportunidade[]>([])
+  const [fcaEntries, setFCA]          = useState<FcaEntry[]>([])
+  const [loading, setLoading]         = useState(true)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -152,10 +186,10 @@ export default function ClienteCockpitPage() {
     if (cl.data) setCliente(cl.data)
     setContatos(ct.data || [])
     setProjetos(pr.data || [])
-    setHealthEntries(hs.data || [])
+    setHealth(hs.data || [])
     setMetas(mt.data || [])
-    setOportunidades(op.data || [])
-    setFcaEntries(fc.data || [])
+    setOps(op.data || [])
+    setFCA(fc.data || [])
     setLoading(false)
   }, [clienteId])
 
@@ -166,139 +200,90 @@ export default function ClienteCockpitPage() {
     setCliente(prev => prev ? { ...prev, ...fields } : prev)
   }
 
-  const lt = calcLT(projetos)
-  const latestHealth = healthEntries[0] ?? null
-  const mrr = projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
-  const totalAtivos = projetos.filter(p => p.status === 'ativo').length
+  const lt      = calcLT(projetos)
+  const latest  = healthEntries[0] ?? null
+  const mrr     = projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
+  const ativos  = projetos.filter(p => p.status === 'ativo').length
+  const score   = latest?.score_total ?? null
+  const sc      = score !== null ? healthColor(score) : GRAY3
 
   if (loading) return (
-    <div style={{ display: 'flex', height: '100vh', background: BG, color: TEXT }}>
-      <Sidebar activeView="cockpit" onNavigate={v => router.push(v === 'dashboard' ? '/' : `/${v}`)} />
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MUTED, fontSize: 14 }}>Carregando...</div>
-    </div>
+    <CRMLayout title="Cockpit">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: GRAY3, fontSize: 14 }}>Carregando...</div>
+    </CRMLayout>
   )
 
   if (!cliente) return (
-    <div style={{ display: 'flex', height: '100vh', background: BG, color: TEXT }}>
-      <Sidebar activeView="cockpit" onNavigate={v => router.push(v === 'dashboard' ? '/' : `/${v}`)} />
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-        <div style={{ fontSize: 15, color: MUTED }}>Cliente não encontrado</div>
-        <button onClick={() => router.push('/cockpit')} style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, fontSize: 13, cursor: 'pointer' }}>Voltar</button>
+    <CRMLayout title="Cockpit">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 12 }}>
+        <div style={{ fontSize: 15, color: GRAY2 }}>Cliente não encontrado</div>
+        <button onClick={() => router.push('/cockpit')} style={btnGhost}>Voltar</button>
       </div>
-    </div>
+    </CRMLayout>
   )
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: BG, color: TEXT, fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
-      <Sidebar activeView="cockpit" onNavigate={v => router.push(v === 'dashboard' ? '/' : `/${v}`)} />
+    <CRMLayout title={cliente.empresa} subtitle="Cockpit de Cliente">
 
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Header */}
-        <div style={{ padding: '18px 32px 0', background: SURFACE, borderBottom: `1px solid ${BORDER}`, flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <button onClick={() => router.push('/cockpit')} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 7, border: `1px solid ${BORDER}`, background: 'transparent', color: MUTED, fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>
-              <ArrowLeft size={13} /> Clientes
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: `linear-gradient(135deg, ${R}44, ${R}18)`, border: `1px solid ${R}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 18, fontWeight: 800, color: R }}>{cliente.empresa[0].toUpperCase()}</span>
-              </div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: '-0.01em' }}>{cliente.empresa}</h1>
-                <div style={{ display: 'flex', gap: 10, marginTop: 3 }}>
-                  {cliente.segmento && <span style={{ fontSize: 11, color: MUTED }}>{cliente.segmento}</span>}
-                  <span style={{ fontSize: 11, color: MUTED }}>·</span>
-                  <StatusPill status={cliente.status} onChange={s => saveCliente({ status: s })} />
-                </div>
-              </div>
+      {/* ── Client header ── */}
+      <div style={{ ...card, padding: '18px 24px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {/* Back + avatar */}
+          <button onClick={() => router.push('/cockpit')} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 12, cursor: 'pointer', fontWeight: 500, flexShrink: 0 }}>
+            <ArrowLeft size={13} /> Clientes
+          </button>
+          <div style={{ width: 44, height: 44, borderRadius: 11, background: `${R}0F`, border: `1.5px solid ${R}2A`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: 20, fontWeight: 900, color: R }}>{cliente.empresa[0].toUpperCase()}</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: GRAY1, letterSpacing: '-0.01em' }}>{cliente.empresa}</h1>
+              <StatusPill status={cliente.status} onChange={s => saveCliente({ status: s })} />
             </div>
-
-            {/* KPIs rápidos */}
-            <div style={{ display: 'flex', gap: 16 }}>
-              {[
-                { label: 'Health', value: latestHealth ? latestHealth.score_total.toFixed(1) : '—', color: latestHealth ? (latestHealth.score_total >= 7 ? GREEN : latestHealth.score_total >= 5 ? YELLOW : R) : MUTED },
-                { label: 'LT', value: lt, color: TEXT },
-                { label: 'MRR', value: mrr > 0 ? fmt(mrr) : '—', color: mrr > 0 ? GREEN : MUTED },
-                { label: 'Projetos', value: `${totalAtivos} ativo${totalAtivos !== 1 ? 's' : ''}`, color: TEXT },
-              ].map(k => (
-                <div key={k.label} style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 10, color: MUTED, fontWeight: 500, letterSpacing: '0.06em' }}>{k.label.toUpperCase()}</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: k.color }}>{k.value}</div>
-                </div>
-              ))}
-            </div>
+            {cliente.segmento && <div style={{ fontSize: 12, color: GRAY3, marginTop: 3 }}>{cliente.segmento}</div>}
           </div>
 
-          {/* Tabs */}
-          <div style={{ display: 'flex', gap: 2 }}>
-            {TABS.map(t => {
-              const active = tab === t.id
-              const Icon = t.icon
-              return (
-                <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: '8px 8px 0 0', border: `1px solid ${active ? BORDER : 'transparent'}`, borderBottom: active ? `1px solid ${SURFACE}` : `1px solid transparent`, background: active ? BG : 'transparent', color: active ? TEXT : MUTED, fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer', transition: 'all .15s', marginBottom: -1 }}>
-                  <Icon size={13} />
-                  {t.label}
-                </button>
-              )
-            })}
+          {/* KPIs */}
+          <div style={{ display: 'flex', gap: 1, borderLeft: `1px solid ${GRAY5}`, paddingLeft: 20 }}>
+            {[
+              { label: 'Health Score', value: score !== null ? score.toFixed(1) : '—', color: sc },
+              { label: 'Lifetime', value: lt, color: GRAY1 },
+              { label: 'MRR', value: mrr > 0 ? fmt(mrr) : '—', color: mrr > 0 ? '#065F46' : GRAY3 },
+              { label: 'Projetos', value: `${ativos} ativo${ativos !== 1 ? 's' : ''}`, color: GRAY1 },
+            ].map((k, i) => (
+              <div key={k.label} style={{ textAlign: 'center', padding: '0 18px', borderRight: i < 3 ? `1px solid ${GRAY5}` : 'none' }}>
+                <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 3 }}>{k.label}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: k.color }}>{k.value}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Tab content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
-          {tab === 'visao-geral' && (
-            <TabVisaoGeral
-              cliente={cliente}
-              contatos={contatos}
-              projetos={projetos}
-              lt={lt}
-              onSaveCliente={saveCliente}
-              onReload={loadAll}
-              clienteId={clienteId}
-            />
-          )}
-          {tab === 'projetos' && (
-            <TabProjetos projetos={projetos} clienteId={clienteId} onReload={loadAll} />
-          )}
-          {tab === 'health-score' && (
-            <TabHealthScore entries={healthEntries} clienteId={clienteId} onReload={loadAll} />
-          )}
-          {tab === 'metas' && (
-            <TabMetas metas={metas} projetos={projetos} clienteId={clienteId} onReload={loadAll} />
-          )}
-          {tab === 'oportunidades' && (
-            <TabOportunidades oportunidades={oportunidades} clienteId={clienteId} onReload={loadAll} />
-          )}
-          {tab === 'fca' && (
-            <TabFCA entries={fcaEntries} clienteId={clienteId} onReload={loadAll} />
-          )}
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 0, marginTop: 18, borderTop: `1px solid ${GRAY5}`, paddingTop: 2, marginLeft: -24, marginRight: -24, paddingLeft: 24 }}>
+          {TABS.map(t => {
+            const active = tab === t.id
+            const Icon   = t.icon
+            return (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 16px', border: 'none', background: 'transparent', color: active ? R : GRAY2, fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer', borderBottom: `2px solid ${active ? R : 'transparent'}`, marginBottom: -1, transition: 'all .15s' }}>
+                <Icon size={13} />
+                {t.label}
+              </button>
+            )
+          })}
         </div>
-      </main>
-    </div>
-  )
-}
+      </div>
 
-// ── Status pill ───────────────────────────────────────────────────────────────
-function StatusPill({ status, onChange }: { status: Cliente['status']; onChange: (s: Cliente['status']) => void }) {
-  const [open, setOpen] = useState(false)
-  const map = { ativo: { color: GREEN, label: 'Ativo' }, pausado: { color: YELLOW, label: 'Pausado' }, churned: { color: R, label: 'Churned' } }
-  const { color, label } = map[status]
-  return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
-      <button onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 5, border: `1px solid ${color}40`, background: `${color}18`, color, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.05em' }}>
-        {label.toUpperCase()} <ChevronDown size={10} />
-      </button>
-      {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 8, padding: 4, zIndex: 50, minWidth: 110, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
-          {(['ativo', 'pausado', 'churned'] as const).map(s => (
-            <button key={s} onClick={() => { onChange(s); setOpen(false) }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', borderRadius: 5, border: 'none', background: s === status ? `${map[s].color}18` : 'transparent', color: map[s].color, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              {map[s].label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      {/* ── Tab content ── */}
+      <div>
+        {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteId} />}
+        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteId} onReload={loadAll} />}
+        {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} clienteId={clienteId} onReload={loadAll} />}
+        {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteId} onReload={loadAll} />}
+        {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteId} onReload={loadAll} />}
+        {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteId} onReload={loadAll} />}
+      </div>
+    </CRMLayout>
   )
 }
 
@@ -309,171 +294,156 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
   cliente: Cliente; contatos: Contato[]; projetos: Projeto[]; lt: string
   onSaveCliente: (f: Partial<Cliente>) => void; onReload: () => void; clienteId: string
 }) {
-  const [newStack, setNewStack] = useState('')
-  const [newLink, setNewLink] = useState({ label: '', url: '' })
-  const [showAddContact, setShowAddContact] = useState(false)
-  const [newContact, setNewContact] = useState({ nome: '', cargo: '', email: '', telefone: '', is_primary: false })
-  const [saving, setSaving] = useState(false)
+  const [newStack, setNewStack]       = useState('')
+  const [newLink, setNewLink]         = useState({ label: '', url: '' })
+  const [showAddContact, setShowAdd]  = useState(false)
+  const [newContact, setNewC]         = useState({ nome: '', cargo: '', email: '', telefone: '', is_primary: false })
+  const [saving, setSaving]           = useState(false)
 
   async function addStack() {
     if (!newStack.trim()) return
-    const updated = [...(cliente.stack || []), newStack.trim()]
-    await onSaveCliente({ stack: updated })
+    await onSaveCliente({ stack: [...(cliente.stack || []), newStack.trim()] })
     setNewStack('')
   }
-  async function removeStack(s: string) {
-    await onSaveCliente({ stack: (cliente.stack || []).filter(x => x !== s) })
-  }
+  async function removeStack(s: string) { await onSaveCliente({ stack: (cliente.stack || []).filter(x => x !== s) }) }
   async function addLink() {
     if (!newLink.label.trim() || !newLink.url.trim()) return
     const updated = { ...(cliente.links || {}), [newLink.label.trim()]: newLink.url.trim() }
-    await onSaveCliente({ links: updated })
-    setNewLink({ label: '', url: '' })
+    await onSaveCliente({ links: updated }); setNewLink({ label: '', url: '' })
   }
   async function removeLink(k: string) {
-    const updated = { ...(cliente.links || {}) }
-    delete updated[k]
-    await onSaveCliente({ links: updated })
+    const updated = { ...(cliente.links || {}) }; delete updated[k]; await onSaveCliente({ links: updated })
   }
   async function addContato() {
-    if (!newContact.nome.trim()) return
-    setSaving(true)
+    if (!newContact.nome.trim()) return; setSaving(true)
     await supabase.from('contatos').insert({ ...newContact, cliente_id: clienteId })
-    setShowAddContact(false)
-    setNewContact({ nome: '', cargo: '', email: '', telefone: '', is_primary: false })
-    await onReload()
-    setSaving(false)
+    setShowAdd(false); setNewC({ nome: '', cargo: '', email: '', telefone: '', is_primary: false })
+    await onReload(); setSaving(false)
   }
-  async function deleteContato(id: string) {
-    await supabase.from('contatos').delete().eq('id', id)
-    await onReload()
-  }
+  async function deleteContato(id: string) { await supabase.from('contatos').delete().eq('id', id); await onReload() }
 
   const links = Object.entries(cliente.links || {})
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
       {/* Dados gerais */}
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 22 }}>
+      <div style={{ ...card, padding: 22 }}>
         <SectionTitle icon={Building2} label="Dados Gerais" />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <EditableField label="Empresa" value={cliente.empresa} onSave={v => onSaveCliente({ empresa: v })} />
           <EditableField label="Segmento" value={cliente.segmento || ''} onSave={v => onSaveCliente({ segmento: v || null })} />
           <EditableField label="Anotações" value={cliente.anotacoes || ''} onSave={v => onSaveCliente({ anotacoes: v })} multiline />
-          <div style={{ display: 'flex', gap: 20 }}>
+          <div style={{ display: 'flex', gap: 28, paddingTop: 8, borderTop: `1px solid ${GRAY5}` }}>
             <div>
-              <div style={{ fontSize: 11, color: MUTED, fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lifetime</div>
-              <div style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={13} color={MUTED} /> {lt}</div>
+              <div style={{ fontSize: 11, color: GRAY3, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Lifetime</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: GRAY1, display: 'flex', alignItems: 'center', gap: 6 }}><Clock size={13} color={GRAY3} />{lt}</div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: MUTED, fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Projetos ativos</div>
-              <div style={{ fontSize: 16, fontWeight: 700 }}>{projetos.filter(p => p.status === 'ativo').length}</div>
+              <div style={{ fontSize: 11, color: GRAY3, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Projetos ativos</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: GRAY1 }}>{projetos.filter(p => p.status === 'ativo').length}</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Contatos */}
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 22 }}>
+      <div style={{ ...card, padding: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <SectionTitle icon={Users} label="Contatos" />
-          <button onClick={() => setShowAddContact(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: `1px solid ${BORDER}`, background: 'transparent', color: MUTED2, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: GRAY4, border: `1px solid ${GRAY5}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Users size={13} color={GRAY2} />
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>Contatos</span>
+          </div>
+          <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
             <Plus size={11} /> Adicionar
           </button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {contatos.length === 0 && <div style={{ fontSize: 13, color: MUTED, textAlign: 'center', padding: '16px 0' }}>Nenhum contato cadastrado</div>}
+          {contatos.length === 0 && <div style={{ fontSize: 13, color: GRAY3, textAlign: 'center', padding: '16px 0' }}>Nenhum contato cadastrado</div>}
           {contatos.map(c => (
-            <div key={c.id} style={{ padding: '10px 12px', background: CARD2, borderRadius: 9, border: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div key={c.id} style={{ padding: '10px 12px', background: GRAY4, borderRadius: 9, border: `1px solid ${GRAY5}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${BLUE}22`, border: `1px solid ${BLUE}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#EFF6FF', border: `1px solid #BFDBFE`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: BLUE }}>{c.nome[0].toUpperCase()}</span>
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, display: 'flex', alignItems: 'center', gap: 6 }}>
                     {c.nome}
-                    {c.is_primary && <span style={{ fontSize: 9, fontWeight: 700, color: YELLOW, background: `${YELLOW}18`, border: `1px solid ${YELLOW}30`, borderRadius: 4, padding: '1px 5px' }}>PRINCIPAL</span>}
+                    {c.is_primary && <span style={{ fontSize: 9, fontWeight: 700, color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 4, padding: '1px 5px' }}>PRINCIPAL</span>}
                   </div>
-                  <div style={{ fontSize: 11, color: MUTED, marginTop: 2, display: 'flex', gap: 10 }}>
+                  <div style={{ fontSize: 11, color: GRAY3, marginTop: 2, display: 'flex', gap: 10 }}>
                     {c.cargo && <span>{c.cargo}</span>}
                     {c.telefone && <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={9} />{c.telefone}</span>}
                     {c.email && <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Mail size={9} />{c.email}</span>}
                   </div>
                 </div>
               </div>
-              <button onClick={() => deleteContato(c.id)} style={{ padding: 5, borderRadius: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: MUTED, opacity: 0.5 }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}>
+              <button onClick={() => deleteContato(c.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3 }}
+                onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
                 <Trash2 size={12} />
               </button>
             </div>
           ))}
         </div>
-
         {showAddContact && (
-          <div style={{ marginTop: 12, padding: 14, background: CARD2, borderRadius: 9, border: `1px solid ${BORDER}` }}>
+          <div style={{ marginTop: 12, padding: 14, background: GRAY4, borderRadius: 9, border: `1px solid ${GRAY5}` }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-              {[
-                { key: 'nome', placeholder: 'Nome *' },
-                { key: 'cargo', placeholder: 'Cargo' },
-                { key: 'email', placeholder: 'Email' },
-                { key: 'telefone', placeholder: 'Telefone' },
-              ].map(f => (
-                <input key={f.key} value={(newContact as any)[f.key]} onChange={e => setNewContact(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} style={{ padding: '7px 10px', background: CARD, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, fontSize: 12, outline: 'none' }} />
+              {[{ k: 'nome', p: 'Nome *' }, { k: 'cargo', p: 'Cargo' }, { k: 'email', p: 'Email' }, { k: 'telefone', p: 'Telefone' }].map(f => (
+                <input key={f.k} value={(newContact as any)[f.k]} onChange={e => setNewC(p => ({ ...p, [f.k]: e.target.value }))} placeholder={f.p} style={{ padding: '7px 10px', background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 12, outline: 'none' }} />
               ))}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: MUTED, cursor: 'pointer', marginBottom: 10 }}>
-              <input type="checkbox" checked={newContact.is_primary} onChange={e => setNewContact(p => ({ ...p, is_primary: e.target.checked }))} /> Contato principal
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: GRAY2, cursor: 'pointer', marginBottom: 10 }}>
+              <input type="checkbox" checked={newContact.is_primary} onChange={e => setNewC(p => ({ ...p, is_primary: e.target.checked }))} /> Contato principal
             </label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={addContato} disabled={!newContact.nome.trim() || saving} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: GREEN, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Salvar</button>
-              <button onClick={() => setShowAddContact(false)} style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${BORDER}`, background: 'transparent', color: MUTED, fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={addContato} disabled={!newContact.nome.trim()} style={btnPrimary(!newContact.nome.trim())}>Salvar</button>
+              <button onClick={() => setShowAdd(false)} style={btnGhost}>Cancelar</button>
             </div>
           </div>
         )}
       </div>
 
       {/* Stack */}
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 22 }}>
+      <div style={{ ...card, padding: 22 }}>
         <SectionTitle icon={Layers} label="Stack do Cliente" />
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {(cliente.stack || []).map(s => (
-            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: `${PURPLE}18`, border: `1px solid ${PURPLE}30`, borderRadius: 20, fontSize: 12, fontWeight: 500, color: PURPLE }}>
+            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 20, fontSize: 12, fontWeight: 500, color: PURPLE }}>
               {s}
-              <button onClick={() => removeStack(s)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: PURPLE, padding: 0, display: 'flex', alignItems: 'center', opacity: 0.6 }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '0.6')}>
+              <button onClick={() => removeStack(s)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: PURPLE, padding: 0, display: 'flex' }}>
                 <X size={11} />
               </button>
             </div>
           ))}
           <div style={{ display: 'flex', gap: 6 }}>
-            <input value={newStack} onChange={e => setNewStack(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStack()} placeholder="Adicionar ferramenta..." style={{ padding: '5px 10px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 20, color: TEXT, fontSize: 12, outline: 'none', width: 160 }} />
-            <button onClick={addStack} disabled={!newStack.trim()} style={{ padding: '5px 10px', borderRadius: 20, border: 'none', background: newStack.trim() ? PURPLE : '#333', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+</button>
+            <input value={newStack} onChange={e => setNewStack(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStack()} placeholder="Adicionar ferramenta..." style={{ padding: '5px 12px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 20, color: GRAY1, fontSize: 12, outline: 'none', width: 165 }} />
+            <button onClick={addStack} disabled={!newStack.trim()} style={{ padding: '5px 12px', borderRadius: 20, border: 'none', background: newStack.trim() ? PURPLE : GRAY5, color: newStack.trim() ? WHITE : GRAY3, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+</button>
           </div>
         </div>
       </div>
 
       {/* Links */}
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 22 }}>
+      <div style={{ ...card, padding: 22 }}>
         <SectionTitle icon={Link2} label="Links e Recursos" />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {links.map(([label, url]) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: CARD2, borderRadius: 8, border: `1px solid ${BORDER}` }}>
-              <Globe size={12} color={MUTED} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: MUTED2, minWidth: 80 }}>{label}</span>
-              <a href={url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, fontSize: 12, color: BLUE, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                {url}
-              </a>
-              <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: MUTED, display: 'flex' }} onClick={e => e.stopPropagation()}><ExternalLink size={11} /></a>
-              <button onClick={() => removeLink(label)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: MUTED, padding: 0, opacity: 0.5, display: 'flex', alignItems: 'center' }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}>
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: GRAY4, borderRadius: 8, border: `1px solid ${GRAY5}` }}>
+              <Globe size={12} color={GRAY3} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: GRAY2, minWidth: 80 }}>{label}</span>
+              <a href={url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, fontSize: 12, color: BLUE, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>{url}</a>
+              <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}><ExternalLink size={11} color={GRAY3} /></a>
+              <button onClick={() => removeLink(label)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex', padding: 2 }}
+                onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
                 <Trash2 size={11} />
               </button>
             </div>
           ))}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input value={newLink.label} onChange={e => setNewLink(p => ({ ...p, label: e.target.value }))} placeholder="Label (ex: Drive)" style={{ padding: '7px 10px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, fontSize: 12, outline: 'none', width: 110 }} />
-            <input value={newLink.url} onChange={e => setNewLink(p => ({ ...p, url: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addLink()} placeholder="URL" style={{ flex: 1, padding: '7px 10px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, fontSize: 12, outline: 'none' }} />
-            <button onClick={addLink} disabled={!newLink.label.trim() || !newLink.url.trim()} style={{ padding: '7px 12px', borderRadius: 7, border: 'none', background: BLUE, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!newLink.label.trim() || !newLink.url.trim()) ? 0.4 : 1 }}>+</button>
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <input value={newLink.label} onChange={e => setNewLink(p => ({ ...p, label: e.target.value }))} placeholder="Label (ex: Drive)" style={{ width: 110, padding: '7px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 12, outline: 'none' }} />
+            <input value={newLink.url} onChange={e => setNewLink(p => ({ ...p, url: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addLink()} placeholder="URL" style={{ flex: 1, padding: '7px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 12, outline: 'none' }} />
+            <button onClick={addLink} disabled={!newLink.label.trim() || !newLink.url.trim()} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: BLUE, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!newLink.label.trim() || !newLink.url.trim()) ? 0.4 : 1 }}>+</button>
           </div>
         </div>
       </div>
@@ -488,79 +458,91 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ nome: '', tipo: 'saber' as Projeto['tipo'], valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', data_inicio: '', data_fim: '', escopo: '' })
   const [saving, setSaving] = useState(false)
-  const [editId, setEditId] = useState<string | null>(null)
 
-  const TIPO_COLOR: Record<Projeto['tipo'], string> = { saber: BLUE, ter: PURPLE, executar: GREEN }
-  const TIPO_LABEL: Record<Projeto['tipo'], string> = { saber: 'Saber', ter: 'Ter', executar: 'Executar' }
-  const STATUS_COLOR: Record<Projeto['status'], string> = { ativo: GREEN, pausado: YELLOW, encerrado: MUTED2 }
+  const TIPO: Record<Projeto['tipo'], { color: string; bg: string; border: string; label: string }> = {
+    saber:    { color: BLUE,   bg: '#EFF6FF', border: '#BFDBFE', label: 'Saber' },
+    ter:      { color: PURPLE, bg: '#F5F3FF', border: '#DDD6FE', label: 'Ter' },
+    executar: { color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0', label: 'Executar' },
+  }
+  const STATUS: Record<Projeto['status'], { color: string; bg: string; border: string; label: string }> = {
+    ativo:     { color: '#065F46', bg: '#D1FAE5', border: '#A7F3D0', label: 'Ativo' },
+    pausado:   { color: '#92400E', bg: '#FEF3C7', border: '#FDE68A', label: 'Pausado' },
+    encerrado: { color: '#6B7280', bg: GRAY4,     border: GRAY5,     label: 'Encerrado' },
+  }
 
   async function save() {
-    if (!form.nome.trim()) return
-    setSaving(true)
-    await supabase.from('projetos').insert({ ...form, valor: parseFloat(form.valor) || 0, cliente_id: clienteId })
+    if (!form.nome.trim()) return; setSaving(true)
+    await supabase.from('projetos').insert({ ...form, valor: parseFloat(form.valor) || 0, cliente_id: clienteId, data_inicio: form.data_inicio || null, data_fim: form.data_fim || null })
     setShowNew(false)
     setForm({ nome: '', tipo: 'saber', valor_tipo: 'mensalidade', valor: '', data_inicio: '', data_fim: '', escopo: '' })
-    await onReload()
-    setSaving(false)
+    await onReload(); setSaving(false)
   }
   async function toggleStatus(p: Projeto) {
     const next = p.status === 'ativo' ? 'pausado' : p.status === 'pausado' ? 'encerrado' : 'ativo'
-    await supabase.from('projetos').update({ status: next }).eq('id', p.id)
-    await onReload()
+    await supabase.from('projetos').update({ status: next }).eq('id', p.id); await onReload()
   }
-  async function deleteProj(id: string) {
-    await supabase.from('projetos').delete().eq('id', id)
-    await onReload()
-  }
+  async function deleteProj(id: string) { await supabase.from('projetos').delete().eq('id', id); await onReload() }
 
-  const totalMRR = projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
+  const totalMRR     = projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
   const totalPontual = projetos.filter(p => p.valor_tipo === 'pontual' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 16 }}>
-          {totalMRR > 0 && <div style={{ padding: '8px 14px', background: `${GREEN}12`, border: `1px solid ${GREEN}25`, borderRadius: 9 }}><span style={{ fontSize: 11, color: MUTED }}>MRR </span><span style={{ fontSize: 15, fontWeight: 800, color: GREEN }}>{fmt(totalMRR)}/mês</span></div>}
-          {totalPontual > 0 && <div style={{ padding: '8px 14px', background: `${BLUE}12`, border: `1px solid ${BLUE}25`, borderRadius: 9 }}><span style={{ fontSize: 11, color: MUTED }}>Pontual </span><span style={{ fontSize: 15, fontWeight: 800, color: BLUE }}>{fmt(totalPontual)}</span></div>}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {totalMRR > 0 && (
+            <div style={{ padding: '8px 16px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 9 }}>
+              <span style={{ fontSize: 11, color: GRAY3 }}>MRR </span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: '#065F46' }}>{fmt(totalMRR)}/mês</span>
+            </div>
+          )}
+          {totalPontual > 0 && (
+            <div style={{ padding: '8px 16px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 9 }}>
+              <span style={{ fontSize: 11, color: GRAY3 }}>Pontual </span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: BLUE }}>{fmt(totalPontual)}</span>
+            </div>
+          )}
         </div>
-        <button onClick={() => setShowNew(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: CARD, color: MUTED2, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => setShowNew(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
           <Plus size={13} /> Novo Projeto
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
         {projetos.map(p => {
-          const tc = TIPO_COLOR[p.tipo]
+          const t = TIPO[p.tipo], st = STATUS[p.status]
           return (
-            <div key={p.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
-              <div style={{ height: 3, background: `linear-gradient(90deg, ${tc}, ${tc}66)` }} />
+            <div key={p.id} style={{ ...card, overflow: 'hidden' }}>
+              <div style={{ height: 3, background: `linear-gradient(90deg, ${t.color}, ${t.color}66)` }} />
               <div style={{ padding: '16px 18px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: tc, background: `${tc}18`, border: `1px solid ${tc}30`, borderRadius: 4, padding: '2px 7px', letterSpacing: '0.05em' }}>{TIPO_LABEL[p.tipo].toUpperCase()}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: STATUS_COLOR[p.status], background: `${STATUS_COLOR[p.status]}18`, border: `1px solid ${STATUS_COLOR[p.status]}30`, borderRadius: 4, padding: '2px 7px', letterSpacing: '0.05em' }}>{p.status.toUpperCase()}</span>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 5 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: t.color, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 5, padding: '2px 8px' }}>{t.label.toUpperCase()}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, border: `1px solid ${st.border}`, borderRadius: 5, padding: '2px 8px' }}>{st.label.toUpperCase()}</span>
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{p.nome}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{p.nome}</div>
                   </div>
-                  <button onClick={() => toggleStatus(p)} style={{ padding: '4px 8px', borderRadius: 6, border: `1px solid ${BORDER}`, background: 'transparent', color: MUTED, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                  <button onClick={() => toggleStatus(p)} style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 10, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
                     {p.status === 'ativo' ? 'Pausar' : p.status === 'pausado' ? 'Encerrar' : 'Reativar'}
                   </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div>
-                    <div style={{ fontSize: 10, color: MUTED, fontWeight: 500, marginBottom: 2 }}>VALOR</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: tc }}>{fmt(p.valor)}{p.valor_tipo === 'mensalidade' ? <span style={{ fontSize: 11, color: MUTED, fontWeight: 400 }}>/mês</span> : <span style={{ fontSize: 11, color: MUTED, fontWeight: 400 }}> pontual</span>}</div>
+                    <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>VALOR</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: t.color }}>
+                      {fmt(p.valor)}{p.valor_tipo === 'mensalidade' ? <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}>/mês</span> : <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}> pontual</span>}
+                    </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 10, color: MUTED, fontWeight: 500, marginBottom: 2 }}>INÍCIO</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} color={MUTED} />{fmtDate(p.data_inicio)}</div>
+                    <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>INÍCIO</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} color={GRAY3} />{fmtDate(p.data_inicio)}</div>
                   </div>
                 </div>
-                {p.escopo && <div style={{ fontSize: 12, color: MUTED2, lineHeight: 1.5, padding: '8px 0', borderTop: `1px solid ${BORDER}` }}>{p.escopo}</div>}
-                <button onClick={() => deleteProj(p.id)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, border: 'none', background: 'transparent', color: MUTED, fontSize: 11, cursor: 'pointer', opacity: 0.5 }}
-                  onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}>
-                  <Trash2 size={11} /> Excluir
+                {p.escopo && <div style={{ fontSize: 12, color: GRAY2, lineHeight: 1.55, padding: '10px 0', borderTop: `1px solid ${GRAY5}` }}>{p.escopo}</div>}
+                <button onClick={() => deleteProj(p.id)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', border: 'none', background: 'transparent', color: GRAY3, fontSize: 11, cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                  <Trash2 size={11} /> Excluir projeto
                 </button>
               </div>
             </div>
@@ -569,55 +551,52 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
       </div>
 
       {projetos.length === 0 && !showNew && (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: MUTED }}>
-          <Layers size={32} style={{ marginBottom: 12, opacity: 0.4 }} />
-          <div style={{ fontSize: 14, fontWeight: 500 }}>Nenhum projeto cadastrado</div>
+        <div style={{ ...card, padding: '48px 0', textAlign: 'center' }}>
+          <Layers size={32} color={GRAY3} style={{ marginBottom: 12, opacity: 0.5 }} />
+          <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum projeto cadastrado</div>
         </div>
       )}
 
       {showNew && (
-        <div style={{ marginTop: 16, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 22 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Novo Projeto</div>
+        <div style={{ ...card, padding: 22, marginTop: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1, marginBottom: 16 }}>Novo Projeto</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ gridColumn: '1/-1' }}>
-              <label style={{ fontSize: 11, color: MUTED, display: 'block', marginBottom: 4 }}>Nome do projeto *</label>
-              <input value={form.nome} onChange={e => setForm(p => ({ ...p, nome: e.target.value }))} placeholder="Ex: Saber Q2 2025" style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Nome do projeto *</label>
+              <input value={form.nome} onChange={e => setForm(p => ({ ...p, nome: e.target.value }))} placeholder="Ex: Saber Q2 2025" style={input14} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: MUTED, display: 'block', marginBottom: 4 }}>Tipo</label>
-              <select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value as Projeto['tipo'] }))} style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none' }}>
-                <option value="saber">Saber</option>
-                <option value="ter">Ter</option>
-                <option value="executar">Executar</option>
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Tipo</label>
+              <select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value as Projeto['tipo'] }))} style={{ ...input14 }}>
+                <option value="saber">Saber</option><option value="ter">Ter</option><option value="executar">Executar</option>
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 11, color: MUTED, display: 'block', marginBottom: 4 }}>Cobrança</label>
-              <select value={form.valor_tipo} onChange={e => setForm(p => ({ ...p, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none' }}>
-                <option value="mensalidade">Mensalidade</option>
-                <option value="pontual">Pontual</option>
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Cobrança</label>
+              <select value={form.valor_tipo} onChange={e => setForm(p => ({ ...p, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ ...input14 }}>
+                <option value="mensalidade">Mensalidade</option><option value="pontual">Pontual</option>
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 11, color: MUTED, display: 'block', marginBottom: 4 }}>Valor (R$)</label>
-              <input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} placeholder="0" style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$)</label>
+              <input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} placeholder="0" style={input14} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: MUTED, display: 'block', marginBottom: 4 }}>Data de início</label>
-              <input type="date" value={form.data_inicio} onChange={e => setForm(p => ({ ...p, data_inicio: e.target.value }))} style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de início</label>
+              <input type="date" value={form.data_inicio} onChange={e => setForm(p => ({ ...p, data_inicio: e.target.value }))} style={input14} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: MUTED, display: 'block', marginBottom: 4 }}>Data de fim (opcional)</label>
-              <input type="date" value={form.data_fim} onChange={e => setForm(p => ({ ...p, data_fim: e.target.value }))} style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de fim (opcional)</label>
+              <input type="date" value={form.data_fim} onChange={e => setForm(p => ({ ...p, data_fim: e.target.value }))} style={input14} />
             </div>
             <div style={{ gridColumn: '1/-1' }}>
-              <label style={{ fontSize: 11, color: MUTED, display: 'block', marginBottom: 4 }}>Escopo / Descrição</label>
-              <textarea value={form.escopo} onChange={e => setForm(p => ({ ...p, escopo: e.target.value }))} rows={3} placeholder="Descreva o escopo do projeto..." style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Escopo / Descrição</label>
+              <textarea value={form.escopo} onChange={e => setForm(p => ({ ...p, escopo: e.target.value }))} rows={3} placeholder="Descreva o escopo..." style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button onClick={save} disabled={!form.nome.trim() || saving} style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: form.nome.trim() ? GREEN : '#333', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Salvando...' : 'Salvar Projeto'}</button>
-            <button onClick={() => setShowNew(false)} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${BORDER}`, background: 'transparent', color: MUTED, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={save} disabled={!form.nome.trim() || saving} style={btnPrimary(!form.nome.trim() || saving)}>{saving ? 'Salvando...' : 'Salvar Projeto'}</button>
+            <button onClick={() => setShowNew(false)} style={btnGhost}>Cancelar</button>
           </div>
         </div>
       )}
@@ -630,95 +609,87 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
 // ══════════════════════════════════════════════════════════════════════════════
 function TabHealthScore({ entries, clienteId, onReload }: { entries: HealthScoreEntry[]; clienteId: string; onReload: () => void }) {
   const semanaAtual = startOfWeek()
-  const jaTemEssaSemana = entries.some(e => e.semana === semanaAtual)
+  const jaTemSemana = entries.some(e => e.semana === semanaAtual)
   const [form, setForm] = useState({ resultado: 5, trafego: 5, entregas_prazo: 5, qualidade_entregas: 5, relacionamento: 5, observacoes: '' })
   const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
 
   const DIMS = [
-    { key: 'resultado' as const, label: 'Resultado' },
-    { key: 'trafego' as const, label: 'Tráfego' },
-    { key: 'entregas_prazo' as const, label: 'Entregas no Prazo' },
+    { key: 'resultado'          as const, label: 'Resultado' },
+    { key: 'trafego'            as const, label: 'Tráfego' },
+    { key: 'entregas_prazo'     as const, label: 'Entregas no Prazo' },
     { key: 'qualidade_entregas' as const, label: 'Qualidade das Entregas' },
-    { key: 'relacionamento' as const, label: 'Relacionamento' },
+    { key: 'relacionamento'     as const, label: 'Relacionamento' },
   ]
 
   async function saveHealth() {
     setSaving(true)
     await supabase.from('health_score_entries').upsert({ ...form, cliente_id: clienteId, semana: semanaAtual }, { onConflict: 'cliente_id,semana' })
-    setShowForm(false)
-    await onReload()
-    setSaving(false)
+    setShowForm(false); await onReload(); setSaving(false)
   }
 
-  const latest = entries[0]
+  const latest    = entries[0]
+  const score     = latest?.score_total ?? null
+  const sc        = score !== null ? healthColor(score) : GRAY3
   const radarData = DIMS.map(d => ({ subject: d.label.split(' ')[0], value: latest ? (latest as any)[d.key] : 0, fullMark: 10 }))
-
-  const chartData = [...entries].reverse().slice(-12).map(e => ({
-    semana: e.semana.slice(5).replace('-', '/'),
-    score: Number(e.score_total.toFixed(1)),
-  }))
-
-  const score = latest?.score_total ?? null
-  const scoreColor = score === null ? MUTED : score >= 7 ? GREEN : score >= 5 ? YELLOW : R
+  const chartData = [...entries].reverse().slice(-12).map(e => ({ semana: e.semana.slice(5).replace('-', '/'), score: Number(e.score_total.toFixed(1)) }))
+  const estScore  = ((form.resultado + form.trafego + form.entregas_prazo + form.qualidade_entregas + form.relacionamento) / 5)
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20, marginBottom: 20 }}>
-        {/* Score atual + radar */}
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 22 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 16, marginBottom: 16 }}>
+
+        {/* Radar + score atual */}
+        <div style={{ ...card, padding: 22 }}>
           <div style={{ textAlign: 'center', marginBottom: 8 }}>
-            <div style={{ fontSize: 11, color: MUTED, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>Health Score Atual</div>
-            <div style={{ fontSize: 52, fontWeight: 900, color: scoreColor, lineHeight: 1 }}>{score !== null ? score.toFixed(1) : '—'}</div>
-            <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>de 10.0 · semana atual</div>
+            <div style={{ fontSize: 11, color: GRAY3, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Health Score Atual</div>
+            <div style={{ fontSize: 56, fontWeight: 900, color: sc, lineHeight: 1 }}>{score !== null ? score.toFixed(1) : '—'}</div>
+            <div style={{ fontSize: 12, color: GRAY3, marginTop: 4 }}>de 10.0</div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <RadarChart data={radarData}>
-              <PolarGrid stroke={BORDER} />
-              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: MUTED }} />
-              <Radar name="Score" dataKey="value" stroke={scoreColor} fill={scoreColor} fillOpacity={0.18} strokeWidth={2} />
+              <PolarGrid stroke={GRAY5} />
+              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: GRAY3 }} />
+              <Radar name="Score" dataKey="value" stroke={sc} fill={sc} fillOpacity={0.14} strokeWidth={2} />
             </RadarChart>
           </ResponsiveContainer>
           {latest && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-              {DIMS.map(d => (
-                <ScoreBar key={d.key} label={d.label} value={(latest as any)[d.key]} />
-              ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8, paddingTop: 12, borderTop: `1px solid ${GRAY5}` }}>
+              {DIMS.map(d => <ScoreBar key={d.key} label={d.label} value={(latest as any)[d.key]} />)}
             </div>
           )}
         </div>
 
         {/* Evolução */}
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 22 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16 }}>Evolução — últimas 12 semanas</div>
+        <div style={{ ...card, padding: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 16 }}>Evolução — últimas 12 semanas</div>
           {chartData.length > 1 ? (
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={chartData}>
-                <CartesianGrid stroke={BORDER} strokeDasharray="3 3" />
-                <XAxis dataKey="semana" tick={{ fontSize: 10, fill: MUTED }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: MUTED }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: MUTED }} itemStyle={{ color: TEXT }} />
+                <CartesianGrid stroke={GRAY5} strokeDasharray="3 3" />
+                <XAxis dataKey="semana" tick={{ fontSize: 10, fill: GRAY3 }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: GRAY3 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.1)' }} labelStyle={{ color: GRAY2 }} />
                 <Line type="monotone" dataKey="score" stroke={GREEN} strokeWidth={2.5} dot={{ fill: GREEN, r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 220, color: MUTED, fontSize: 13 }}>Registre pelo menos 2 semanas para ver a evolução</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 220, color: GRAY3, fontSize: 13 }}>Registre pelo menos 2 semanas para ver a evolução</div>
           )}
 
-          {/* Histórico tabela */}
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: MUTED, marginBottom: 10 }}>HISTÓRICO</div>
+          <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${GRAY5}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GRAY3, letterSpacing: '0.07em', marginBottom: 10 }}>HISTÓRICO</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {entries.slice(0, 8).map(e => {
-                const c = e.score_total >= 7 ? GREEN : e.score_total >= 5 ? YELLOW : R
+                const c = healthColor(e.score_total)
                 return (
-                  <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: CARD2, borderRadius: 7 }}>
-                    <span style={{ fontSize: 11, color: MUTED, width: 80, flexShrink: 0 }}>{fmtDate(e.semana)}</span>
-                    <div style={{ flex: 1, height: 4, background: BORDER, borderRadius: 2 }}>
-                      <div style={{ width: `${e.score_total * 10}%`, height: '100%', background: c, borderRadius: 2 }} />
+                  <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: GRAY4, borderRadius: 7 }}>
+                    <span style={{ fontSize: 11, color: GRAY3, width: 80, flexShrink: 0 }}>{fmtDate(e.semana)}</span>
+                    <div style={{ flex: 1, height: 5, background: GRAY5, borderRadius: 3 }}>
+                      <div style={{ width: `${e.score_total * 10}%`, height: '100%', background: c, borderRadius: 3 }} />
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 800, color: c, width: 30, textAlign: 'right' }}>{Number(e.score_total).toFixed(1)}</span>
-                    {e.observacoes && <span title={e.observacoes} style={{ cursor: 'help' }}><Info size={11} color={MUTED} /></span>}
+                    {e.observacoes && <span title={e.observacoes} style={{ cursor: 'help' }}><Info size={11} color={GRAY3} /></span>}
                   </div>
                 )
               })}
@@ -727,17 +698,15 @@ function TabHealthScore({ entries, clienteId, onReload }: { entries: HealthScore
         </div>
       </div>
 
-      {/* Novo registro */}
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showForm ? 16 : 0 }}>
+      {/* Registro semanal */}
+      <div style={{ ...card, padding: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showForm ? 20 : 0 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>Registrar Health Score — Semana atual</div>
-            <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
-              {jaTemEssaSemana ? 'Você já registrou esta semana. Registrar novamente irá sobrescrever.' : `Semana de ${fmtDate(semanaAtual)}`}
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>Registrar Health Score — Semana atual</div>
+            <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>{jaTemSemana ? 'Já registrado. Registrar novamente irá sobrescrever.' : `Semana de ${fmtDate(semanaAtual)}`}</div>
           </div>
-          <button onClick={() => setShowForm(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: showForm ? CARD2 : 'transparent', color: TEXT, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-            <Plus size={13} /> {showForm ? 'Fechar' : jaTemEssaSemana ? 'Atualizar' : 'Registrar'}
+          <button onClick={() => setShowForm(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: showForm ? GRAY4 : WHITE, color: GRAY1, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <Plus size={13} /> {showForm ? 'Fechar' : jaTemSemana ? 'Atualizar' : 'Registrar'}
           </button>
         </div>
         {showForm && (
@@ -745,16 +714,12 @@ function TabHealthScore({ entries, clienteId, onReload }: { entries: HealthScore
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
               {DIMS.map(d => <ScoreBar key={d.key} label={d.label} value={form[d.key]} onChange={v => setForm(p => ({ ...p, [d.key]: v }))} />)}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: `1px solid ${BORDER}`, marginBottom: 12 }}>
-              <span style={{ fontSize: 13, color: MUTED }}>Score total estimado</span>
-              <span style={{ fontSize: 22, fontWeight: 900, color: (() => { const s = (form.resultado + form.trafego + form.entregas_prazo + form.qualidade_entregas + form.relacionamento) / 5; return s >= 7 ? GREEN : s >= 5 ? YELLOW : R })() }}>
-                {((form.resultado + form.trafego + form.entregas_prazo + form.qualidade_entregas + form.relacionamento) / 5).toFixed(1)}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: GRAY4, borderRadius: 9, marginBottom: 12 }}>
+              <span style={{ fontSize: 13, color: GRAY2, fontWeight: 500 }}>Score total estimado</span>
+              <span style={{ fontSize: 26, fontWeight: 900, color: healthColor(estScore) }}>{estScore.toFixed(1)}</span>
             </div>
-            <textarea value={form.observacoes} onChange={e => setForm(p => ({ ...p, observacoes: e.target.value }))} placeholder="Observações da semana (opcional)..." rows={2} style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 12 }} />
-            <button onClick={saveHealth} disabled={saving} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: GREEN, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-              {saving ? 'Salvando...' : 'Salvar Registro'}
-            </button>
+            <textarea value={form.observacoes} onChange={e => setForm(p => ({ ...p, observacoes: e.target.value }))} placeholder="Observações da semana (opcional)..." rows={2} style={{ ...input14, resize: 'none', fontFamily: 'inherit', marginBottom: 12 }} />
+            <button onClick={saveHealth} disabled={saving} style={btnPrimary(saving)}>{saving ? 'Salvando...' : 'Salvar Registro'}</button>
           </div>
         )}
       </div>
@@ -767,50 +732,31 @@ function TabHealthScore({ entries, clienteId, onReload }: { entries: HealthScore
 // ══════════════════════════════════════════════════════════════════════════════
 function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal[]; projetos: Projeto[]; clienteId: string; onReload: () => void }) {
   const semanaAtual = startOfWeek()
-  const [selectedWeek, setSelectedWeek] = useState(semanaAtual)
-  const [showNew, setShowNew] = useState(false)
-  const [form, setForm] = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
-  const [saving, setSaving] = useState(false)
-
-  const metasSemana = metas.filter(m => m.semana === selectedWeek)
+  const [selectedWeek, setWeek] = useState(semanaAtual)
+  const [showNew, setShowNew]   = useState(false)
+  const [form, setForm]         = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
+  const [saving, setSaving]     = useState(false)
 
   const semanas = useMemo(() => {
     const all = [semanaAtual, ...metas.map(m => m.semana)]
     return all.filter((s, i) => all.indexOf(s) === i).sort().reverse()
   }, [metas, semanaAtual])
 
+  const metasSemana = metas.filter(m => m.semana === selectedWeek)
+
   async function addMeta() {
-    if (!form.descricao.trim()) return
-    setSaving(true)
-    await supabase.from('metas_semanais').insert({
-      cliente_id: clienteId,
-      semana: selectedWeek,
-      descricao: form.descricao,
-      valor_meta: form.valor_meta ? parseFloat(form.valor_meta) : null,
-      unidade: form.unidade,
-      projeto_id: form.projeto_id || null,
-    })
-    setShowNew(false)
-    setForm({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
-    await onReload()
-    setSaving(false)
+    if (!form.descricao.trim()) return; setSaving(true)
+    await supabase.from('metas_semanais').insert({ cliente_id: clienteId, semana: selectedWeek, descricao: form.descricao, valor_meta: form.valor_meta ? parseFloat(form.valor_meta) : null, unidade: form.unidade, projeto_id: form.projeto_id || null })
+    setShowNew(false); setForm({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' }); await onReload(); setSaving(false)
   }
+  async function updateMeta(id: string, fields: Partial<MetaSemanal>) { await supabase.from('metas_semanais').update(fields).eq('id', id); await onReload() }
+  async function deleteMeta(id: string) { await supabase.from('metas_semanais').delete().eq('id', id); await onReload() }
 
-  async function updateMeta(id: string, fields: Partial<MetaSemanal>) {
-    await supabase.from('metas_semanais').update(fields).eq('id', id)
-    await onReload()
-  }
-
-  async function deleteMeta(id: string) {
-    await supabase.from('metas_semanais').delete().eq('id', id)
-    await onReload()
-  }
-
-  const STATUS_MAP = {
-    pendente: { label: 'Pendente', color: MUTED2 },
-    atingida: { label: 'Atingida', color: GREEN },
-    parcial: { label: 'Parcial', color: YELLOW },
-    nao_atingida: { label: 'Não atingida', color: R },
+  const STATUS_MAP: Record<MetaSemanal['status'], { label: string; color: string; bg: string; border: string }> = {
+    pendente:      { label: 'Pendente',      color: GRAY2,     bg: GRAY4,     border: GRAY5 },
+    atingida:      { label: 'Atingida',      color: '#065F46', bg: '#D1FAE5', border: '#A7F3D0' },
+    parcial:       { label: 'Parcial',       color: '#92400E', bg: '#FEF3C7', border: '#FDE68A' },
+    nao_atingida:  { label: 'Não atingida',  color: '#991B1B', bg: '#FEE2E2', border: '#FECACA' },
   }
 
   return (
@@ -818,53 +764,51 @@ function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal
       {/* Week selector */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {semanas.slice(0, 8).map(s => (
-          <button key={s} onClick={() => setSelectedWeek(s)} style={{ padding: '6px 12px', borderRadius: 7, border: `1px solid ${selectedWeek === s ? R : BORDER}`, background: selectedWeek === s ? `${R}18` : 'transparent', color: selectedWeek === s ? TEXT : MUTED, fontSize: 12, fontWeight: selectedWeek === s ? 700 : 400, cursor: 'pointer' }}>
+          <button key={s} onClick={() => setWeek(s)} style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${selectedWeek === s ? R : GRAY5}`, background: selectedWeek === s ? R : WHITE, color: selectedWeek === s ? WHITE : GRAY2, fontSize: 12, fontWeight: selectedWeek === s ? 700 : 400, cursor: 'pointer', transition: 'all .15s' }}>
             {s === semanaAtual ? 'Esta semana' : fmtDate(s)}
           </button>
         ))}
       </div>
 
-      {/* Metas da semana */}
+      {/* Metas */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
         {metasSemana.length === 0 && !showNew && (
-          <div style={{ textAlign: 'center', padding: '32px 0', color: MUTED }}>
-            <Target size={28} style={{ marginBottom: 10, opacity: 0.4 }} />
-            <div style={{ fontSize: 14 }}>Nenhuma meta para esta semana</div>
+          <div style={{ ...card, padding: '40px 0', textAlign: 'center' }}>
+            <Target size={28} color={GRAY3} style={{ marginBottom: 10, opacity: 0.5 }} />
+            <div style={{ fontSize: 14, color: GRAY2 }}>Nenhuma meta para esta semana</div>
           </div>
         )}
         {metasSemana.map(m => {
-          const st = STATUS_MAP[m.status]
-          const pct = m.valor_meta && m.valor_realizado !== null ? Math.min(100, (m.valor_realizado / m.valor_meta) * 100) : null
+          const st  = STATUS_MAP[m.status]
+          const pct = m.valor_meta && m.valor_realizado !== null ? Math.min(100, ((m.valor_realizado ?? 0) / m.valor_meta) * 100) : null
           return (
-            <div key={m.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: '14px 16px' }}>
+            <div key={m.id} style={{ ...card, padding: '14px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{m.descricao}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: GRAY1, marginBottom: 8 }}>{m.descricao}</div>
                   {m.valor_meta !== null && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <div style={{ flex: 1, height: 6, background: BORDER, borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ flex: 1, height: 6, background: GRAY5, borderRadius: 3, overflow: 'hidden' }}>
                         <div style={{ width: `${pct ?? 0}%`, height: '100%', background: st.color, borderRadius: 3, transition: 'width .3s' }} />
                       </div>
-                      <span style={{ fontSize: 12, color: MUTED, whiteSpace: 'nowrap' }}>
-                        {m.valor_realizado ?? '—'} / {m.valor_meta} {m.unidade}
-                      </span>
+                      <span style={{ fontSize: 12, color: GRAY3, whiteSpace: 'nowrap' }}>{m.valor_realizado ?? '—'} / {m.valor_meta} {m.unidade}</span>
                     </div>
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <select value={m.status} onChange={e => updateMeta(m.id, { status: e.target.value as MetaSemanal['status'] })} style={{ padding: '4px 8px', background: `${st.color}18`, border: `1px solid ${st.color}40`, borderRadius: 6, color: st.color, fontSize: 11, fontWeight: 700, outline: 'none', cursor: 'pointer' }}>
+                  <select value={m.status} onChange={e => updateMeta(m.id, { status: e.target.value as MetaSemanal['status'] })} style={{ padding: '5px 9px', background: st.bg, border: `1px solid ${st.border}`, borderRadius: 6, color: st.color, fontSize: 11, fontWeight: 700, outline: 'none', cursor: 'pointer' }}>
                     {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
-                  <button onClick={() => deleteMeta(m.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: MUTED, opacity: 0.5, display: 'flex' }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}>
+                  <button onClick={() => deleteMeta(m.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
                     <Trash2 size={13} />
                   </button>
                 </div>
               </div>
               {m.status !== 'pendente' && m.valor_meta && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                  <input type="number" value={m.valor_realizado ?? ''} onChange={e => updateMeta(m.id, { valor_realizado: e.target.value ? parseFloat(e.target.value) : null })} placeholder="Realizado" style={{ width: 110, padding: '5px 8px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 6, color: TEXT, fontSize: 12, outline: 'none' }} />
-                  <span style={{ fontSize: 12, color: MUTED, alignSelf: 'center' }}>{m.unidade}</span>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <input type="number" value={m.valor_realizado ?? ''} onChange={e => updateMeta(m.id, { valor_realizado: e.target.value ? parseFloat(e.target.value) : null })} placeholder="Realizado" style={{ width: 110, padding: '6px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 6, color: GRAY1, fontSize: 12, outline: 'none' }} />
+                  <span style={{ fontSize: 12, color: GRAY3, alignSelf: 'center' }}>{m.unidade}</span>
                 </div>
               )}
             </div>
@@ -872,26 +816,26 @@ function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal
         })}
       </div>
 
-      <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid ${BORDER}`, background: showNew ? CARD2 : 'transparent', color: MUTED2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+      <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid ${GRAY5}`, background: showNew ? GRAY4 : WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
         <Plus size={13} /> Adicionar meta
       </button>
 
       {showNew && (
-        <div style={{ marginTop: 14, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 18 }}>
+        <div style={{ ...card, padding: 18, marginTop: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, marginBottom: 10 }}>
-            <input value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição da meta *" style={{ padding: '8px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, fontSize: 13, outline: 'none' }} />
-            <input type="number" value={form.valor_meta} onChange={e => setForm(p => ({ ...p, valor_meta: e.target.value }))} placeholder="Meta" style={{ width: 90, padding: '8px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, fontSize: 13, outline: 'none' }} />
-            <input value={form.unidade} onChange={e => setForm(p => ({ ...p, unidade: e.target.value }))} placeholder="Unidade" style={{ width: 90, padding: '8px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, fontSize: 13, outline: 'none' }} />
+            <input value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição da meta *" style={{ ...input14 }} />
+            <input type="number" value={form.valor_meta} onChange={e => setForm(p => ({ ...p, valor_meta: e.target.value }))} placeholder="Meta" style={{ ...input14, width: 90 }} />
+            <input value={form.unidade} onChange={e => setForm(p => ({ ...p, unidade: e.target.value }))} placeholder="Unidade" style={{ ...input14, width: 90 }} />
           </div>
           {projetos.length > 0 && (
-            <select value={form.projeto_id} onChange={e => setForm(p => ({ ...p, projeto_id: e.target.value }))} style={{ marginBottom: 10, padding: '8px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, fontSize: 13, outline: 'none', width: '100%' }}>
+            <select value={form.projeto_id} onChange={e => setForm(p => ({ ...p, projeto_id: e.target.value }))} style={{ ...input14, marginBottom: 10 }}>
               <option value="">Projeto (opcional)</option>
               {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={addMeta} disabled={!form.descricao.trim() || saving} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: form.descricao.trim() ? GREEN : '#333', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Salvando...' : 'Adicionar'}</button>
-            <button onClick={() => setShowNew(false)} style={{ padding: '8px 16px', borderRadius: 7, border: `1px solid ${BORDER}`, background: 'transparent', color: MUTED, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={addMeta} disabled={!form.descricao.trim() || saving} style={btnPrimary(!form.descricao.trim() || saving)}>{saving ? 'Salvando...' : 'Adicionar'}</button>
+            <button onClick={() => setShowNew(false)} style={btnGhost}>Cancelar</button>
           </div>
         </div>
       )}
@@ -900,67 +844,55 @@ function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TAB: OPORTUNIDADES
+// TAB: OPORTUNIDADES (Kanban)
 // ══════════════════════════════════════════════════════════════════════════════
 function TabOportunidades({ oportunidades, clienteId, onReload }: { oportunidades: Oportunidade[]; clienteId: string; onReload: () => void }) {
   const [showNew, setShowNew] = useState(false)
-  const [form, setForm] = useState({ titulo: '', descricao: '', etapa: 'identificada' as Oportunidade['etapa'], valor_estimado: '', data_estimada: '' })
-  const [saving, setSaving] = useState(false)
+  const [form, setForm]       = useState({ titulo: '', descricao: '', etapa: 'identificada' as Oportunidade['etapa'], valor_estimado: '', data_estimada: '' })
+  const [saving, setSaving]   = useState(false)
 
   async function save() {
-    if (!form.titulo.trim()) return
-    setSaving(true)
+    if (!form.titulo.trim()) return; setSaving(true)
     await supabase.from('oportunidades').insert({ ...form, valor_estimado: form.valor_estimado ? parseFloat(form.valor_estimado) : null, data_estimada: form.data_estimada || null, cliente_id: clienteId })
-    setShowNew(false)
-    setForm({ titulo: '', descricao: '', etapa: 'identificada', valor_estimado: '', data_estimada: '' })
-    await onReload()
-    setSaving(false)
+    setShowNew(false); setForm({ titulo: '', descricao: '', etapa: 'identificada', valor_estimado: '', data_estimada: '' }); await onReload(); setSaving(false)
   }
+  async function moveOpp(id: string, etapa: Oportunidade['etapa']) { await supabase.from('oportunidades').update({ etapa }).eq('id', id); await onReload() }
+  async function deleteOpp(id: string) { await supabase.from('oportunidades').delete().eq('id', id); await onReload() }
 
-  async function moveOpp(id: string, etapa: Oportunidade['etapa']) {
-    await supabase.from('oportunidades').update({ etapa }).eq('id', id)
-    await onReload()
-  }
-
-  async function deleteOpp(id: string) {
-    await supabase.from('oportunidades').delete().eq('id', id)
-    await onReload()
-  }
-
-  const totalEstimado = oportunidades.filter(o => o.etapa !== 'fechada').reduce((s, o) => s + (o.valor_estimado || 0), 0)
+  const totalPipeline = oportunidades.filter(o => o.etapa !== 'fechada').reduce((s, o) => s + (o.valor_estimado || 0), 0)
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        {totalEstimado > 0 && (
-          <div style={{ padding: '8px 14px', background: `${YELLOW}12`, border: `1px solid ${YELLOW}25`, borderRadius: 9 }}>
-            <span style={{ fontSize: 11, color: MUTED }}>Pipeline estimado </span>
-            <span style={{ fontSize: 15, fontWeight: 800, color: YELLOW }}>{fmt(totalEstimado)}</span>
+        {totalPipeline > 0 && (
+          <div style={{ padding: '8px 16px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 9 }}>
+            <span style={{ fontSize: 11, color: GRAY3 }}>Pipeline estimado </span>
+            <span style={{ fontSize: 15, fontWeight: 800, color: '#92400E' }}>{fmt(totalPipeline)}</span>
           </div>
         )}
         <div style={{ marginLeft: 'auto' }}>
-          <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: showNew ? CARD2 : 'transparent', color: MUTED2, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
             <Plus size={13} /> Nova Oportunidade
           </button>
         </div>
       </div>
 
       {showNew && (
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, marginBottom: 20 }}>
+        <div style={{ ...card, padding: 20, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
             <div style={{ gridColumn: '1/-1' }}>
-              <input value={form.titulo} onChange={e => setForm(p => ({ ...p, titulo: e.target.value }))} placeholder="Título da oportunidade *" style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+              <input value={form.titulo} onChange={e => setForm(p => ({ ...p, titulo: e.target.value }))} placeholder="Título da oportunidade *" style={input14} />
             </div>
-            <select value={form.etapa} onChange={e => setForm(p => ({ ...p, etapa: e.target.value as Oportunidade['etapa'] }))} style={{ padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none' }}>
+            <select value={form.etapa} onChange={e => setForm(p => ({ ...p, etapa: e.target.value as Oportunidade['etapa'] }))} style={input14}>
               {OPP_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
             </select>
-            <input type="number" value={form.valor_estimado} onChange={e => setForm(p => ({ ...p, valor_estimado: e.target.value }))} placeholder="Valor estimado (R$)" style={{ padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none' }} />
-            <input type="date" value={form.data_estimada} onChange={e => setForm(p => ({ ...p, data_estimada: e.target.value }))} style={{ padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none' }} />
-            <textarea value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição..." rows={2} style={{ gridColumn: '1/-1', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', resize: 'none', fontFamily: 'inherit' }} />
+            <input type="number" value={form.valor_estimado} onChange={e => setForm(p => ({ ...p, valor_estimado: e.target.value }))} placeholder="Valor estimado (R$)" style={input14} />
+            <input type="date" value={form.data_estimada} onChange={e => setForm(p => ({ ...p, data_estimada: e.target.value }))} style={input14} />
+            <textarea value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição..." rows={2} style={{ ...input14, gridColumn: '1/-1', resize: 'none', fontFamily: 'inherit' }} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={save} disabled={!form.titulo.trim() || saving} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: form.titulo.trim() ? GREEN : '#333', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Salvando...' : 'Salvar'}</button>
-            <button onClick={() => setShowNew(false)} style={{ padding: '8px 16px', borderRadius: 7, border: `1px solid ${BORDER}`, background: 'transparent', color: MUTED, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={save} disabled={!form.titulo.trim() || saving} style={btnPrimary(!form.titulo.trim() || saving)}>{saving ? 'Salvando...' : 'Salvar'}</button>
+            <button onClick={() => setShowNew(false)} style={btnGhost}>Cancelar</button>
           </div>
         </div>
       )}
@@ -970,25 +902,25 @@ function TabOportunidades({ oportunidades, clienteId, onReload }: { oportunidade
         {OPP_STAGES.map(stage => {
           const items = oportunidades.filter(o => o.etapa === stage.key)
           return (
-            <div key={stage.key} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '12px 14px', borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div key={stage.key} style={{ background: stage.bg, border: `1px solid ${GRAY5}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '11px 14px', borderBottom: `1px solid ${GRAY5}`, background: WHITE, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: stage.color }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: stage.color }}>{stage.label}</span>
                 </div>
-                <span style={{ fontSize: 11, color: MUTED, background: CARD2, borderRadius: 10, padding: '1px 7px' }}>{items.length}</span>
+                <span style={{ fontSize: 11, color: GRAY3, background: GRAY4, borderRadius: 10, padding: '1px 7px', border: `1px solid ${GRAY5}` }}>{items.length}</span>
               </div>
-              <div style={{ padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 80 }}>
+              <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 80 }}>
                 {items.map(o => (
-                  <div key={o.id} style={{ background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, padding: '10px 12px' }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{o.titulo}</div>
-                    {o.valor_estimado && <div style={{ fontSize: 12, color: YELLOW, fontWeight: 700, marginBottom: 4 }}>{fmt(o.valor_estimado)}</div>}
-                    {o.data_estimada && <div style={{ fontSize: 11, color: MUTED, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 6 }}><Calendar size={10} />{fmtDate(o.data_estimada)}</div>}
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <div key={o.id} style={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 9, padding: '10px 12px', boxShadow: '0 1px 3px rgba(0,0,0,.05)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, marginBottom: o.valor_estimado || o.data_estimada ? 6 : 0 }}>{o.titulo}</div>
+                    {o.valor_estimado ? <div style={{ fontSize: 13, fontWeight: 800, color: '#92400E', marginBottom: 4 }}>{fmt(o.valor_estimado)}</div> : null}
+                    {o.data_estimada ? <div style={{ fontSize: 11, color: GRAY3, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 8 }}><Calendar size={10} />{fmtDate(o.data_estimada)}</div> : null}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {OPP_STAGES.filter(s => s.key !== stage.key).map(s => (
-                        <button key={s.key} onClick={() => moveOpp(o.id, s.key)} style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${s.color}40`, background: `${s.color}12`, color: s.color, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>→ {s.label}</button>
+                        <button key={s.key} onClick={() => moveOpp(o.id, s.key)} style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${GRAY5}`, background: s.bg, color: s.color, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>→ {s.label}</button>
                       ))}
-                      <button onClick={() => deleteOpp(o.id)} style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${R}40`, background: `${R}12`, color: R, fontSize: 10, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>✕</button>
+                      <button onClick={() => deleteOpp(o.id)} style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid #FECACA', background: '#FEF2F2', color: '#991B1B', fontSize: 10, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>✕</button>
                     </div>
                   </div>
                 ))}
@@ -1006,98 +938,89 @@ function TabOportunidades({ oportunidades, clienteId, onReload }: { oportunidade
 // ══════════════════════════════════════════════════════════════════════════════
 function TabFCA({ entries, clienteId, onReload }: { entries: FcaEntry[]; clienteId: string; onReload: () => void }) {
   const [showNew, setShowNew] = useState(false)
-  const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], fato: '', causa: '', acao: '' })
-  const [saving, setSaving] = useState(false)
+  const [form, setForm]       = useState({ data: new Date().toISOString().split('T')[0], fato: '', causa: '', acao: '' })
+  const [saving, setSaving]   = useState(false)
 
   async function save() {
-    if (!form.fato.trim() || !form.causa.trim() || !form.acao.trim()) return
-    setSaving(true)
+    if (!form.fato.trim() || !form.causa.trim() || !form.acao.trim()) return; setSaving(true)
     await supabase.from('fca_entries').insert({ ...form, cliente_id: clienteId })
-    setShowNew(false)
-    setForm({ data: new Date().toISOString().split('T')[0], fato: '', causa: '', acao: '' })
-    await onReload()
-    setSaving(false)
+    setShowNew(false); setForm({ data: new Date().toISOString().split('T')[0], fato: '', causa: '', acao: '' }); await onReload(); setSaving(false)
   }
+  async function deleteEntry(id: string) { await supabase.from('fca_entries').delete().eq('id', id); await onReload() }
 
-  async function deleteEntry(id: string) {
-    await supabase.from('fca_entries').delete().eq('id', id)
-    await onReload()
-  }
+  const valid = form.fato.trim() && form.causa.trim() && form.acao.trim()
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>Registro de FCA</div>
-          <div style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>Fato · Causa · Ação — documentação de momentos críticos</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: GRAY1 }}>Registro de FCA</div>
+          <div style={{ fontSize: 13, color: GRAY3, marginTop: 2 }}>Fato · Causa · Ação — documentação de momentos críticos</div>
         </div>
-        <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid ${R}50`, background: showNew ? `${R}22` : `${R}12`, color: TEXT, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid #FECACA`, background: showNew ? '#FEE2E2' : '#FEF2F2', color: '#991B1B', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
           <AlertTriangle size={13} /> Registrar FCA
         </button>
       </div>
 
       {showNew && (
-        <div style={{ background: CARD, border: `1px solid ${R}40`, borderRadius: 12, padding: 22, marginBottom: 24 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 7, color: R }}>
+        <div style={{ background: WHITE, border: `1px solid #FECACA`, borderRadius: 12, padding: 22, marginBottom: 24, boxShadow: '0 1px 4px rgba(232,0,28,.08)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: R, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 7 }}>
             <AlertTriangle size={16} /> Novo Registro FCA
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 11, color: MUTED, display: 'block', marginBottom: 4 }}>Data</label>
-              <input type="date" value={form.data} onChange={e => setForm(p => ({ ...p, data: e.target.value }))} style={{ padding: '8px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none' }} />
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data</label>
+              <input type="date" value={form.data} onChange={e => setForm(p => ({ ...p, data: e.target.value }))} style={{ ...input14, width: 'auto' }} />
             </div>
             {[
-              { key: 'fato', label: 'Fato', placeholder: 'O que aconteceu? Descreva o evento crítico...' },
-              { key: 'causa', label: 'Causa', placeholder: 'Por que aconteceu? Qual a causa raiz identificada...' },
-              { key: 'acao', label: 'Ação', placeholder: 'O que foi / será feito? Qual a ação tomada...' },
+              { key: 'fato', label: 'Fato', placeholder: 'O que aconteceu?', accent: R },
+              { key: 'causa', label: 'Causa', placeholder: 'Qual a causa raiz?', accent: YELLOW },
+              { key: 'acao', label: 'Ação', placeholder: 'O que foi / será feito?', accent: GREEN },
             ].map(f => (
               <div key={f.key}>
-                <label style={{ fontSize: 11, color: MUTED, display: 'block', marginBottom: 4, fontWeight: 700, letterSpacing: '0.05em' }}>{f.label.toUpperCase()}</label>
-                <textarea value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} rows={3} style={{ width: '100%', padding: '9px 12px', background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <label style={{ fontSize: 11, fontWeight: 700, color: f.accent, display: 'block', marginBottom: 4, letterSpacing: '0.05em' }}>{f.label.toUpperCase()}</label>
+                <textarea value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} rows={3} style={{ ...input14, resize: 'vertical', fontFamily: 'inherit', borderColor: (form as any)[f.key] ? GRAY5 : GRAY5 }} />
               </div>
             ))}
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button onClick={save} disabled={!form.fato.trim() || !form.causa.trim() || !form.acao.trim() || saving} style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: R, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: (!form.fato.trim() || !form.causa.trim() || !form.acao.trim()) ? 0.5 : 1 }}>
-              {saving ? 'Salvando...' : 'Registrar FCA'}
-            </button>
-            <button onClick={() => setShowNew(false)} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${BORDER}`, background: 'transparent', color: MUTED, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={save} disabled={!valid || saving} style={{ ...btnPrimary(!valid || saving), background: valid ? R : GRAY3 }}>{saving ? 'Salvando...' : 'Registrar FCA'}</button>
+            <button onClick={() => setShowNew(false)} style={btnGhost}>Cancelar</button>
           </div>
         </div>
       )}
 
       {entries.length === 0 && !showNew ? (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: MUTED }}>
-          <AlertTriangle size={32} style={{ marginBottom: 12, opacity: 0.3 }} />
-          <div style={{ fontSize: 14 }}>Nenhum FCA registrado — ótimo sinal!</div>
+        <div style={{ ...card, padding: '48px 0', textAlign: 'center' }}>
+          <AlertTriangle size={32} color={GRAY3} style={{ marginBottom: 12, opacity: 0.4 }} />
+          <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum FCA registrado — ótimo sinal!</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {entries.map((e, i) => (
             <div key={e.id} style={{ display: 'flex', gap: 16 }}>
-              {/* Timeline */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${R}22`, border: `2px solid ${R}60`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <AlertTriangle size={13} color={R} />
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#FEE2E2', border: '2px solid #FECACA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <AlertTriangle size={14} color={R} />
                 </div>
-                {i < entries.length - 1 && <div style={{ width: 2, flex: 1, background: BORDER, marginTop: 6 }} />}
+                {i < entries.length - 1 && <div style={{ width: 2, flex: 1, background: GRAY5, marginTop: 6 }} />}
               </div>
-              <div style={{ flex: 1, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: '14px 18px', marginBottom: i < entries.length - 1 ? 0 : 0 }}>
+              <div style={{ ...card, flex: 1, padding: '14px 18px', marginBottom: i < entries.length - 1 ? 16 : 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <span style={{ fontSize: 12, color: MUTED, fontWeight: 500 }}>{fmtDate(e.data)}</span>
-                  <button onClick={() => deleteEntry(e.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: MUTED, opacity: 0.4, display: 'flex' }}
-                    onMouseEnter={ev => (ev.currentTarget.style.opacity = '1')} onMouseLeave={ev => (ev.currentTarget.style.opacity = '0.4')}>
+                  <span style={{ fontSize: 12, color: GRAY3, fontWeight: 500 }}>{fmtDate(e.data)}</span>
+                  <button onClick={() => deleteEntry(e.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                    onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
                     <Trash2 size={13} />
                   </button>
                 </div>
                 {[
-                  { label: 'FATO', value: e.fato, color: R },
-                  { label: 'CAUSA', value: e.causa, color: YELLOW },
-                  { label: 'AÇÃO', value: e.acao, color: GREEN },
+                  { label: 'FATO',  value: e.fato,  color: R },
+                  { label: 'CAUSA', value: e.causa, color: '#92400E' },
+                  { label: 'AÇÃO',  value: e.acao,  color: '#065F46' },
                 ].map(item => (
                   <div key={item.label} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: item.color, letterSpacing: '0.08em', marginBottom: 3 }}>{item.label}</div>
-                    <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.55 }}>{item.value}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: item.color, letterSpacing: '0.08em', marginBottom: 4 }}>{item.label}</div>
+                    <div style={{ fontSize: 13, color: GRAY1, lineHeight: 1.6 }}>{item.value}</div>
                   </div>
                 ))}
               </div>
@@ -1109,12 +1032,3 @@ function TabFCA({ entries, clienteId, onReload }: { entries: FcaEntry[]; cliente
   )
 }
 
-// ── Section title helper ──────────────────────────────────────────────────────
-function SectionTitle({ icon: Icon, label }: { icon: React.ComponentType<any>; label: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <Icon size={14} color={MUTED} />
-      <span style={{ fontSize: 13, fontWeight: 700, color: MUTED2 }}>{label}</span>
-    </div>
-  )
-}
