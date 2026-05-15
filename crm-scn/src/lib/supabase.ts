@@ -78,5 +78,102 @@ export type UsuarioPermitido = {
   nome: string
   email: string
   ativo: boolean
+  papel?: string | null
+  avatar_url?: string | null
+  created_at: string
+}
+
+export type Cliente = {
+  id: string
+  lead_id: string | null
+  empresa: string
+  segmento: string | null
+  status: 'ativo' | 'pausado' | 'churned'
+  stack: string[]
+  links: Record<string, string>
+  anotacoes: string
+  logo_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type Contato = {
+  id: string
+  cliente_id: string
+  nome: string
+  cargo: string | null
+  email: string | null
+  telefone: string | null
+  is_primary: boolean
+  created_at: string
+}
+
+export type Projeto = {
+  id: string
+  cliente_id: string
+  nome: string
+  tipo: 'saber' | 'ter' | 'executar'
+  status: 'ativo' | 'pausado' | 'encerrado'
+  valor_tipo: 'pontual' | 'mensalidade'
+  valor: number
+  data_inicio: string | null
+  data_fim: string | null
+  escopo: string
+  responsaveis: string[]
+  created_at: string
+  updated_at: string
+}
+
+export type HealthScoreEntry = {
+  id: string
+  cliente_id: string
+  semana: string
+  resultado: number
+  trafego: number
+  entregas_prazo: number
+  qualidade_entregas: number
+  relacionamento: number
+  score_total: number
+  observacoes: string
+  created_by: string | null
+  created_at: string
+}
+
+export type MetaSemanal = {
+  id: string
+  cliente_id: string
+  projeto_id: string | null
+  semana: string
+  descricao: string
+  valor_meta: number | null
+  valor_realizado: number | null
+  unidade: string
+  status: 'pendente' | 'atingida' | 'nao_atingida' | 'parcial'
+  observacoes: string
+  created_at: string
+  updated_at: string
+}
+
+export type Oportunidade = {
+  id: string
+  cliente_id: string
+  titulo: string
+  descricao: string
+  etapa: 'identificada' | 'em_conversa' | 'proposta_enviada' | 'fechada'
+  valor_estimado: number | null
+  responsavel: string | null
+  data_estimada: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type FcaEntry = {
+  id: string
+  cliente_id: string
+  data: string
+  fato: string
+  causa: string
+  acao: string
+  created_by: string | null
   created_at: string
 }

@@ -458,7 +458,7 @@ const initForm = {
   historico_proximos_passos: [], historico_anotacoes_pre_vendas: [], custo_broker: null,
   motivo_perda_pre_vendas: null, motivo_perda_closer: null,
   link_gravacao: '', link_plano_roi: '', link_contrato: '',
-  responsavel_bdr: 'Lucca',
+  responsavel_bdr: 'Lucca Batirola',
 }
 
 const LOGGED_FIELDS: Record<string, string> = {
@@ -515,6 +515,7 @@ function LeadPageInner() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved'>('idle')
   const autoSaveTimer = useRef<any>(null)
   const formRef = useRef<any>(initForm)
+  const [cockpitClienteId, setCockpitClienteId] = useState<string | null | 'loading'>('loading')
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -530,6 +531,11 @@ function LeadPageInner() {
         setInitialForm(loaded)
         setPageLoading(false)
       })
+      supabase.from('clientes').select('id').eq('lead_id', id).maybeSingle().then(({ data }) => {
+        setCockpitClienteId(data?.id ?? null)
+      })
+    } else {
+      setCockpitClienteId(null)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
@@ -827,6 +833,38 @@ function LeadPageInner() {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 Agendar no Google Agenda
               </a>
+            )}
+            {!isNew && ['VENDA', 'ATIVADO'].includes(getPipelineStage(form)) && cockpitClienteId !== 'loading' && (
+              <button
+                onClick={async () => {
+                  if (cockpitClienteId) { router.push(`/cockpit/${cockpitClienteId}`); return }
+                  const { data } = await supabase.from('clientes').insert({
+                    lead_id: id,
+                    empresa: form.empresa || 'Cliente',
+                    segmento: form.segmento || null,
+                    stack: [],
+                    links: {},
+                  }).select('id').single()
+                  if (data) {
+                    if (form.nome_lead || form.telefone || form.email) {
+                      await supabase.from('contatos').insert({ cliente_id: data.id, nome: form.nome_lead || form.empresa, cargo: form.cargo || null, email: form.email || null, telefone: form.telefone || null, is_primary: true })
+                    }
+                    if (form.tcv_saber || form.tcv_ter || form.tcv_executar) {
+                      const projetos = []
+                      if (form.tcv_saber) projetos.push({ cliente_id: data.id, nome: `Saber — ${form.empresa}`, tipo: 'saber', valor_tipo: 'pontual', valor: form.tcv_saber, data_inicio: form.data_assinatura })
+                      if (form.tcv_ter) projetos.push({ cliente_id: data.id, nome: `Ter — ${form.empresa}`, tipo: 'ter', valor_tipo: 'pontual', valor: form.tcv_ter, data_inicio: form.data_assinatura })
+                      if (form.tcv_executar) projetos.push({ cliente_id: data.id, nome: `Executar — ${form.empresa}`, tipo: 'executar', valor_tipo: 'mensalidade', valor: form.tcv_executar, data_inicio: form.data_assinatura })
+                      if (projetos.length) await supabase.from('projetos').insert(projetos)
+                    }
+                    setCockpitClienteId(data.id)
+                    router.push(`/cockpit/${data.id}`)
+                  }
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 9, border: `1px solid ${cockpitClienteId ? '#BFDBFE' : '#FCA5A5'}`, background: cockpitClienteId ? '#EFF6FF' : '#FEF2F2', color: cockpitClienteId ? '#1D4ED8' : '#B91C1C', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                <Layers size={13} />
+                {cockpitClienteId ? 'Ver no Cockpit' : 'Criar no Cockpit'}
+              </button>
             )}
           </div>
         </div>
