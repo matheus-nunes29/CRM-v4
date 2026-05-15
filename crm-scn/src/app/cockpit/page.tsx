@@ -74,7 +74,8 @@ export default function CockpitPage() {
   async function createCliente() {
     if (!newEmpresa.trim()) return
     setSaving(true)
-    const { data } = await supabase.from('clientes').insert({ empresa: newEmpresa.trim(), segmento: newSegmento.trim() || null }).select().single()
+    const { data, error } = await supabase.from('clientes').insert({ empresa: newEmpresa.trim(), segmento: newSegmento.trim() || null }).select().single()
+    if (error) { console.error('Erro ao criar cliente:', error); alert('Erro: ' + error.message); setSaving(false); return }
     if (data) { router.push(`/cockpit/${data.id}`) }
     setSaving(false)
   }
