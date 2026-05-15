@@ -760,7 +760,7 @@ function LeadPageInner() {
     <div style={{ height: '100vh', display: 'flex', overflow: 'hidden', fontFamily: 'var(--font-jakarta, sans-serif)' }}>
 
       {/* ── Sidebar ── */}
-      <Sidebar activeView={null} onNavigate={v => router.push(`/?view=${v}`)} />
+      <Sidebar activeView={null} onNavigate={v => router.push(v === 'dashboard' ? '/' : `/${v}`)} />
 
       {/* ── Main content ── */}
       <div style={{ flex: 1, background: PANEL_BG, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
