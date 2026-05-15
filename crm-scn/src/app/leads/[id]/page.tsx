@@ -1176,10 +1176,9 @@ function LeadPageInner() {
                       {(() => {
                         const badge = getStageBDR(form)
                         if (badge) return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${badge.color}40`, background: `${badge.color}10` }}>
-                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: badge.color, flexShrink: 0 }} />
-                            <span style={{ fontSize: 12, fontWeight: 700, color: badge.color }}>{badge.label}</span>
-                            <span style={{ fontSize: 10, color: GRAY3, marginLeft: 'auto' }}>automático</span>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: `1px solid ${BORDER}`, background: GRAY4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: GRAY1 }}>{badge.label}</span>
+                            <span style={{ fontSize: 10, color: GRAY3 }}>automático</span>
                           </div>
                         )
                         return (
@@ -1439,10 +1438,9 @@ function LeadPageInner() {
                       {(() => {
                         const badge = getStageCloser(form)
                         if (badge) return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${badge.color}40`, background: `${badge.color}10` }}>
-                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: badge.color, flexShrink: 0 }} />
-                            <span style={{ fontSize: 12, fontWeight: 700, color: badge.color }}>{badge.label}</span>
-                            <span style={{ fontSize: 10, color: GRAY3, marginLeft: 'auto' }}>automático</span>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: `1px solid ${BORDER}`, background: GRAY4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: GRAY1 }}>{badge.label}</span>
+                            <span style={{ fontSize: 10, color: GRAY3 }}>automático</span>
                           </div>
                         )
                         return (
