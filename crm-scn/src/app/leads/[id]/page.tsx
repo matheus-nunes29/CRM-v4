@@ -9,6 +9,7 @@ import { toast } from '@/lib/toast'
 import { Toaster } from '@/components/Toaster'
 import { UserSelect } from '@/components/UserSelect'
 import { useUserRole } from '@/lib/useUserRole'
+import { useCloserUsers } from '@/lib/useCloserUsers'
 import { getPipelineStage, PIPELINE_STAGES } from '@/lib/crm-pipeline'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -457,7 +458,7 @@ const initForm = {
   historico_proximos_passos: [], historico_anotacoes_pre_vendas: [], custo_broker: null,
   motivo_perda_pre_vendas: null, motivo_perda_closer: null,
   link_gravacao: '', link_plano_roi: '', link_contrato: '',
-  responsavel_bdr: null,
+  responsavel_bdr: 'Lucca',
 }
 
 const LOGGED_FIELDS: Record<string, string> = {
@@ -497,6 +498,7 @@ function LeadPageInner() {
   const fromLabel = fromView === 'pipeline' ? 'Pipeline' : 'Leads'
 
   const { canEdit, isLoading: roleLoading } = useUserRole()
+  const closerUsers = useCloserUsers()
 
   const [pageLoading, setPageLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
@@ -887,7 +889,10 @@ function LeadPageInner() {
           )}
 
           <InfoField label="Responsável BDR">
-            <input style={inputStyle} value={form.responsavel_bdr || ''} onChange={e => set('responsavel_bdr', e.target.value)} placeholder="Nome do BDR" />
+            <select style={inputStyle} value={form.responsavel_bdr || ''} onChange={e => set('responsavel_bdr', e.target.value || null)}>
+              <option value="">Selecione</option>
+              {closerUsers.map(u => <option key={u.nome} value={u.nome}>{u.nome}</option>)}
+            </select>
           </InfoField>
 
           {/* ── Links compactos ── */}
