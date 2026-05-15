@@ -889,10 +889,12 @@ function LeadPageInner() {
           )}
 
           <InfoField label="Responsável BDR">
-            <select style={inputStyle} value={form.responsavel_bdr || ''} onChange={e => set('responsavel_bdr', e.target.value || null)}>
-              <option value="">Selecione</option>
-              {closerUsers.map(u => <option key={u.nome} value={u.nome}>{u.nome}</option>)}
-            </select>
+            <UserSelect
+              value={form.responsavel_bdr || null}
+              onChange={v => set('responsavel_bdr', v)}
+              placeholder="Selecione o BDR"
+              borderColor={BORDER}
+            />
           </InfoField>
 
           {/* ── Links compactos ── */}
