@@ -617,6 +617,22 @@ function LeadPageInner() {
     triggerAutoSave()
   }
 
+  const getStageBDR = (f: any): { label: string; color: string } | null => {
+    if (f.data_rr) return { label: 'Reunião Realizada', color: '#8B5CF6' }
+    if (f.data_ra)  return { label: 'Reunião Agendada',  color: '#0D9488' }
+    if (f.situacao_pre_vendas === 'NO SHOW/REMARCANDO') return { label: 'No-Show / Remarcando', color: '#D97706' }
+    if (f.situacao_pre_vendas === 'PERDIDO SDR')        return { label: 'Perdido SDR',           color: GRAY2 }
+    if (f.situacao_pre_vendas === 'REEMBOLSO')          return { label: 'Reembolso',              color: GRAY2 }
+    return null
+  }
+
+  const getStageCloser = (f: any): { label: string; color: string } | null => {
+    if (f.data_ativacao)                              return { label: 'Ativado',        color: '#0EA5E9' }
+    if (f.data_assinatura)                            return { label: 'Venda',          color: GREEN }
+    if (f.situacao_closer === 'PERDIDO CLOSER')       return { label: 'Perdido Closer', color: GRAY2 }
+    return null
+  }
+
   const toggleBant = (k: string) => {
     const bantNames: Record<string, string> = { bant_budget: 'Budget', bant_authority: 'Authority', bant_need: 'Need', bant_timing: 'Timing' }
     setFormState((f: any) => {
@@ -1157,10 +1173,22 @@ function LeadPageInner() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 5 }}>Situação BDR</div>
-                      <select style={inputStyle} value={form.situacao_pre_vendas || ''} onChange={e => set('situacao_pre_vendas', e.target.value)}>
-                        <option value="">Selecione</option>
-                        {SITUACOES_PRE_VENDAS.map(o => <option key={o}>{o}</option>)}
-                      </select>
+                      {(() => {
+                        const badge = getStageBDR(form)
+                        if (badge) return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${badge.color}40`, background: `${badge.color}10` }}>
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: badge.color, flexShrink: 0 }} />
+                            <span style={{ fontSize: 12, fontWeight: 700, color: badge.color }}>{badge.label}</span>
+                            <span style={{ fontSize: 10, color: GRAY3, marginLeft: 'auto' }}>automático</span>
+                          </div>
+                        )
+                        return (
+                          <select style={inputStyle} value={form.situacao_pre_vendas || ''} onChange={e => set('situacao_pre_vendas', e.target.value)}>
+                            <option value="">Selecione</option>
+                            {['TENTANDO CONTATO', 'EM QUALIFICAÇÃO'].map(o => <option key={o}>{o}</option>)}
+                          </select>
+                        )
+                      })()}
                     </div>
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 600, color: errors.data_ra ? R : GRAY2, marginBottom: 5 }}>
@@ -1408,10 +1436,22 @@ function LeadPageInner() {
                     </div>
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 5 }}>Situação Closer</div>
-                      <select style={inputStyle} value={form.situacao_closer || ''} onChange={e => set('situacao_closer', e.target.value)}>
-                        <option value="">Selecione</option>
-                        {SITUACOES.map(o => <option key={o}>{o}</option>)}
-                      </select>
+                      {(() => {
+                        const badge = getStageCloser(form)
+                        if (badge) return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${badge.color}40`, background: `${badge.color}10` }}>
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: badge.color, flexShrink: 0 }} />
+                            <span style={{ fontSize: 12, fontWeight: 700, color: badge.color }}>{badge.label}</span>
+                            <span style={{ fontSize: 10, color: GRAY3, marginLeft: 'auto' }}>automático</span>
+                          </div>
+                        )
+                        return (
+                          <select style={inputStyle} value={form.situacao_closer || ''} onChange={e => set('situacao_closer', e.target.value)}>
+                            <option value="">Selecione</option>
+                            {['EM FOLLOW UP', 'REUNIAO EXTRA AGENDADA', 'AGENDA FUTURA'].map(o => <option key={o}>{o}</option>)}
+                          </select>
+                        )
+                      })()}
                     </div>
                     <div style={{ gridColumn: '1 / -1' }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: GRAY2, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>TCV — Total Contract Value</div>
