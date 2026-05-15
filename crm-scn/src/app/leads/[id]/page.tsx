@@ -536,6 +536,21 @@ function LeadPageInner() {
 
   useEffect(() => { formRef.current = form }, [form])
 
+  // Sync situacao_pre_vendas with dates on load (fix leads out of sync)
+  useEffect(() => {
+    if (isNew || !form.id) return
+    const spv = form.situacao_pre_vendas
+    const noCloserStage = !form.data_assinatura && !['EM FOLLOW UP','REUNIAO EXTRA AGENDADA','AGENDA FUTURA','VENDA','PERDIDO CLOSER'].includes(form.situacao_closer || '')
+    if (noCloserStage && spv !== 'PERDIDO SDR' && spv !== 'REEMBOLSO' && spv !== 'NO SHOW/REMARCANDO') {
+      if (form.data_rr && spv !== 'REUNIÃO REALIZADA') {
+        setFormState((f: any) => ({ ...f, situacao_pre_vendas: 'REUNIÃO REALIZADA' }))
+      } else if (form.data_ra && !form.data_rr && spv !== 'REUNIÃO AGENDADA') {
+        setFormState((f: any) => ({ ...f, situacao_pre_vendas: 'REUNIÃO AGENDADA' }))
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.id])
+
   const triggerAutoSave = () => {
     if (isNew) return
     setAutoSaveStatus('pending')
@@ -587,8 +602,10 @@ function LeadPageInner() {
 
     setFormState((f: any) => {
       const updated = { ...f, [k]: newVal }
-      if (k === 'data_ra' && v) updated.situacao_pre_vendas = 'REUNIÃO AGENDADA'
+      if (k === 'data_ra' && v && !updated.data_rr) updated.situacao_pre_vendas = 'REUNIÃO AGENDADA'
       if (k === 'data_ra' && !v && f.situacao_pre_vendas === 'REUNIÃO AGENDADA') updated.situacao_pre_vendas = null
+      if (k === 'data_rr' && v) updated.situacao_pre_vendas = 'REUNIÃO REALIZADA'
+      if (k === 'data_rr' && !v && updated.data_ra) updated.situacao_pre_vendas = 'REUNIÃO AGENDADA'
       if (k === 'faturamento') updated.tier = fatToTier(v)
       if (logEntry) {
         const hist = Array.isArray(f.historico_anotacoes_pre_vendas) ? f.historico_anotacoes_pre_vendas : []
