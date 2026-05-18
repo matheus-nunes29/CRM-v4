@@ -12,19 +12,24 @@ const TEXT_MUT  = 'rgba(237,232,225,0.38)'
 const TEXT_ACT  = '#EDE8E1'
 const GLASS_BG  = 'rgba(255,255,255,0.06)'
 
-type MenuItem = { id: string; label: string; icon: React.ComponentType<any>; children?: { id: string; label: string }[] }
+type NavItem = { type: 'item'; id: string; label: string; icon: React.ComponentType<any> }
+type NavDivider = { type: 'divider'; label: string }
+type NavEntry = NavItem | NavDivider
 
-const MENU: MenuItem[] = [
-  { id: 'dashboard',      label: 'Dashboard',     icon: LayoutDashboard },
-  { id: 'leads',          label: 'Leads',          icon: Users },
-  { id: 'pipeline',       label: 'Pipeline',       icon: GitBranch },
-  { id: 'cockpit',        label: 'Cockpit',        icon: LayoutGrid },
-  { id: 'expansao',       label: 'Expansão',       icon: Rocket },
-  { id: 'metas',          label: 'Metas',          icon: Target },
-  { id: 'acompanhamento', label: 'Acompanhamento', icon: CalendarDays },
-  { id: 'inteligencia',   label: 'Inteligência',   icon: TrendingUp },
-  { id: 'ferramentas',    label: 'Ferramentas',    icon: Wrench },
-  { id: 'configuracoes',  label: 'Configurações',  icon: Settings },
+const MENU: NavEntry[] = [
+  { type: 'divider', label: 'Vendas' },
+  { type: 'item', id: 'dashboard',      label: 'Dashboard',     icon: LayoutDashboard },
+  { type: 'item', id: 'leads',          label: 'Leads',         icon: Users },
+  { type: 'item', id: 'pipeline',       label: 'Pipeline',      icon: GitBranch },
+  { type: 'item', id: 'metas',          label: 'Metas',         icon: Target },
+  { type: 'item', id: 'acompanhamento', label: 'Acompanhamento', icon: CalendarDays },
+  { type: 'item', id: 'inteligencia',   label: 'Inteligência',  icon: TrendingUp },
+  { type: 'item', id: 'ferramentas',    label: 'Ferramentas',   icon: Wrench },
+  { type: 'divider', label: 'Operação' },
+  { type: 'item', id: 'cockpit',        label: 'Cockpit',       icon: LayoutGrid },
+  { type: 'item', id: 'expansao',       label: 'Expansão',      icon: Rocket },
+  { type: 'divider', label: '' },
+  { type: 'item', id: 'configuracoes',  label: 'Configurações', icon: Settings },
 ]
 
 type SidebarProps = {
@@ -127,7 +132,24 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
           }} />
         )}
 
-        {MENU.map((item, idx) => {
+        {MENU.map((entry, idx) => {
+          if (entry.type === 'divider') {
+            return (
+              <div key={`div-${idx}`} style={{ margin: idx === 0 ? '4px 0 6px' : '10px 0 6px', padding: collapsed ? '0 6px' : '0 4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ flex: 1, height: 1, background: BORDER }} />
+                  {!collapsed && entry.label && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: TEXT_MUT, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', opacity: 0.7 }}>
+                      {entry.label}
+                    </span>
+                  )}
+                  {!collapsed && entry.label && <div style={{ flex: 1, height: 1, background: BORDER }} />}
+                </div>
+              </div>
+            )
+          }
+
+          const item = entry
           const active = activeView === item.id
           const isHover = hovered === item.id && !active
 
