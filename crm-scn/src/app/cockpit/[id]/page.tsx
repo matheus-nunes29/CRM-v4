@@ -194,12 +194,13 @@ function StatusPill({ status, onChange }: { status: Cliente['status']; onChange?
 export default function ClienteCockpitPage() {
   const router   = useRouter()
   const params   = useParams()
-  const clienteId = params.id as string
+  const slugOrId = params.id as string
   const { canEditCockpit } = useUserRole()
   const searchParams = useSearchParams()
 
   const [tab, setTab]                 = useState(() => searchParams.get('tab') ?? 'visao-geral')
   const [cliente, setCliente]         = useState<Cliente | null>(null)
+  const [clienteRealId, setClienteRealId] = useState<string>('')
   const [contatos, setContatos]       = useState<Contato[]>([])
   const [projetos, setProjetos]       = useState<Projeto[]>([])
   const [healthEntries, setHealth]    = useState<HealthScoreEntry[]>([])
@@ -211,17 +212,29 @@ export default function ClienteCockpitPage() {
 
   const loadAll = useCallback(async () => {
     setLoading(true)
-    const [cl, ct, pr, hs, mt, op, fc, re] = await Promise.all([
-      supabase.from('clientes').select('*').eq('id', clienteId).single(),
-      supabase.from('contatos').select('*').eq('cliente_id', clienteId).order('is_primary', { ascending: false }),
-      supabase.from('projetos').select('*').eq('cliente_id', clienteId).order('created_at'),
-      supabase.from('health_score_entries').select('*').eq('cliente_id', clienteId).order('semana', { ascending: false }).limit(20),
-      supabase.from('metas_semanais').select('*').eq('cliente_id', clienteId).order('semana', { ascending: false }),
-      supabase.from('oportunidades').select('*').eq('cliente_id', clienteId).order('created_at', { ascending: false }),
-      supabase.from('fca_entries').select('*').eq('cliente_id', clienteId).order('data', { ascending: false }),
-      supabase.from('reunioes').select('*').eq('cliente_id', clienteId).order('data', { ascending: false }),
+    // Resolve slug or UUID to the client record
+    let clienteData: Cliente | null = null
+    const { data: bySlug } = await supabase.from('clientes').select('*').eq('slug', slugOrId).maybeSingle()
+    if (bySlug) {
+      clienteData = bySlug
+    } else {
+      const { data: byId } = await supabase.from('clientes').select('*').eq('id', slugOrId).maybeSingle()
+      clienteData = byId
+    }
+    if (!clienteData) { setLoading(false); return }
+    const actualId = clienteData.id
+    setCliente(clienteData)
+    setClienteRealId(actualId)
+
+    const [ct, pr, hs, mt, op, fc, re] = await Promise.all([
+      supabase.from('contatos').select('*').eq('cliente_id', actualId).order('is_primary', { ascending: false }),
+      supabase.from('projetos').select('*').eq('cliente_id', actualId).order('created_at'),
+      supabase.from('health_score_entries').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }).limit(20),
+      supabase.from('metas_semanais').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }),
+      supabase.from('oportunidades').select('*').eq('cliente_id', actualId).order('created_at', { ascending: false }),
+      supabase.from('fca_entries').select('*').eq('cliente_id', actualId).order('data', { ascending: false }),
+      supabase.from('reunioes').select('*').eq('cliente_id', actualId).order('data', { ascending: false }),
     ])
-    if (cl.data) setCliente(cl.data)
     setContatos(ct.data || [])
     setProjetos(pr.data || [])
     setHealth(hs.data || [])
@@ -230,12 +243,12 @@ export default function ClienteCockpitPage() {
     setFCA(fc.data || [])
     setReunioes(re.data || [])
     setLoading(false)
-  }, [clienteId])
+  }, [slugOrId])
 
   useEffect(() => { loadAll() }, [loadAll])
 
   async function saveCliente(fields: Partial<Cliente>) {
-    await supabase.from('clientes').update(fields).eq('id', clienteId)
+    await supabase.from('clientes').update(fields).eq('id', cliente?.id ?? clienteRealId)
     setCliente(prev => prev ? { ...prev, ...fields } : prev)
   }
 
@@ -315,13 +328,13 @@ export default function ClienteCockpitPage() {
 
       {/* ── Tab content ── */}
       <div>
-        {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteId} canEdit={canEditCockpit} />}
-        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteRealId} canEdit={canEditCockpit} />}
+        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
       </div>
     </CRMLayout>
   )

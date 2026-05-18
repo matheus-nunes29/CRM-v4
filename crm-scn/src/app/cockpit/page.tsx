@@ -81,12 +81,33 @@ export default function CockpitPage() {
     setLoading(false)
   }
 
+  function toSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+  }
+
+  async function generateUniqueSlug(base: string): Promise<string> {
+    let slug = base
+    let n = 1
+    while (true) {
+      const { data } = await supabase.from('clientes').select('id').eq('slug', slug).maybeSingle()
+      if (!data) return slug
+      n++
+      slug = `${base}-${n}`
+    }
+  }
+
   async function createCliente() {
     if (!newEmpresa.trim()) return
     setSaving(true)
-    const { data, error } = await supabase.from('clientes').insert({ empresa: newEmpresa.trim(), segmento: newSegmento.trim() || null }).select().single()
+    const slug = await generateUniqueSlug(toSlug(newEmpresa.trim()))
+    const { data, error } = await supabase.from('clientes').insert({ empresa: newEmpresa.trim(), segmento: newSegmento.trim() || null, slug }).select().single()
     if (error) { console.error(error); alert('Erro: ' + error.message); setSaving(false); return }
-    if (data) router.push(`/cockpit/${data.id}`)
+    if (data) router.push(`/cockpit/${data.slug}`)
     setSaving(false)
   }
 
@@ -208,7 +229,7 @@ export default function CockpitPage() {
                   return (
                     <tr
                       key={c.id}
-                      onClick={() => router.push(`/cockpit/${c.id}`)}
+                      onClick={() => router.push(`/cockpit/${c.slug || c.id}`)}
                       style={{ cursor: 'pointer', transition: 'background .12s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = GRAY4)}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -267,14 +288,14 @@ export default function CockpitPage() {
                         {needsFca ? (
                           c.hasFca ? (
                             <button
-                              onClick={() => router.push(`/cockpit/${c.id}?tab=fca`)}
+                              onClick={() => router.push(`/cockpit/${c.slug || c.id}?tab=fca`)}
                               style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 6, border: `1px solid ${YELLOW}`, background: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
                             >
                               <AlertTriangle size={11} /> Ver
                             </button>
                           ) : (
                             <button
-                              onClick={() => router.push(`/cockpit/${c.id}?tab=fca`)}
+                              onClick={() => router.push(`/cockpit/${c.slug || c.id}?tab=fca`)}
                               style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 6, border: `1px solid ${R}`, background: '#FEE2E2', color: '#991B1B', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
                             >
                               <AlertTriangle size={11} /> Registrar

@@ -85,6 +85,7 @@ export type UsuarioPermitido = {
 
 export type Cliente = {
   id: string
+  slug: string
   lead_id: string | null
   empresa: string
   segmento: string | null
