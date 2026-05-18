@@ -698,9 +698,10 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                   </div>
                   {p.tipo === 'executar' && p.investimento_midia != null && (
                     <div>
-                      <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>INV. MÍDIA</div>
+                      <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>VERBA GOOGLE/META</div>
                       <div style={{ fontSize: 15, fontWeight: 800, color: BLUE }}>
-                        {fmt(p.investimento_midia)}<span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}>/mês</span>
+                        {fmt(p.investimento_midia)}
+                        <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}> /mês</span>
                       </div>
                     </div>
                   )}
@@ -843,7 +844,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
             </div>
             {form.tipo === 'executar' && (
               <div>
-                <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Investimento em Mídia (R$)</label>
+                <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Verba Google/Meta Ads (R$/mês)</label>
                 <input type="number" value={form.investimento_midia} onChange={e => setForm(p => ({ ...p, investimento_midia: e.target.value }))} placeholder="0" style={input14} />
               </div>
             )}
