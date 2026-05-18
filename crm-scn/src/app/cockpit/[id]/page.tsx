@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry } from '@/lib/supabase'
+import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE } from '@/lib/crm-constants'
 import {
@@ -12,7 +12,7 @@ import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown,
   Link2, Layers, TrendingUp, Target, AlertTriangle, Users,
   Calendar, Package, Clock, Trash2, Globe, Info,
-  Building2, Phone, Mail, ExternalLink,
+  Building2, Phone, Mail, ExternalLink, Video,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 
@@ -52,6 +52,7 @@ const TABS = [
   { id: 'projetos',      label: 'Projetos',       icon: Layers },
   { id: 'health-score',  label: 'Health Score',   icon: TrendingUp },
   { id: 'metas',         label: 'Metas',          icon: Target },
+  { id: 'reunioes',      label: 'Reuniões',       icon: Video },
   { id: 'oportunidades', label: 'Oportunidades',  icon: Package },
   { id: 'fca',           label: 'FCA',            icon: AlertTriangle },
 ]
@@ -205,11 +206,12 @@ export default function ClienteCockpitPage() {
   const [metas, setMetas]             = useState<MetaSemanal[]>([])
   const [oportunidades, setOps]       = useState<Oportunidade[]>([])
   const [fcaEntries, setFCA]          = useState<FcaEntry[]>([])
+  const [reunioes, setReunioes]       = useState<Reuniao[]>([])
   const [loading, setLoading]         = useState(true)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
-    const [cl, ct, pr, hs, mt, op, fc] = await Promise.all([
+    const [cl, ct, pr, hs, mt, op, fc, re] = await Promise.all([
       supabase.from('clientes').select('*').eq('id', clienteId).single(),
       supabase.from('contatos').select('*').eq('cliente_id', clienteId).order('is_primary', { ascending: false }),
       supabase.from('projetos').select('*').eq('cliente_id', clienteId).order('created_at'),
@@ -217,6 +219,7 @@ export default function ClienteCockpitPage() {
       supabase.from('metas_semanais').select('*').eq('cliente_id', clienteId).order('semana', { ascending: false }),
       supabase.from('oportunidades').select('*').eq('cliente_id', clienteId).order('created_at', { ascending: false }),
       supabase.from('fca_entries').select('*').eq('cliente_id', clienteId).order('data', { ascending: false }),
+      supabase.from('reunioes').select('*').eq('cliente_id', clienteId).order('data', { ascending: false }),
     ])
     if (cl.data) setCliente(cl.data)
     setContatos(ct.data || [])
@@ -225,6 +228,7 @@ export default function ClienteCockpitPage() {
     setMetas(mt.data || [])
     setOps(op.data || [])
     setFCA(fc.data || [])
+    setReunioes(re.data || [])
     setLoading(false)
   }, [clienteId])
 
@@ -315,6 +319,7 @@ export default function ClienteCockpitPage() {
         {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
       </div>
@@ -1542,6 +1547,207 @@ function TabFCA({ entries, clienteId, onReload, canEdit }: { entries: FcaEntry[]
                   </div>
                 ))}
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: REUNIÕES
+// ══════════════════════════════════════════════════════════════════════════════
+function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
+  reunioes: Reuniao[]; clienteId: string; onReload: () => void; canEdit: boolean
+}) {
+  const emptyForm = { data: new Date().toISOString().split('T')[0], titulo: '', link_apresentacao: '', link_transcricao: '', observacoes: '' }
+  const [showNew, setShowNew]   = useState(false)
+  const [form, setForm]         = useState(emptyForm)
+  const [saving, setSaving]     = useState(false)
+  const [editId, setEditId]     = useState<string | null>(null)
+  const [editForm, setEditForm] = useState(emptyForm)
+
+  const valid = !!form.data
+
+  async function save() {
+    if (!valid) return
+    setSaving(true)
+    await supabase.from('reunioes').insert({
+      cliente_id: clienteId,
+      data: form.data,
+      titulo: form.titulo || null,
+      link_apresentacao: form.link_apresentacao || null,
+      link_transcricao: form.link_transcricao || null,
+      observacoes: form.observacoes || null,
+    })
+    setForm(emptyForm); setShowNew(false); await onReload(); setSaving(false)
+  }
+
+  async function update(id: string) {
+    await supabase.from('reunioes').update({
+      data: editForm.data,
+      titulo: editForm.titulo || null,
+      link_apresentacao: editForm.link_apresentacao || null,
+      link_transcricao: editForm.link_transcricao || null,
+      observacoes: editForm.observacoes || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id)
+    setEditId(null); await onReload()
+  }
+
+  async function remove(id: string) {
+    if (!confirm('Excluir esta reunião?')) return
+    await supabase.from('reunioes').delete().eq('id', id)
+    await onReload()
+  }
+
+  function startEdit(r: Reuniao) {
+    setEditForm({ data: r.data, titulo: r.titulo || '', link_apresentacao: r.link_apresentacao || '', link_transcricao: r.link_transcricao || '', observacoes: r.observacoes || '' })
+    setEditId(r.id)
+  }
+
+  const LinkButton = ({ href, label, icon: Icon, color }: { href: string; label: string; icon: React.ComponentType<any>; color: string }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: `1px solid ${color}30`, background: `${color}08`, color, fontSize: 12, fontWeight: 600, textDecoration: 'none', transition: 'all .15s' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${color}18` }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = `${color}08` }}
+    >
+      <Icon size={13} /> {label}
+    </a>
+  )
+
+  const FormFields = ({ f, setF }: { f: typeof emptyForm; setF: (v: typeof emptyForm) => void }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Data *</label>
+          <input type="date" value={f.data} onChange={e => setF({ ...f, data: e.target.value })} style={input14} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Título / Pauta</label>
+          <input type="text" value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} placeholder="Ex: Revisão mensal de resultados" style={input14} />
+        </div>
+      </div>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Link da Apresentação</label>
+        <input type="url" value={f.link_apresentacao} onChange={e => setF({ ...f, link_apresentacao: e.target.value })} placeholder="https://docs.google.com/presentation/..." style={input14} />
+      </div>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Link da Transcrição</label>
+        <input type="url" value={f.link_transcricao} onChange={e => setF({ ...f, link_transcricao: e.target.value })} placeholder="https://docs.google.com/document/..." style={input14} />
+      </div>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Observações</label>
+        <textarea value={f.observacoes} onChange={e => setF({ ...f, observacoes: e.target.value })} placeholder="Pontos discutidos, decisões tomadas..." rows={3} style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
+      </div>
+    </div>
+  )
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>Reuniões Periódicas</div>
+          <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>{reunioes.length} {reunioes.length === 1 ? 'reunião registrada' : 'reuniões registradas'}</div>
+        </div>
+        {canEdit && !showNew && (
+          <button onClick={() => setShowNew(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
+            <Plus size={14} strokeWidth={2.5} /> Nova Reunião
+          </button>
+        )}
+      </div>
+
+      {/* New form */}
+      {showNew && (
+        <div style={{ ...card, padding: 20, marginBottom: 20, borderLeft: `3px solid ${BLUE}` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Video size={14} color={BLUE} /> Nova Reunião
+          </div>
+          <FormFields f={form} setF={setForm} />
+          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+            <button onClick={save} disabled={!valid || saving} style={btnPrimary(!valid || saving)}>{saving ? 'Salvando...' : 'Registrar Reunião'}</button>
+            <button onClick={() => { setShowNew(false); setForm(emptyForm) }} style={btnGhost}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {reunioes.length === 0 && !showNew && (
+        <div style={{ ...card, padding: '48px 24px', textAlign: 'center' }}>
+          <Video size={36} color={GRAY3} style={{ margin: '0 auto 12px' }} />
+          <div style={{ fontSize: 14, fontWeight: 600, color: GRAY2, marginBottom: 6 }}>Nenhuma reunião registrada</div>
+          <div style={{ fontSize: 13, color: GRAY3, marginBottom: 20 }}>Registre as reuniões periódicas para manter o histórico de apresentações e transcrições.</div>
+          {canEdit && (
+            <button onClick={() => setShowNew(true)} style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              Registrar primeira reunião
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* List */}
+      {reunioes.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {reunioes.map(r => (
+            <div key={r.id} style={{ ...card, padding: 20 }}>
+              {editId === r.id ? (
+                <div>
+                  <FormFields f={editForm} setF={setEditForm} />
+                  <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                    <button onClick={() => update(r.id)} style={btnPrimary(false)}>Salvar</button>
+                    <button onClick={() => setEditId(null)} style={btnGhost}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  {/* Row header */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: `${BLUE}0F`, border: `1px solid ${BLUE}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Video size={16} color={BLUE} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{r.titulo || 'Reunião Periódica'}</div>
+                        <div style={{ fontSize: 12, color: GRAY3, marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Calendar size={11} /> {fmtDate(r.data)}
+                        </div>
+                      </div>
+                    </div>
+                    {canEdit && (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => startEdit(r)} style={{ padding: '6px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                          <Edit2 size={13} color={GRAY3} />
+                        </button>
+                        <button onClick={() => remove(r.id)} style={{ padding: '6px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                          <Trash2 size={13} color={R} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Links */}
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: r.observacoes ? 14 : 0 }}>
+                    {r.link_apresentacao
+                      ? <LinkButton href={r.link_apresentacao} label="Apresentação" icon={ExternalLink} color={BLUE} />
+                      : <span style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 5 }}><ExternalLink size={12} /> Sem link de apresentação</span>
+                    }
+                    {r.link_transcricao
+                      ? <LinkButton href={r.link_transcricao} label="Transcrição" icon={Globe} color={GREEN} />
+                      : <span style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 5 }}><Globe size={12} /> Sem transcrição</span>
+                    }
+                  </div>
+
+                  {/* Observações */}
+                  {r.observacoes && (
+                    <div style={{ marginTop: 12, padding: '10px 14px', background: GRAY4, borderRadius: 8, borderLeft: `3px solid ${GRAY5}` }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: GRAY3, letterSpacing: '0.07em', marginBottom: 5 }}>OBSERVAÇÕES</div>
+                      <div style={{ fontSize: 13, color: GRAY1, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{r.observacoes}</div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -187,3 +187,16 @@ export type FcaEntry = {
   created_by: string | null
   created_at: string
 }
+
+export type Reuniao = {
+  id: string
+  cliente_id: string
+  data: string
+  titulo: string | null
+  link_apresentacao: string | null
+  link_transcricao: string | null
+  observacoes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
