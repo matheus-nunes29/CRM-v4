@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench, ChevronLeft, ChevronRight, LayoutGrid, Rocket } from 'lucide-react'
+import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench, ChevronLeft, ChevronRight, LayoutGrid, Rocket, Home } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { LOGO_SRC } from './logo'
 
@@ -17,6 +17,7 @@ type NavDivider = { type: 'divider'; label: string }
 type NavEntry = NavItem | NavDivider
 
 const MENU: NavEntry[] = [
+  { type: 'item', id: 'inicio', label: 'Início', icon: Home },
   { type: 'divider', label: 'Vendas' },
   { type: 'item', id: 'dashboard',      label: 'Dashboard',     icon: LayoutDashboard },
   { type: 'item', id: 'leads',          label: 'Leads',         icon: Users },

@@ -8,6 +8,7 @@ import { ConfirmModal } from '@/components/ConfirmModal'
 import { GRAY1, GRAY2, GRAY3, R } from '@/lib/crm-constants'
 
 const VIEW_MAP: Record<string, string> = {
+  '/inicio': 'inicio',
   '/': 'dashboard', '/leads': 'leads', '/pipeline': 'pipeline',
   '/cockpit': 'cockpit',
   '/expansao': 'expansao',
@@ -18,6 +19,7 @@ const VIEW_MAP: Record<string, string> = {
   '/scripts': 'scripts',
 }
 const VIEW_LABELS: Record<string, string> = {
+  inicio: 'Início',
   dashboard: 'Dashboard', leads: 'Leads', pipeline: 'Pipeline',
   cockpit: 'Cockpit de Clientes',
   expansao: 'Pipeline de Expansão',
