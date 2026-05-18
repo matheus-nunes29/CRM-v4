@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench, ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-react'
+import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench, ChevronLeft, ChevronRight, LayoutGrid, Rocket } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { LOGO_SRC } from './logo'
 
@@ -19,6 +19,7 @@ const MENU: MenuItem[] = [
   { id: 'leads',          label: 'Leads',          icon: Users },
   { id: 'pipeline',       label: 'Pipeline',       icon: GitBranch },
   { id: 'cockpit',        label: 'Cockpit',        icon: LayoutGrid },
+  { id: 'expansao',       label: 'Expansão',       icon: Rocket },
   { id: 'metas',          label: 'Metas',          icon: Target },
   { id: 'acompanhamento', label: 'Acompanhamento', icon: CalendarDays },
   { id: 'inteligencia',   label: 'Inteligência',   icon: TrendingUp },

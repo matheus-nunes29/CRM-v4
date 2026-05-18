@@ -93,6 +93,9 @@ export type Cliente = {
   links: Record<string, string>
   anotacoes: string
   logo_url: string | null
+  gestor_projetos: string | null
+  designer: string | null
+  analista_midia: string | null
   created_at: string
   updated_at: string
 }
@@ -120,6 +123,9 @@ export type Projeto = {
   data_fim: string | null
   escopo: string
   responsaveis: string[]
+  servico: string | null
+  etapa_atual: string | null
+  servicos_executar: { key: string; volume?: string }[] | null
   created_at: string
   updated_at: string
 }
@@ -135,6 +141,10 @@ export type HealthScoreEntry = {
   relacionamento: number
   score_total: number
   observacoes: string
+  trafego_checklist: boolean[] | null
+  entregas_checklist: boolean[] | null
+  qualidade_checklist: boolean[] | null
+  relacionamento_checklist: boolean[] | null
   created_by: string | null
   created_at: string
 }

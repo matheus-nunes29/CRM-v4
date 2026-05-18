@@ -1,12 +1,12 @@
 'use client'
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE } from '@/lib/crm-constants'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts'
 import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown,
@@ -14,6 +14,7 @@ import {
   Calendar, Package, Clock, Trash2, Globe, Info,
   Building2, Phone, Mail, ExternalLink,
 } from 'lucide-react'
+import { useUserRole } from '@/lib/useUserRole'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(v: number) { return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` }
@@ -63,10 +64,10 @@ const OPP_STAGES: { key: Oportunidade['etapa']; label: string; color: string; bg
 ]
 
 // ── Inline editable field ─────────────────────────────────────────────────────
-function EditableField({ label, value, onSave, multiline = false }: { label: string; value: string; onSave: (v: string) => void; multiline?: boolean }) {
+function EditableField({ label, value, onSave, multiline = false }: { label: string; value: string; onSave?: (v: string) => void; multiline?: boolean }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
-  const commit = () => { onSave(draft); setEditing(false) }
+  const commit = () => { onSave!(draft); setEditing(false) }
   const cancel = () => { setDraft(value); setEditing(false) }
 
   return (
@@ -82,13 +83,45 @@ function EditableField({ label, value, onSave, multiline = false }: { label: str
           <button onClick={cancel} style={{ padding: '7px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={13} color={GRAY3} /></button>
         </div>
       ) : (
-        <div onClick={() => { setDraft(value); setEditing(true) }}
-          style={{ fontSize: 13, color: value ? GRAY1 : GRAY3, cursor: 'text', padding: '7px 0', borderBottom: `1px dashed ${GRAY5}`, minHeight: 30, display: 'flex', alignItems: 'center', gap: 6, transition: 'border-color .15s' }}
-          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = '#9CA3AF')}
-          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = GRAY5)}
+        <div
+          onClick={onSave ? () => { setDraft(value); setEditing(true) } : undefined}
+          style={{ fontSize: 13, color: value ? GRAY1 : GRAY3, cursor: onSave ? 'text' : 'default', padding: '7px 0', borderBottom: `1px ${onSave ? 'dashed' : 'solid'} ${GRAY5}`, minHeight: 30, display: 'flex', alignItems: 'center', gap: 6, transition: 'border-color .15s' }}
+          onMouseEnter={onSave ? e => ((e.currentTarget as HTMLElement).style.borderColor = '#9CA3AF') : undefined}
+          onMouseLeave={onSave ? e => ((e.currentTarget as HTMLElement).style.borderColor = GRAY5) : undefined}
         >
-          {value || <span style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic' }}>Clique para editar...</span>}
-          <Edit2 size={11} color={GRAY3} style={{ flexShrink: 0, marginLeft: 'auto' }} />
+          {value || <span style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic' }}>{onSave ? 'Clique para editar...' : '—'}</span>}
+          {onSave && <Edit2 size={11} color={GRAY3} style={{ flexShrink: 0, marginLeft: 'auto' }} />}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Role select ──────────────────────────────────────────────────────────────
+function RoleSelect({ label, value, papel, usuarios, onSave, canEdit }: {
+  label: string
+  value: string | null
+  papel: string
+  usuarios: { nome: string; papel: string }[]
+  onSave?: (v: string | null) => void
+  canEdit: boolean
+}) {
+  const options = usuarios.filter(u => u.papel === papel)
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: GRAY3, fontWeight: 600, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
+      {canEdit ? (
+        <select
+          value={value ?? ''}
+          onChange={e => onSave?.(e.target.value || null)}
+          style={{ width: '100%', padding: '8px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: value ? GRAY1 : GRAY3, fontSize: 13, outline: 'none', cursor: 'pointer' }}
+        >
+          <option value="">— Não definido —</option>
+          {options.map(u => <option key={u.nome} value={u.nome}>{u.nome}</option>)}
+        </select>
+      ) : (
+        <div style={{ fontSize: 13, color: value ? GRAY1 : GRAY3, padding: '7px 0', borderBottom: `1px solid ${GRAY5}`, minHeight: 30 }}>
+          {value || <span style={{ fontStyle: 'italic', color: GRAY3 }}>—</span>}
         </div>
       )}
     </div>
@@ -128,7 +161,7 @@ function SectionTitle({ icon: Icon, label }: { icon: React.ComponentType<any>; l
 }
 
 // ── Status pill ───────────────────────────────────────────────────────────────
-function StatusPill({ status, onChange }: { status: Cliente['status']; onChange: (s: Cliente['status']) => void }) {
+function StatusPill({ status, onChange }: { status: Cliente['status']; onChange?: (s: Cliente['status']) => void }) {
   const [open, setOpen] = useState(false)
   const map = {
     ativo:   { color: '#065F46', bg: '#D1FAE5', border: '#A7F3D0', label: 'Ativo' },
@@ -138,10 +171,10 @@ function StatusPill({ status, onChange }: { status: Cliente['status']; onChange:
   const s = map[status]
   return (
     <div style={{ position: 'relative', display: 'inline-block' }}>
-      <button onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 5, border: `1px solid ${s.border}`, background: s.bg, color: s.color, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em' }}>
-        {s.label.toUpperCase()} <ChevronDown size={10} />
+      <button onClick={() => onChange && setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 5, border: `1px solid ${s.border}`, background: s.bg, color: s.color, fontSize: 11, fontWeight: 700, cursor: onChange ? 'pointer' : 'default', letterSpacing: '0.04em' }}>
+        {s.label.toUpperCase()} {onChange && <ChevronDown size={10} />}
       </button>
-      {open && (
+      {open && onChange && (
         <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 9, padding: 4, zIndex: 50, minWidth: 120, boxShadow: '0 8px 24px rgba(0,0,0,.12)' }}>
           {(['ativo', 'pausado', 'churned'] as const).map(k => (
             <button key={k} onClick={() => { onChange(k); setOpen(false) }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', borderRadius: 5, border: 'none', background: k === status ? map[k].bg : 'transparent', color: map[k].color, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
@@ -161,8 +194,10 @@ export default function ClienteCockpitPage() {
   const router   = useRouter()
   const params   = useParams()
   const clienteId = params.id as string
+  const { canEditCockpit } = useUserRole()
+  const searchParams = useSearchParams()
 
-  const [tab, setTab]                 = useState('visao-geral')
+  const [tab, setTab]                 = useState(() => searchParams.get('tab') ?? 'visao-geral')
   const [cliente, setCliente]         = useState<Cliente | null>(null)
   const [contatos, setContatos]       = useState<Contato[]>([])
   const [projetos, setProjetos]       = useState<Projeto[]>([])
@@ -238,7 +273,7 @@ export default function ClienteCockpitPage() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: GRAY1, letterSpacing: '-0.01em' }}>{cliente.empresa}</h1>
-              <StatusPill status={cliente.status} onChange={s => saveCliente({ status: s })} />
+              <StatusPill status={cliente.status} onChange={canEditCockpit ? s => saveCliente({ status: s }) : undefined} />
             </div>
             {cliente.segmento && <div style={{ fontSize: 12, color: GRAY3, marginTop: 3 }}>{cliente.segmento}</div>}
           </div>
@@ -276,12 +311,12 @@ export default function ClienteCockpitPage() {
 
       {/* ── Tab content ── */}
       <div>
-        {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteId} />}
-        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteId} onReload={loadAll} />}
-        {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} clienteId={clienteId} onReload={loadAll} />}
-        {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteId} onReload={loadAll} />}
-        {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteId} onReload={loadAll} />}
-        {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteId} onReload={loadAll} />}
+        {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteId} canEdit={canEditCockpit} />}
+        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteId} onReload={loadAll} canEdit={canEditCockpit} />}
       </div>
     </CRMLayout>
   )
@@ -290,15 +325,23 @@ export default function ClienteCockpitPage() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: VISÃO GERAL
 // ══════════════════════════════════════════════════════════════════════════════
-function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReload, clienteId }: {
+function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReload, clienteId, canEdit }: {
   cliente: Cliente; contatos: Contato[]; projetos: Projeto[]; lt: string
-  onSaveCliente: (f: Partial<Cliente>) => void; onReload: () => void; clienteId: string
+  onSaveCliente: (f: Partial<Cliente>) => void; onReload: () => void; clienteId: string; canEdit: boolean
 }) {
   const [newStack, setNewStack]       = useState('')
   const [newLink, setNewLink]         = useState({ label: '', url: '' })
   const [showAddContact, setShowAdd]  = useState(false)
   const [newContact, setNewC]         = useState({ nome: '', cargo: '', email: '', telefone: '', is_primary: false })
   const [saving, setSaving]           = useState(false)
+  const [usuarios, setUsuarios]       = useState<{ nome: string; papel: string }[]>([])
+
+  useEffect(() => {
+    supabase.from('usuarios_permitidos').select('nome, papel')
+      .in('papel', ['gestor_projetos', 'designer', 'analista_midia', 'admin'])
+      .order('nome')
+      .then(({ data }) => setUsuarios(data || []))
+  }, [])
 
   async function addStack() {
     if (!newStack.trim()) return
@@ -331,9 +374,9 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
       <div style={{ ...card, padding: 22 }}>
         <SectionTitle icon={Building2} label="Dados Gerais" />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <EditableField label="Empresa" value={cliente.empresa} onSave={v => onSaveCliente({ empresa: v })} />
-          <EditableField label="Segmento" value={cliente.segmento || ''} onSave={v => onSaveCliente({ segmento: v || null })} />
-          <EditableField label="Anotações" value={cliente.anotacoes || ''} onSave={v => onSaveCliente({ anotacoes: v })} multiline />
+          <EditableField label="Empresa" value={cliente.empresa} onSave={canEdit ? v => onSaveCliente({ empresa: v }) : undefined} />
+          <EditableField label="Segmento" value={cliente.segmento || ''} onSave={canEdit ? v => onSaveCliente({ segmento: v || null }) : undefined} />
+          <EditableField label="Anotações" value={cliente.anotacoes || ''} onSave={canEdit ? v => onSaveCliente({ anotacoes: v }) : undefined} multiline />
           <div style={{ display: 'flex', gap: 28, paddingTop: 8, borderTop: `1px solid ${GRAY5}` }}>
             <div>
               <div style={{ fontSize: 11, color: GRAY3, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Lifetime</div>
@@ -347,6 +390,16 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
         </div>
       </div>
 
+      {/* Equipe interna */}
+      <div style={{ ...card, padding: 22 }}>
+        <SectionTitle icon={Users} label="Equipe" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <RoleSelect label="Gestor de Projetos" value={cliente.gestor_projetos} papel="gestor_projetos" usuarios={usuarios} canEdit={canEdit} onSave={v => onSaveCliente({ gestor_projetos: v })} />
+          <RoleSelect label="Designer"           value={cliente.designer}        papel="designer"        usuarios={usuarios} canEdit={canEdit} onSave={v => onSaveCliente({ designer: v })} />
+          <RoleSelect label="Analista de Mídia"  value={cliente.analista_midia}  papel="analista_midia"  usuarios={usuarios} canEdit={canEdit} onSave={v => onSaveCliente({ analista_midia: v })} />
+        </div>
+      </div>
+
       {/* Contatos */}
       <div style={{ ...card, padding: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -356,9 +409,11 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
             </div>
             <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>Contatos</span>
           </div>
-          <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-            <Plus size={11} /> Adicionar
-          </button>
+          {canEdit && (
+            <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              <Plus size={11} /> Adicionar
+            </button>
+          )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {contatos.length === 0 && <div style={{ fontSize: 13, color: GRAY3, textAlign: 'center', padding: '16px 0' }}>Nenhum contato cadastrado</div>}
@@ -380,10 +435,12 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
                   </div>
                 </div>
               </div>
-              <button onClick={() => deleteContato(c.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3 }}
-                onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                <Trash2 size={12} />
-              </button>
+              {canEdit && (
+                <button onClick={() => deleteContato(c.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3 }}
+                  onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                  <Trash2 size={12} />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -412,15 +469,19 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
           {(cliente.stack || []).map(s => (
             <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 20, fontSize: 12, fontWeight: 500, color: PURPLE }}>
               {s}
-              <button onClick={() => removeStack(s)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: PURPLE, padding: 0, display: 'flex' }}>
-                <X size={11} />
-              </button>
+              {canEdit && (
+                <button onClick={() => removeStack(s)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: PURPLE, padding: 0, display: 'flex' }}>
+                  <X size={11} />
+                </button>
+              )}
             </div>
           ))}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input value={newStack} onChange={e => setNewStack(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStack()} placeholder="Adicionar ferramenta..." style={{ padding: '5px 12px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 20, color: GRAY1, fontSize: 12, outline: 'none', width: 165 }} />
-            <button onClick={addStack} disabled={!newStack.trim()} style={{ padding: '5px 12px', borderRadius: 20, border: 'none', background: newStack.trim() ? PURPLE : GRAY5, color: newStack.trim() ? WHITE : GRAY3, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+</button>
-          </div>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={newStack} onChange={e => setNewStack(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStack()} placeholder="Adicionar ferramenta..." style={{ padding: '5px 12px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 20, color: GRAY1, fontSize: 12, outline: 'none', width: 165 }} />
+              <button onClick={addStack} disabled={!newStack.trim()} style={{ padding: '5px 12px', borderRadius: 20, border: 'none', background: newStack.trim() ? PURPLE : GRAY5, color: newStack.trim() ? WHITE : GRAY3, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -434,30 +495,87 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
               <span style={{ fontSize: 12, fontWeight: 600, color: GRAY2, minWidth: 80 }}>{label}</span>
               <a href={url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, fontSize: 12, color: BLUE, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>{url}</a>
               <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}><ExternalLink size={11} color={GRAY3} /></a>
-              <button onClick={() => removeLink(label)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex', padding: 2 }}
-                onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                <Trash2 size={11} />
-              </button>
+              {canEdit && (
+                <button onClick={() => removeLink(label)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex', padding: 2 }}
+                  onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                  <Trash2 size={11} />
+                </button>
+              )}
             </div>
           ))}
-          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-            <input value={newLink.label} onChange={e => setNewLink(p => ({ ...p, label: e.target.value }))} placeholder="Label (ex: Drive)" style={{ width: 110, padding: '7px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 12, outline: 'none' }} />
-            <input value={newLink.url} onChange={e => setNewLink(p => ({ ...p, url: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addLink()} placeholder="URL" style={{ flex: 1, padding: '7px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 12, outline: 'none' }} />
-            <button onClick={addLink} disabled={!newLink.label.trim() || !newLink.url.trim()} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: BLUE, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!newLink.label.trim() || !newLink.url.trim()) ? 0.4 : 1 }}>+</button>
-          </div>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              <input value={newLink.label} onChange={e => setNewLink(p => ({ ...p, label: e.target.value }))} placeholder="Label (ex: Drive)" style={{ width: 110, padding: '7px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 12, outline: 'none' }} />
+              <input value={newLink.url} onChange={e => setNewLink(p => ({ ...p, url: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addLink()} placeholder="URL" style={{ flex: 1, padding: '7px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 12, outline: 'none' }} />
+              <button onClick={addLink} disabled={!newLink.label.trim() || !newLink.url.trim()} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: BLUE, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!newLink.label.trim() || !newLink.url.trim()) ? 0.4 : 1 }}>+</button>
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
+// ── Catálogo de serviços por tipo ─────────────────────────────────────────────
+const CATALOGO: Record<Projeto['tipo'], { key: string; label: string; etapas: string[] }[]> = {
+  saber: [
+    {
+      key: 'diagnostico_planejamento',
+      label: 'Diagnóstico e Planejamento de Marketing e Vendas',
+      etapas: [
+        'Formulário de Kickoff',
+        'Assessment e Onboarding',
+        'Pesquisa de Mercado',
+        'Diagnóstico de Marketing',
+        'Diagnóstico de Vendas',
+        'Estratégias de Marketing',
+      ],
+    },
+  ],
+  ter: [],
+  executar: [],
+}
+
+// Serviços disponíveis para projetos Executar
+const SERVICOS_EXECUTAR: { key: string; label: string; temVolume: boolean }[] = [
+  { key: 'marketplace',         label: 'MarketPlace',             temVolume: true  },
+  { key: 'manutencao_crm',      label: 'Manutenção CRM',          temVolume: false },
+  { key: 'seo',                 label: 'SEO',                     temVolume: false },
+  { key: 'manutencao_lp',       label: 'Manutenção LP',           temVolume: false },
+  { key: 'manutencao_bi',       label: 'Manutenção BI',           temVolume: false },
+  { key: 'manutencao_site',     label: 'Manutenção Site',         temVolume: false },
+  { key: 'webdesign',           label: 'WebDesign',               temVolume: false },
+  { key: 'sales_enablement',    label: 'Sales Enablement',        temVolume: false },
+  { key: 'bi',                  label: 'BI',                      temVolume: false },
+  { key: 'social_media',        label: 'Social Media',            temVolume: true  },
+  { key: 'midia_paga',          label: 'Mídia Paga',              temVolume: true  },
+  { key: 'design_grafico',      label: 'Design Gráfico',          temVolume: true  },
+  { key: 'redacao_publicitaria',label: 'Redação Publicitária',    temVolume: true  },
+  { key: 'crm',                 label: 'CRM',                     temVolume: true  },
+]
+
+function getEtapas(tipo: Projeto['tipo'], servico: string | null): string[] {
+  if (!servico) return []
+  return CATALOGO[tipo]?.find(s => s.key === servico)?.etapas ?? []
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: PROJETOS
 // ══════════════════════════════════════════════════════════════════════════════
-function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; clienteId: string; onReload: () => void }) {
+function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
   const [showNew, setShowNew] = useState(false)
-  const [form, setForm] = useState({ nome: '', tipo: 'saber' as Projeto['tipo'], valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', data_inicio: '', data_fim: '', escopo: '' })
+  const [form, setForm] = useState({ nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', data_inicio: '', data_fim: '', escopo: '' })
+  const [servicosSel, setServicosSel] = useState<{ key: string; volume?: string }[]>([])
   const [saving, setSaving] = useState(false)
+
+  function toggleServico(key: string) {
+    setServicosSel(prev =>
+      prev.find(s => s.key === key) ? prev.filter(s => s.key !== key) : [...prev, { key }]
+    )
+  }
+  function setVolume(key: string, volume: string) {
+    setServicosSel(prev => prev.map(s => s.key === key ? { ...s, volume: volume || undefined } : s))
+  }
 
   const TIPO: Record<Projeto['tipo'], { color: string; bg: string; border: string; label: string }> = {
     saber:    { color: BLUE,   bg: '#EFF6FF', border: '#BFDBFE', label: 'Saber' },
@@ -472,9 +590,19 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
 
   async function save() {
     if (!form.nome.trim()) return; setSaving(true)
-    await supabase.from('projetos').insert({ ...form, valor: parseFloat(form.valor) || 0, cliente_id: clienteId, data_inicio: form.data_inicio || null, data_fim: form.data_fim || null })
+    const etapas = getEtapas(form.tipo, form.servico || null)
+    await supabase.from('projetos').insert({
+      nome: form.nome, tipo: form.tipo, valor_tipo: form.valor_tipo,
+      valor: parseFloat(form.valor) || 0, cliente_id: clienteId,
+      data_inicio: form.data_inicio || null, data_fim: form.data_fim || null,
+      escopo: form.escopo,
+      servico: form.servico || null,
+      etapa_atual: etapas[0] ?? null,
+      servicos_executar: form.tipo === 'executar' && servicosSel.length > 0 ? servicosSel : null,
+    })
     setShowNew(false)
-    setForm({ nome: '', tipo: 'saber', valor_tipo: 'mensalidade', valor: '', data_inicio: '', data_fim: '', escopo: '' })
+    setForm({ nome: '', tipo: 'saber', servico: '', valor_tipo: 'mensalidade', valor: '', data_inicio: '', data_fim: '', escopo: '' })
+    setServicosSel([])
     await onReload(); setSaving(false)
   }
   async function toggleStatus(p: Projeto) {
@@ -482,9 +610,13 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
     await supabase.from('projetos').update({ status: next }).eq('id', p.id); await onReload()
   }
   async function deleteProj(id: string) { await supabase.from('projetos').delete().eq('id', id); await onReload() }
+  async function setEtapa(id: string, etapa: string) {
+    await supabase.from('projetos').update({ etapa_atual: etapa }).eq('id', id); await onReload()
+  }
 
   const totalMRR     = projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
   const totalPontual = projetos.filter(p => p.valor_tipo === 'pontual' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
+  const servicosDoTipo = CATALOGO[form.tipo] ?? []
 
   return (
     <div>
@@ -503,31 +635,55 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
             </div>
           )}
         </div>
-        <button onClick={() => setShowNew(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
-          <Plus size={13} /> Novo Projeto
-        </button>
+        {canEdit && (
+          <button onClick={() => setShowNew(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
+            <Plus size={13} /> Novo Projeto
+          </button>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
         {projetos.map(p => {
           const t = TIPO[p.tipo], st = STATUS[p.status]
+          const etapas = getEtapas(p.tipo, p.servico)
+          const etapaIdx = etapas.indexOf(p.etapa_atual ?? '')
+          const servicoLabel = CATALOGO[p.tipo]?.find(s => s.key === p.servico)?.label
           return (
             <div key={p.id} style={{ ...card, overflow: 'hidden' }}>
               <div style={{ height: 3, background: `linear-gradient(90deg, ${t.color}, ${t.color}66)` }} />
               <div style={{ padding: '16px 18px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 5 }}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: t.color, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 5, padding: '2px 8px' }}>{t.label.toUpperCase()}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, border: `1px solid ${st.border}`, borderRadius: 5, padding: '2px 8px' }}>{st.label.toUpperCase()}</span>
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{p.nome}</div>
+                    {servicoLabel && <div style={{ fontSize: 11, color: GRAY2, marginTop: 3 }}>{servicoLabel}</div>}
+                    {p.tipo === 'executar' && p.servicos_executar && p.servicos_executar.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                        {p.servicos_executar.map(s => {
+                          const def = SERVICOS_EXECUTAR.find(x => x.key === s.key)
+                          if (!def) return null
+                          return (
+                            <span key={s.key} style={{ fontSize: 10, fontWeight: 600, color: '#065F46', background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 5, padding: '2px 7px', whiteSpace: 'nowrap' }}>
+                              {def.label}{s.volume ? ` · ${s.volume}/mês` : ''}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                  <button onClick={() => toggleStatus(p)} style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 10, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                    {p.status === 'ativo' ? 'Pausar' : p.status === 'pausado' ? 'Encerrar' : 'Reativar'}
-                  </button>
+                  {canEdit && (
+                    <button onClick={() => toggleStatus(p)} style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 10, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                      {p.status === 'ativo' ? 'Pausar' : p.status === 'pausado' ? 'Encerrar' : 'Reativar'}
+                    </button>
+                  )}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+
+                {/* Valor + data */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                   <div>
                     <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>VALOR</div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: t.color }}>
@@ -539,11 +695,58 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
                     <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} color={GRAY3} />{fmtDate(p.data_inicio)}</div>
                   </div>
                 </div>
-                {p.escopo && <div style={{ fontSize: 12, color: GRAY2, lineHeight: 1.55, padding: '10px 0', borderTop: `1px solid ${GRAY5}` }}>{p.escopo}</div>}
-                <button onClick={() => deleteProj(p.id)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', border: 'none', background: 'transparent', color: GRAY3, fontSize: 11, cursor: 'pointer' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                  <Trash2 size={11} /> Excluir projeto
-                </button>
+
+                {/* Kanban de etapas */}
+                {etapas.length > 0 && (
+                  <div style={{ paddingTop: 12, borderTop: `1px solid ${GRAY5}` }}>
+                    <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Etapa atual</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {etapas.map((etapa, idx) => {
+                        const isDone    = idx < etapaIdx
+                        const isCurrent = idx === etapaIdx
+                        const color     = isCurrent ? t.color : isDone ? '#10B981' : GRAY3
+                        const bg        = isCurrent ? `${t.color}12` : isDone ? '#F0FDF4' : GRAY4
+                        const border    = isCurrent ? `${t.color}40` : isDone ? '#BBF7D0' : GRAY5
+                        return (
+                          <button
+                            key={etapa}
+                            onClick={canEdit ? () => setEtapa(p.id, etapa) : undefined}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              padding: '7px 10px', borderRadius: 7,
+                              border: `1px solid ${border}`,
+                              background: bg, cursor: canEdit ? 'pointer' : 'default',
+                              textAlign: 'left', width: '100%',
+                              transition: 'all .15s',
+                            }}
+                            onMouseEnter={canEdit ? e => { if (!isCurrent) (e.currentTarget as HTMLElement).style.borderColor = t.color } : undefined}
+                            onMouseLeave={canEdit ? e => { (e.currentTarget as HTMLElement).style.borderColor = border } : undefined}
+                          >
+                            <div style={{
+                              width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                              background: isCurrent ? t.color : isDone ? '#10B981' : GRAY5,
+                              border: `2px solid ${isCurrent ? t.color : isDone ? '#10B981' : GRAY3}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              {isDone && <Check size={9} color={WHITE} strokeWidth={3} />}
+                              {isCurrent && <div style={{ width: 6, height: 6, borderRadius: '50%', background: WHITE }} />}
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: isCurrent ? 700 : 500, color }}>{etapa}</span>
+                            {isCurrent && <span style={{ marginLeft: 'auto', fontSize: 10, color: t.color, fontWeight: 700 }}>EM ANDAMENTO</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {p.escopo && <div style={{ fontSize: 12, color: GRAY2, lineHeight: 1.55, padding: '10px 0', borderTop: `1px solid ${GRAY5}`, marginTop: etapas.length > 0 ? 12 : 0 }}>{p.escopo}</div>}
+                {canEdit && (
+                  <button onClick={() => deleteProj(p.id)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', border: 'none', background: 'transparent', color: GRAY3, fontSize: 11, cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                    <Trash2 size={11} /> Excluir projeto
+                  </button>
+                )}
               </div>
             </div>
           )
@@ -557,7 +760,7 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
         </div>
       )}
 
-      {showNew && (
+      {showNew && canEdit && (
         <div style={{ ...card, padding: 22, marginTop: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1, marginBottom: 16 }}>Novo Projeto</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -567,10 +770,53 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
             </div>
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Tipo</label>
-              <select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value as Projeto['tipo'] }))} style={{ ...input14 }}>
+              <select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value as Projeto['tipo'], servico: '' }))} style={{ ...input14 }}>
                 <option value="saber">Saber</option><option value="ter">Ter</option><option value="executar">Executar</option>
               </select>
             </div>
+            {servicosDoTipo.length > 0 && (
+              <div>
+                <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Serviço</label>
+                <select value={form.servico} onChange={e => setForm(p => ({ ...p, servico: e.target.value }))} style={{ ...input14 }}>
+                  <option value="">Selecione um serviço...</option>
+                  {servicosDoTipo.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+              </div>
+            )}
+            {form.tipo === 'executar' && (
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 8, fontWeight: 600 }}>
+                  Serviços contratados {servicosSel.length > 0 && <span style={{ color: '#065F46', background: '#D1FAE5', padding: '1px 7px', borderRadius: 10, marginLeft: 6 }}>{servicosSel.length} selecionado{servicosSel.length !== 1 ? 's' : ''}</span>}
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  {SERVICOS_EXECUTAR.map(s => {
+                    const sel = servicosSel.find(x => x.key === s.key)
+                    const checked = !!sel
+                    return (
+                      <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${checked ? '#A7F3D0' : GRAY5}`, background: checked ? '#F0FDF4' : GRAY4, transition: 'all .15s' }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleServico(s.key)}
+                          style={{ width: 15, height: 15, accentColor: '#065F46', cursor: 'pointer', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: checked ? '#065F46' : GRAY1, fontWeight: checked ? 600 : 400, flex: 1 }}>
+                          {s.label}{s.temVolume && <span style={{ color: GRAY3 }}> *</span>}
+                        </span>
+                        {checked && s.temVolume && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
+                            <input
+                              type="text" placeholder="Volume"
+                              value={sel?.volume ?? ''}
+                              onChange={e => setVolume(s.key, e.target.value)}
+                              style={{ width: 80, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }}
+                            />
+                            <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>/mês</span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize: 10, color: GRAY3, marginTop: 6 }}>* Informe o volume contratado para os serviços marcados</div>
+              </div>
+            )}
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Cobrança</label>
               <select value={form.valor_tipo} onChange={e => setForm(p => ({ ...p, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ ...input14 }}>
@@ -607,33 +853,147 @@ function TabProjetos({ projetos, clienteId, onReload }: { projetos: Projeto[]; c
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: HEALTH SCORE
 // ══════════════════════════════════════════════════════════════════════════════
-function TabHealthScore({ entries, clienteId, onReload }: { entries: HealthScoreEntry[]; clienteId: string; onReload: () => void }) {
+// ── Health Score checklist definitions ────────────────────────────────────────
+const HS_TRAFEGO_ITEMS = [
+  'Growthpack atualizado: indicadores (metas, funil, verba) preenchidos e revisados?',
+  'Campanhas subiram corretamente: lançadas conforme o combinado na Sprint?',
+  'Campanhas pausadas corretamente: ações especiais e temporárias pausadas no prazo?',
+  'Verba de mídia controlada: gasto alinhado com o planejado, sem estouros?',
+  'Público e criativos corretos: segmentações e anúncios conferem com a estratégia?',
+  'UTMs mapeadas: campanhas têm rastreamento correto?',
+  'Otimização e acompanhamento: houve acompanhamento ativo com ajustes relevantes?',
+  'Regras de investimento: limites e parâmetros operacionais aplicados?',
+]
+const HS_ENTREGAS_ITEMS = [
+  'Backlog (tarefas do mês) projetado, visível e atualizado?',
+  'As entregas do mês foram concluídas dentro do SLA acordado?',
+  'Itens planejados na Sprint/Sprint Planning executados conforme combinado?',
+  'Solicitações do cliente feitas durante a semana atendidas no prazo?',
+  'Não houve reclamações do cliente quanto ao prazo ou atrasos recorrentes?',
+]
+const HS_QUALIDADE_ITEMS = [
+  'O CSAT mais recente está disponível e registrado?',
+  'Houve solicitações de refação por parte do cliente na última semana?',
+  'As refações foram ajustes mínimos (não estruturais)?',
+  'UCM e DCC utilizados nas entregas?',
+  'Coordenador validou se a entrega está aderente ao briefing e padrões?',
+  'Cliente demonstrou satisfação nas interações sobre entregas recentes?',
+]
+const HS_RELACIONAMENTO_ITEMS = [
+  'Houve reunião 1:1 ou contato direto do coordenador esta semana?',
+  'O cliente demonstrou engajamento, alinhamento e otimismo?',
+  'Não foram identificados sinais de insatisfação ou reclamações recorrentes?',
+  'O time percebe que o stakeholder principal entende o que é entregue?',
+  'Nenhuma demanda foi levada à ouvidoria ou liderança nesta semana?',
+]
+
+function calcWeightedScore(resultado: number, trafego: number, entregas: number, qualidade: number, relacionamento: number) {
+  return (resultado * 10 + trafego * 7 + entregas * 5 + qualidade * 5 + relacionamento * 3) / 30
+}
+function checklistScore(checks: boolean[]) {
+  if (!checks.length) return 0
+  return (checks.filter(Boolean).length / checks.length) * 10
+}
+
+function ChecklistSection({ title, weight, items, checks, onToggle, expanded, onToggleExpand, score }: {
+  title: string; weight: number; items: string[]; checks: boolean[]
+  onToggle: (i: number) => void; expanded: boolean; onToggleExpand: () => void; score: number
+}) {
+  const sc = healthColor(score)
+  const checked = checks.filter(Boolean).length
+  return (
+    <div style={{ border: `1px solid ${GRAY5}`, borderRadius: 10, overflow: 'hidden' }}>
+      <button onClick={onToggleExpand} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: GRAY4, border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>{title}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, background: GRAY5, padding: '2px 7px', borderRadius: 20 }}>Peso {weight} pts</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: GRAY3 }}>{checked}/{items.length}</span>
+          <span style={{ fontSize: 14, fontWeight: 800, color: sc, minWidth: 32, textAlign: 'right' }}>{score.toFixed(1)}</span>
+          <ChevronDown size={14} color={GRAY3} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }} />
+        </div>
+      </button>
+      {expanded && (
+        <div style={{ padding: '10px 16px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {items.map((item, i) => (
+            <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '5px 0' }}>
+              <input type="checkbox" checked={checks[i] ?? false} onChange={() => onToggle(i)}
+                style={{ marginTop: 2, accentColor: GREEN, width: 15, height: 15, flexShrink: 0, cursor: 'pointer' }} />
+              <span style={{ fontSize: 12, color: checks[i] ? GRAY2 : GRAY1, lineHeight: 1.4, textDecoration: checks[i] ? 'line-through' : 'none' }}>{item}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabHealthScore({ entries, metas, clienteId, onReload, canEdit }: { entries: HealthScoreEntry[]; metas: MetaSemanal[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
   const semanaAtual = startOfWeek()
   const jaTemSemana = entries.some(e => e.semana === semanaAtual)
-  const [form, setForm] = useState({ resultado: 5, trafego: 5, entregas_prazo: 5, qualidade_entregas: 5, relacionamento: 5, observacoes: '' })
-  const [saving, setSaving] = useState(false)
-  const [showForm, setShowForm] = useState(false)
 
-  const DIMS = [
-    { key: 'resultado'          as const, label: 'Resultado' },
-    { key: 'trafego'            as const, label: 'Tráfego' },
-    { key: 'entregas_prazo'     as const, label: 'Entregas no Prazo' },
-    { key: 'qualidade_entregas' as const, label: 'Qualidade das Entregas' },
-    { key: 'relacionamento'     as const, label: 'Relacionamento' },
-  ]
+  // Resultado calculado automaticamente a partir das metas da semana atual
+  const metasSemana = metas.filter(m => m.semana === semanaAtual && m.valor_meta && m.valor_realizado !== null)
+  const resultado = useMemo(() => {
+    if (!metasSemana.length) return 0
+    const avg = metasSemana.reduce((acc, m) => acc + (m.valor_realizado! / m.valor_meta!) * 100, 0) / metasSemana.length
+    return Math.min(10, parseFloat((avg / 10).toFixed(2)))
+  }, [metasSemana])
+
+  const initChecks = (n: number) => Array(n).fill(false)
+  const [trafegoChecks,      setTrafegoChecks]      = useState<boolean[]>(initChecks(HS_TRAFEGO_ITEMS.length))
+  const [entregasChecks,     setEntregasChecks]     = useState<boolean[]>(initChecks(HS_ENTREGAS_ITEMS.length))
+  const [qualidadeChecks,    setQualidadeChecks]    = useState<boolean[]>(initChecks(HS_QUALIDADE_ITEMS.length))
+  const [relacionChecks,     setRelacionChecks]     = useState<boolean[]>(initChecks(HS_RELACIONAMENTO_ITEMS.length))
+  const [observacoes,        setObservacoes]        = useState('')
+  const [saving,             setSaving]             = useState(false)
+  const [showForm,           setShowForm]           = useState(false)
+  const [expandedSection,    setExpandedSection]    = useState<string | null>('trafego')
+
+  const trafegoScore      = checklistScore(trafegoChecks)
+  const entregasScore     = checklistScore(entregasChecks)
+  const qualidadeScore    = checklistScore(qualidadeChecks)
+  const relacionScore     = checklistScore(relacionChecks)
+  const estScore          = calcWeightedScore(resultado, trafegoScore, entregasScore, qualidadeScore, relacionScore)
+
+  function toggleCheck(setter: React.Dispatch<React.SetStateAction<boolean[]>>, i: number) {
+    setter(prev => { const n = [...prev]; n[i] = !n[i]; return n })
+  }
 
   async function saveHealth() {
     setSaving(true)
-    await supabase.from('health_score_entries').upsert({ ...form, cliente_id: clienteId, semana: semanaAtual }, { onConflict: 'cliente_id,semana' })
+    const payload = {
+      cliente_id: clienteId,
+      semana: semanaAtual,
+      resultado,
+      trafego:            parseFloat(trafegoScore.toFixed(2)),
+      entregas_prazo:     parseFloat(entregasScore.toFixed(2)),
+      qualidade_entregas: parseFloat(qualidadeScore.toFixed(2)),
+      relacionamento:     parseFloat(relacionScore.toFixed(2)),
+      score_total:        parseFloat(estScore.toFixed(2)),
+      trafego_checklist:      trafegoChecks,
+      entregas_checklist:     entregasChecks,
+      qualidade_checklist:    qualidadeChecks,
+      relacionamento_checklist: relacionChecks,
+      observacoes,
+    }
+    await supabase.from('health_score_entries').upsert(payload, { onConflict: 'cliente_id,semana' })
     setShowForm(false); await onReload(); setSaving(false)
   }
 
   const latest    = entries[0]
   const score     = latest?.score_total ?? null
   const sc        = score !== null ? healthColor(score) : GRAY3
+  const DIMS = [
+    { key: 'resultado'          as const, label: 'Resultados' },
+    { key: 'trafego'            as const, label: 'Tráfego' },
+    { key: 'entregas_prazo'     as const, label: 'Entregas' },
+    { key: 'qualidade_entregas' as const, label: 'Qualidade' },
+    { key: 'relacionamento'     as const, label: 'Relacionamento' },
+  ]
   const radarData = DIMS.map(d => ({ subject: d.label.split(' ')[0], value: latest ? (latest as any)[d.key] : 0, fullMark: 10 }))
   const chartData = [...entries].reverse().slice(-12).map(e => ({ semana: e.semana.slice(5).replace('-', '/'), score: Number(e.score_total.toFixed(1)) }))
-  const estScore  = ((form.resultado + form.trafego + form.entregas_prazo + form.qualidade_entregas + form.relacionamento) / 5)
 
   return (
     <div>
@@ -676,7 +1036,6 @@ function TabHealthScore({ entries, clienteId, onReload }: { entries: HealthScore
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 220, color: GRAY3, fontSize: 13 }}>Registre pelo menos 2 semanas para ver a evolução</div>
           )}
-
           <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${GRAY5}` }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: GRAY3, letterSpacing: '0.07em', marginBottom: 10 }}>HISTÓRICO</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -699,30 +1058,111 @@ function TabHealthScore({ entries, clienteId, onReload }: { entries: HealthScore
       </div>
 
       {/* Registro semanal */}
-      <div style={{ ...card, padding: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showForm ? 20 : 0 }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>Registrar Health Score — Semana atual</div>
-            <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>{jaTemSemana ? 'Já registrado. Registrar novamente irá sobrescrever.' : `Semana de ${fmtDate(semanaAtual)}`}</div>
+      {canEdit && (
+        <div style={{ ...card, padding: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showForm ? 20 : 0 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>Registrar Health Score — Semana atual</div>
+              <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>{jaTemSemana ? 'Já registrado. Registrar novamente irá sobrescrever.' : `Semana de ${fmtDate(semanaAtual)}`}</div>
+            </div>
+            <button onClick={() => setShowForm(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: showForm ? GRAY4 : WHITE, color: GRAY1, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <Plus size={13} /> {showForm ? 'Fechar' : jaTemSemana ? 'Atualizar' : 'Registrar'}
+            </button>
           </div>
-          <button onClick={() => setShowForm(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: showForm ? GRAY4 : WHITE, color: GRAY1, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            <Plus size={13} /> {showForm ? 'Fechar' : jaTemSemana ? 'Atualizar' : 'Registrar'}
-          </button>
+
+          {showForm && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+              {/* Resultados — automático via metas */}
+              <div style={{ border: `1px solid ${GRAY5}`, borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: GRAY4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1, flex: 1 }}>Resultados</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, background: GRAY5, padding: '2px 7px', borderRadius: 20 }}>Peso 10 pts</span>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: metasSemana.length ? healthColor(resultado) : GRAY3, minWidth: 32, textAlign: 'right' }}>
+                    {metasSemana.length ? resultado.toFixed(1) : '—'}
+                  </span>
+                </div>
+                <div style={{ padding: '14px 16px' }}>
+                  {metasSemana.length === 0 ? (
+                    <div style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic' }}>
+                      Nenhuma meta com resultado registrado para esta semana. Preencha os resultados na aba <strong>Metas</strong> para calcular automaticamente.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {metasSemana.map(m => {
+                        const pct = (m.valor_realizado! / m.valor_meta!) * 100
+                        const c   = pct >= 100 ? GREEN : pct >= 50 ? YELLOW : R
+                        return (
+                          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 12, color: GRAY2, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.descricao}</span>
+                            <div style={{ width: 80, height: 5, background: GRAY5, borderRadius: 3, flexShrink: 0 }}>
+                              <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: c, borderRadius: 3 }} />
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: c, width: 38, textAlign: 'right', flexShrink: 0 }}>{pct.toFixed(0)}%</span>
+                          </div>
+                        )
+                      })}
+                      <div style={{ fontSize: 11, color: GRAY3, marginTop: 4 }}>
+                        Média: {(metasSemana.reduce((a, m) => a + (m.valor_realizado! / m.valor_meta!) * 100, 0) / metasSemana.length).toFixed(1)}% → score {resultado.toFixed(1)}/10
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tráfego */}
+              <ChecklistSection
+                title="Operação Tráfego" weight={7}
+                items={HS_TRAFEGO_ITEMS} checks={trafegoChecks}
+                onToggle={i => toggleCheck(setTrafegoChecks, i)}
+                expanded={expandedSection === 'trafego'} onToggleExpand={() => setExpandedSection(p => p === 'trafego' ? null : 'trafego')}
+                score={trafegoScore} />
+
+              {/* Entregas no Prazo */}
+              <ChecklistSection
+                title="Entregas no Prazo" weight={5}
+                items={HS_ENTREGAS_ITEMS} checks={entregasChecks}
+                onToggle={i => toggleCheck(setEntregasChecks, i)}
+                expanded={expandedSection === 'entregas'} onToggleExpand={() => setExpandedSection(p => p === 'entregas' ? null : 'entregas')}
+                score={entregasScore} />
+
+              {/* Qualidade */}
+              <ChecklistSection
+                title="Qualidade das Entregas" weight={5}
+                items={HS_QUALIDADE_ITEMS} checks={qualidadeChecks}
+                onToggle={i => toggleCheck(setQualidadeChecks, i)}
+                expanded={expandedSection === 'qualidade'} onToggleExpand={() => setExpandedSection(p => p === 'qualidade' ? null : 'qualidade')}
+                score={qualidadeScore} />
+
+              {/* Relacionamento */}
+              <ChecklistSection
+                title="Relacionamento com o Cliente" weight={3}
+                items={HS_RELACIONAMENTO_ITEMS} checks={relacionChecks}
+                onToggle={i => toggleCheck(setRelacionChecks, i)}
+                expanded={expandedSection === 'relacionamento'} onToggleExpand={() => setExpandedSection(p => p === 'relacionamento' ? null : 'relacionamento')}
+                score={relacionScore} />
+
+              {/* Score preview */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: GRAY4, borderRadius: 10, border: `1px solid ${GRAY5}` }}>
+                <div>
+                  <div style={{ fontSize: 13, color: GRAY2, fontWeight: 600 }}>Score total estimado</div>
+                  <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>
+                    Resultados×10 + Tráfego×7 + Entregas×5 + Qualidade×5 + Relacionamento×3 ÷ 30
+                  </div>
+                </div>
+                <span style={{ fontSize: 32, fontWeight: 900, color: healthColor(estScore) }}>{estScore.toFixed(1)}</span>
+              </div>
+
+              <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)}
+                placeholder="Observações da semana (opcional)..." rows={2}
+                style={{ ...input14, resize: 'none', fontFamily: 'inherit' }} />
+              <button onClick={saveHealth} disabled={saving} style={btnPrimary(saving)}>
+                {saving ? 'Salvando...' : 'Salvar Registro'}
+              </button>
+            </div>
+          )}
         </div>
-        {showForm && (
-          <div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-              {DIMS.map(d => <ScoreBar key={d.key} label={d.label} value={form[d.key]} onChange={v => setForm(p => ({ ...p, [d.key]: v }))} />)}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: GRAY4, borderRadius: 9, marginBottom: 12 }}>
-              <span style={{ fontSize: 13, color: GRAY2, fontWeight: 500 }}>Score total estimado</span>
-              <span style={{ fontSize: 26, fontWeight: 900, color: healthColor(estScore) }}>{estScore.toFixed(1)}</span>
-            </div>
-            <textarea value={form.observacoes} onChange={e => setForm(p => ({ ...p, observacoes: e.target.value }))} placeholder="Observações da semana (opcional)..." rows={2} style={{ ...input14, resize: 'none', fontFamily: 'inherit', marginBottom: 12 }} />
-            <button onClick={saveHealth} disabled={saving} style={btnPrimary(saving)}>{saving ? 'Salvando...' : 'Salvar Registro'}</button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }
@@ -730,7 +1170,7 @@ function TabHealthScore({ entries, clienteId, onReload }: { entries: HealthScore
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: METAS SEMANAIS
 // ══════════════════════════════════════════════════════════════════════════════
-function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal[]; projetos: Projeto[]; clienteId: string; onReload: () => void }) {
+function TabMetas({ metas, projetos, clienteId, onReload, canEdit }: { metas: MetaSemanal[]; projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
   const semanaAtual = startOfWeek()
   const [selectedWeek, setWeek] = useState(semanaAtual)
   const [showNew, setShowNew]   = useState(false)
@@ -744,6 +1184,21 @@ function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal
 
   const metasSemana = metas.filter(m => m.semana === selectedWeek)
 
+  const STATUS_MAP: Record<MetaSemanal['status'], { label: string; color: string; bg: string; border: string }> = {
+    pendente:      { label: 'Pendente',      color: GRAY2,     bg: GRAY4,     border: GRAY5 },
+    atingida:      { label: 'Atingida',      color: '#065F46', bg: '#D1FAE5', border: '#A7F3D0' },
+    parcial:       { label: 'Parcial',       color: '#92400E', bg: '#FEF3C7', border: '#FDE68A' },
+    nao_atingida:  { label: 'Não atingida',  color: '#991B1B', bg: '#FEE2E2', border: '#FECACA' },
+  }
+
+  function calcAutoStatus(realizado: number | null, meta: number | null): MetaSemanal['status'] {
+    if (realizado === null || realizado === undefined || meta === null || !meta) return 'pendente'
+    const pct = (realizado / meta) * 100
+    if (pct >= 100) return 'atingida'
+    if (pct >= 50)  return 'parcial'
+    return 'nao_atingida'
+  }
+
   async function addMeta() {
     if (!form.descricao.trim()) return; setSaving(true)
     await supabase.from('metas_semanais').insert({ cliente_id: clienteId, semana: selectedWeek, descricao: form.descricao, valor_meta: form.valor_meta ? parseFloat(form.valor_meta) : null, unidade: form.unidade, projeto_id: form.projeto_id || null })
@@ -752,25 +1207,68 @@ function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal
   async function updateMeta(id: string, fields: Partial<MetaSemanal>) { await supabase.from('metas_semanais').update(fields).eq('id', id); await onReload() }
   async function deleteMeta(id: string) { await supabase.from('metas_semanais').delete().eq('id', id); await onReload() }
 
-  const STATUS_MAP: Record<MetaSemanal['status'], { label: string; color: string; bg: string; border: string }> = {
-    pendente:      { label: 'Pendente',      color: GRAY2,     bg: GRAY4,     border: GRAY5 },
-    atingida:      { label: 'Atingida',      color: '#065F46', bg: '#D1FAE5', border: '#A7F3D0' },
-    parcial:       { label: 'Parcial',       color: '#92400E', bg: '#FEF3C7', border: '#FDE68A' },
-    nao_atingida:  { label: 'Não atingida',  color: '#991B1B', bg: '#FEE2E2', border: '#FECACA' },
-  }
+  // Chart: one line per meta name (% alcance semana a semana)
+  const LINE_COLORS = [BLUE, GREEN, PURPLE, '#F97316', '#06B6D4', '#8B5CF6', R, YELLOW]
+  const metaNames = useMemo(() => {
+    const names = metas.filter(m => m.valor_meta && m.valor_realizado !== null).map(m => m.descricao)
+    return Array.from(new Set(names)).slice(0, 8)
+  }, [metas])
+
+  const chartData = useMemo(() => {
+    const todasSemanas = Array.from(new Set(metas.map(m => m.semana))).sort()
+    return todasSemanas.map(s => {
+      const row: Record<string, any> = { semana: s.slice(5).replace('-', '/') }
+      metaNames.forEach(name => {
+        const m = metas.find(x => x.semana === s && x.descricao === name && x.valor_meta && x.valor_realizado !== null)
+        if (m) row[name] = parseFloat(((m.valor_realizado! / m.valor_meta!) * 100).toFixed(1))
+      })
+      return row
+    }).filter(r => metaNames.some(n => r[n] !== undefined))
+  }, [metas, metaNames])
 
   return (
     <div>
+      {/* Gráfico de evolução por meta */}
+      {metaNames.length > 0 && (
+        <div style={{ ...card, padding: 22, marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 4 }}>Evolução por meta — % de alcance semanal</div>
+          <div style={{ fontSize: 11, color: GRAY3, marginBottom: 16 }}>Linha de 100% = meta atingida</div>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+              <CartesianGrid stroke={GRAY5} strokeDasharray="3 3" />
+              <XAxis dataKey="semana" tick={{ fontSize: 10, fill: GRAY3 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 'auto']} unit="%" tick={{ fontSize: 10, fill: GRAY3 }} axisLine={false} tickLine={false} />
+              {/* linha de referência 100% */}
+              <CartesianGrid horizontal={false} stroke="transparent" />
+              <Tooltip
+                formatter={(v: any, name: string) => [`${v}%`, name]}
+                contentStyle={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.1)' }}
+                labelStyle={{ color: GRAY2 }} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
+              {metaNames.map((name, i) => (
+                <Line key={name} type="monotone" dataKey={name} stroke={LINE_COLORS[i % LINE_COLORS.length]}
+                  strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} connectNulls={false} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+          {/* linha 100% visual hint */}
+          <div style={{ fontSize: 10, color: GRAY3, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 20, height: 1, borderTop: `2px dashed ${GRAY3}` }} />
+            100% = meta atingida · ≥50% = parcial · &lt;50% = não atingida
+          </div>
+        </div>
+      )}
+
       {/* Week selector */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {semanas.slice(0, 8).map(s => (
+        {semanas.slice(0, 10).map(s => (
           <button key={s} onClick={() => setWeek(s)} style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${selectedWeek === s ? R : GRAY5}`, background: selectedWeek === s ? R : WHITE, color: selectedWeek === s ? WHITE : GRAY2, fontSize: 12, fontWeight: selectedWeek === s ? 700 : 400, cursor: 'pointer', transition: 'all .15s' }}>
             {s === semanaAtual ? 'Esta semana' : fmtDate(s)}
           </button>
         ))}
       </div>
 
-      {/* Metas */}
+      {/* Metas da semana selecionada */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
         {metasSemana.length === 0 && !showNew && (
           <div style={{ ...card, padding: '40px 0', textAlign: 'center' }}>
@@ -796,19 +1294,29 @@ function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <select value={m.status} onChange={e => updateMeta(m.id, { status: e.target.value as MetaSemanal['status'] })} style={{ padding: '5px 9px', background: st.bg, border: `1px solid ${st.border}`, borderRadius: 6, color: st.color, fontSize: 11, fontWeight: 700, outline: 'none', cursor: 'pointer' }}>
-                    {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                  <button onClick={() => deleteMeta(m.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
-                    onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                    <Trash2 size={13} />
-                  </button>
+                  <span style={{ padding: '5px 9px', background: st.bg, border: `1px solid ${st.border}`, borderRadius: 6, color: st.color, fontSize: 11, fontWeight: 700 }}>{st.label}</span>
+                  {canEdit && (
+                    <button onClick={() => deleteMeta(m.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
               </div>
-              {m.status !== 'pendente' && m.valor_meta && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <input type="number" value={m.valor_realizado ?? ''} onChange={e => updateMeta(m.id, { valor_realizado: e.target.value ? parseFloat(e.target.value) : null })} placeholder="Realizado" style={{ width: 110, padding: '6px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 6, color: GRAY1, fontSize: 12, outline: 'none' }} />
-                  <span style={{ fontSize: 12, color: GRAY3, alignSelf: 'center' }}>{m.unidade}</span>
+              {canEdit && m.valor_meta && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    value={m.valor_realizado ?? ''}
+                    onChange={e => {
+                      const realizado = e.target.value ? parseFloat(e.target.value) : null
+                      const status = calcAutoStatus(realizado, m.valor_meta)
+                      updateMeta(m.id, { valor_realizado: realizado, status })
+                    }}
+                    placeholder="Resultado realizado"
+                    style={{ width: 150, padding: '6px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 6, color: GRAY1, fontSize: 12, outline: 'none' }} />
+                  <span style={{ fontSize: 12, color: GRAY3 }}>{m.unidade}</span>
+                  <span style={{ fontSize: 11, color: GRAY3 }}>de {m.valor_meta} {m.unidade}</span>
                 </div>
               )}
             </div>
@@ -816,11 +1324,13 @@ function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal
         })}
       </div>
 
-      <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid ${GRAY5}`, background: showNew ? GRAY4 : WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-        <Plus size={13} /> Adicionar meta
-      </button>
+      {canEdit && (
+        <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid ${GRAY5}`, background: showNew ? GRAY4 : WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <Plus size={13} /> Adicionar meta
+        </button>
+      )}
 
-      {showNew && (
+      {showNew && canEdit && (
         <div style={{ ...card, padding: 18, marginTop: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, marginBottom: 10 }}>
             <input value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição da meta *" style={{ ...input14 }} />
@@ -846,7 +1356,7 @@ function TabMetas({ metas, projetos, clienteId, onReload }: { metas: MetaSemanal
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: OPORTUNIDADES (Kanban)
 // ══════════════════════════════════════════════════════════════════════════════
-function TabOportunidades({ oportunidades, clienteId, onReload }: { oportunidades: Oportunidade[]; clienteId: string; onReload: () => void }) {
+function TabOportunidades({ oportunidades, clienteId, onReload, canEdit }: { oportunidades: Oportunidade[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
   const [showNew, setShowNew] = useState(false)
   const [form, setForm]       = useState({ titulo: '', descricao: '', etapa: 'identificada' as Oportunidade['etapa'], valor_estimado: '', data_estimada: '' })
   const [saving, setSaving]   = useState(false)
@@ -870,14 +1380,16 @@ function TabOportunidades({ oportunidades, clienteId, onReload }: { oportunidade
             <span style={{ fontSize: 15, fontWeight: 800, color: '#92400E' }}>{fmt(totalPipeline)}</span>
           </div>
         )}
-        <div style={{ marginLeft: 'auto' }}>
-          <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
-            <Plus size={13} /> Nova Oportunidade
-          </button>
-        </div>
+        {canEdit && (
+          <div style={{ marginLeft: 'auto' }}>
+            <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
+              <Plus size={13} /> Nova Oportunidade
+            </button>
+          </div>
+        )}
       </div>
 
-      {showNew && (
+      {showNew && canEdit && (
         <div style={{ ...card, padding: 20, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
             <div style={{ gridColumn: '1/-1' }}>
@@ -916,12 +1428,14 @@ function TabOportunidades({ oportunidades, clienteId, onReload }: { oportunidade
                     <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, marginBottom: o.valor_estimado || o.data_estimada ? 6 : 0 }}>{o.titulo}</div>
                     {o.valor_estimado ? <div style={{ fontSize: 13, fontWeight: 800, color: '#92400E', marginBottom: 4 }}>{fmt(o.valor_estimado)}</div> : null}
                     {o.data_estimada ? <div style={{ fontSize: 11, color: GRAY3, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 8 }}><Calendar size={10} />{fmtDate(o.data_estimada)}</div> : null}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {OPP_STAGES.filter(s => s.key !== stage.key).map(s => (
-                        <button key={s.key} onClick={() => moveOpp(o.id, s.key)} style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${GRAY5}`, background: s.bg, color: s.color, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>→ {s.label}</button>
-                      ))}
-                      <button onClick={() => deleteOpp(o.id)} style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid #FECACA', background: '#FEF2F2', color: '#991B1B', fontSize: 10, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>✕</button>
-                    </div>
+                    {canEdit && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {OPP_STAGES.filter(s => s.key !== stage.key).map(s => (
+                          <button key={s.key} onClick={() => moveOpp(o.id, s.key)} style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${GRAY5}`, background: s.bg, color: s.color, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>→ {s.label}</button>
+                        ))}
+                        <button onClick={() => deleteOpp(o.id)} style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid #FECACA', background: '#FEF2F2', color: '#991B1B', fontSize: 10, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>✕</button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -936,7 +1450,7 @@ function TabOportunidades({ oportunidades, clienteId, onReload }: { oportunidade
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: FCA
 // ══════════════════════════════════════════════════════════════════════════════
-function TabFCA({ entries, clienteId, onReload }: { entries: FcaEntry[]; clienteId: string; onReload: () => void }) {
+function TabFCA({ entries, clienteId, onReload, canEdit }: { entries: FcaEntry[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
   const [showNew, setShowNew] = useState(false)
   const [form, setForm]       = useState({ data: new Date().toISOString().split('T')[0], fato: '', causa: '', acao: '' })
   const [saving, setSaving]   = useState(false)
@@ -957,12 +1471,14 @@ function TabFCA({ entries, clienteId, onReload }: { entries: FcaEntry[]; cliente
           <div style={{ fontSize: 16, fontWeight: 700, color: GRAY1 }}>Registro de FCA</div>
           <div style={{ fontSize: 13, color: GRAY3, marginTop: 2 }}>Fato · Causa · Ação — documentação de momentos críticos</div>
         </div>
-        <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid #FECACA`, background: showNew ? '#FEE2E2' : '#FEF2F2', color: '#991B1B', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          <AlertTriangle size={13} /> Registrar FCA
-        </button>
+        {canEdit && (
+          <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid #FECACA`, background: showNew ? '#FEE2E2' : '#FEF2F2', color: '#991B1B', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <AlertTriangle size={13} /> Registrar FCA
+          </button>
+        )}
       </div>
 
-      {showNew && (
+      {showNew && canEdit && (
         <div style={{ background: WHITE, border: `1px solid #FECACA`, borderRadius: 12, padding: 22, marginBottom: 24, boxShadow: '0 1px 4px rgba(232,0,28,.08)' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: R, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 7 }}>
             <AlertTriangle size={16} /> Novo Registro FCA
@@ -1008,10 +1524,12 @@ function TabFCA({ entries, clienteId, onReload }: { entries: FcaEntry[]; cliente
               <div style={{ ...card, flex: 1, padding: '14px 18px', marginBottom: i < entries.length - 1 ? 16 : 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <span style={{ fontSize: 12, color: GRAY3, fontWeight: 500 }}>{fmtDate(e.data)}</span>
-                  <button onClick={() => deleteEntry(e.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
-                    onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
-                    <Trash2 size={13} />
-                  </button>
+                  {canEdit && (
+                    <button onClick={() => deleteEntry(e.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                      onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
                 {[
                   { label: 'FATO',  value: e.fato,  color: R },

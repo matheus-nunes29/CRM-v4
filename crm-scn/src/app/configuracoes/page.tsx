@@ -15,7 +15,7 @@ import { toast } from '@/lib/toast'
 
 const ADMIN_EMAIL = 'matheus.nunes@v4company.com'
 
-const PAPEIS: Papel[] = ['admin', 'sdr', 'closer', 'viewer']
+const PAPEIS: Papel[] = ['admin', 'sdr', 'closer', 'viewer', 'financeiro', 'designer', 'analista_midia', 'gestor_projetos', 'coordenador_peg']
 
 export default function ConfiguracoesPageRoute() {
   const router = useRouter()
@@ -164,7 +164,7 @@ function UsuariosCard({ currentEmail }: { currentEmail?: string }) {
                 <input style={inputCls} placeholder="email@v4company.com" value={email} onChange={e => { setEmail(e.target.value); setError('') }} />
               </div>
               <div>
-                <label style={labelCls}>Papel</label>
+                <label style={labelCls}>Função</label>
                 <select style={inputCls} value={papel} onChange={e => setPapel(e.target.value as Papel)}>
                   {PAPEIS.map(p => <option key={p} value={p}>{PAPEL_LABELS[p]}</option>)}
                 </select>
@@ -188,7 +188,7 @@ function UsuariosCard({ currentEmail }: { currentEmail?: string }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: GRAY4 }}>
-                  {['Nome', 'Email', 'Papel', 'Último Login', 'Status', ...(isAdmin ? ['Ações'] : [])].map(h => (
+                  {['Nome', 'Email', 'Função', 'Último Login', 'Status', ...(isAdmin ? ['Ações'] : [])].map(h => (
                     <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 11, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</th>
                   ))}
                 </tr>

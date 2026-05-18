@@ -10,6 +10,7 @@ import { GRAY1, GRAY2, GRAY3, R } from '@/lib/crm-constants'
 const VIEW_MAP: Record<string, string> = {
   '/': 'dashboard', '/leads': 'leads', '/pipeline': 'pipeline',
   '/cockpit': 'cockpit',
+  '/expansao': 'expansao',
   '/metas': 'metas', '/acompanhamento': 'acompanhamento',
   '/inteligencia': 'inteligencia', '/configuracoes': 'configuracoes',
   '/calculadoras/executar': 'calculadoras/executar',
@@ -19,6 +20,7 @@ const VIEW_MAP: Record<string, string> = {
 const VIEW_LABELS: Record<string, string> = {
   dashboard: 'Dashboard', leads: 'Leads', pipeline: 'Pipeline',
   cockpit: 'Cockpit de Clientes',
+  expansao: 'Pipeline de Expansão',
   metas: 'Metas', acompanhamento: 'Acompanhamento',
   inteligencia: 'Inteligência Comercial', configuracoes: 'Configurações',
   'calculadoras/executar': 'Calculadora Executar',
@@ -29,7 +31,7 @@ const VIEW_LABELS: Record<string, string> = {
 export default function CRMLayout({ children, title, subtitle }: { children: ReactNode; title?: string; subtitle?: string }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const view     = VIEW_MAP[pathname] || (pathname.startsWith('/cockpit') ? 'cockpit' : 'dashboard')
+  const view     = VIEW_MAP[pathname] || (pathname.startsWith('/cockpit') ? 'cockpit' : pathname.startsWith('/expansao') ? 'expansao' : 'dashboard')
   const [progress, setProgress] = useState(false)
   const [prevPath, setPrevPath] = useState(pathname)
 
