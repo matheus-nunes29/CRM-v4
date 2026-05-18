@@ -8,8 +8,8 @@ import { ConfirmModal } from '@/components/ConfirmModal'
 import { GRAY1, GRAY2, GRAY3, R } from '@/lib/crm-constants'
 
 const VIEW_MAP: Record<string, string> = {
-  '/inicio': 'inicio',
-  '/': 'dashboard', '/leads': 'leads', '/pipeline': 'pipeline',
+  '/': 'inicio',
+  '/dashboard': 'dashboard', '/leads': 'leads', '/pipeline': 'pipeline',
   '/cockpit': 'cockpit',
   '/expansao': 'expansao',
   '/metas': 'metas', '/acompanhamento': 'acompanhamento',
@@ -33,7 +33,7 @@ const VIEW_LABELS: Record<string, string> = {
 export default function CRMLayout({ children, title, subtitle }: { children: ReactNode; title?: string; subtitle?: string }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const view     = VIEW_MAP[pathname] || (pathname.startsWith('/cockpit') ? 'cockpit' : pathname.startsWith('/expansao') ? 'expansao' : 'dashboard')
+  const view     = VIEW_MAP[pathname] || (pathname.startsWith('/cockpit') ? 'cockpit' : pathname.startsWith('/expansao') ? 'expansao' : 'inicio')
   const [progress, setProgress] = useState(false)
   const [prevPath, setPrevPath] = useState(pathname)
 
@@ -70,7 +70,7 @@ export default function CRMLayout({ children, title, subtitle }: { children: Rea
     return () => window.removeEventListener('keydown', handler)
   }, [router])
 
-  const navigate = (v: string) => router.push(v === 'dashboard' ? '/' : `/${v}`)
+  const navigate = (v: string) => router.push(v === 'inicio' ? '/' : `/${v}`)
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
