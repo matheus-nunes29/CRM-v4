@@ -458,7 +458,7 @@ const initForm = {
   historico_proximos_passos: [], historico_anotacoes_pre_vendas: [], custo_broker: null,
   motivo_perda_pre_vendas: null, motivo_perda_closer: null,
   link_gravacao: '', link_plano_roi: '', link_contrato: '',
-  responsavel_bdr: 'Lucca Batirola',
+  responsavel_bdr: null, data_perdido: null,
 }
 
 const LOGGED_FIELDS: Record<string, string> = {
@@ -613,6 +613,11 @@ function LeadPageInner() {
       if (k === 'data_rr' && v) updated.situacao_pre_vendas = 'REUNIÃO REALIZADA'
       if (k === 'data_rr' && !v && updated.data_ra) updated.situacao_pre_vendas = 'REUNIÃO AGENDADA'
       if (k === 'faturamento') updated.tier = fatToTier(v)
+      const isPerdidoSituacao = k === 'situacao_pre_vendas' && (newVal === 'PERDIDO SDR' || newVal === 'REEMBOLSO')
+      const isPerdidoCloser   = k === 'situacao_closer'     && newVal === 'PERDIDO CLOSER'
+      if ((isPerdidoSituacao || isPerdidoCloser) && !f.data_perdido) {
+        updated.data_perdido = new Date().toISOString().slice(0, 10)
+      }
       if (logEntry) {
         const hist = Array.isArray(f.historico_anotacoes_pre_vendas) ? f.historico_anotacoes_pre_vendas : []
         updated.historico_anotacoes_pre_vendas = [logEntry, ...hist]
@@ -661,7 +666,7 @@ function LeadPageInner() {
     'data_assinatura', 'data_ativacao', 'data_fup', 'tcv', 'tcv_saber', 'tcv_ter', 'tcv_executar', 'tcv_executar_meses', 'venda', 'bant_budget', 'bant_authority',
     'bant_need', 'bant_timing', 'cadencia', 'urgencia', 'link_qualificacao', 'link_site', 'link_instagram',
     'link_biblioteca_anuncios', 'link_outros', 'link_transcricao', 'link_gravacao', 'link_plano_roi',
-    'custo_broker', 'motivo_perda_pre_vendas', 'motivo_perda_closer', 'contato_agendado', 'responsavel_bdr']
+    'custo_broker', 'motivo_perda_pre_vendas', 'motivo_perda_closer', 'contato_agendado', 'responsavel_bdr', 'data_perdido']
   const hasUnsavedChanges = !isNew && !saved && autoSaveStatus === 'idle' && TRACKABLE.some(k => form[k] !== initialForm[k])
 
   const diasNoFunil = form.data_entrada
@@ -1021,7 +1026,13 @@ function LeadPageInner() {
           {/* ── Timeline de datas ── */}
           {!isNew && (() => {
             const fmt = (d: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
-            const TIMELINE = [
+            const isPerdido = getPipelineStage(form) === 'PERDIDO'
+            const TIMELINE = isPerdido ? [
+              { label: 'Entrada', key: 'data_entrada'   },
+              { label: 'Reu. AG', key: 'data_ra'        },
+              { label: 'Reu. RR', key: 'data_rr'        },
+              { label: 'Perdido', key: 'data_perdido'   },
+            ] as const : [
               { label: 'Entrada',  key: 'data_entrada'   },
               { label: 'Reu. AG',  key: 'data_ra'        },
               { label: 'Reu. RR',  key: 'data_rr'        },
@@ -1045,9 +1056,14 @@ function LeadPageInner() {
                     return (
                       <React.Fragment key={key}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: hasDate ? GREEN : '#D1D5DB', border: `2px solid ${hasDate ? GREEN : '#D1D5DB'}` }} />
-                          <div style={{ fontSize: 9, fontWeight: hasDate ? 700 : 500, color: hasDate ? GRAY1 : GRAY3, marginTop: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>{label}</div>
-                          <div style={{ fontSize: 9, color: hasDate ? GREEN : GRAY3, fontWeight: 600, marginTop: 1 }}>{fmt(form[key])}</div>
+                          {(() => {
+                            const dotColor = hasDate ? (key === 'data_perdido' ? R : GREEN) : '#D1D5DB'
+                            return <>
+                              <div style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, border: `2px solid ${dotColor}` }} />
+                              <div style={{ fontSize: 9, fontWeight: hasDate ? 700 : 500, color: hasDate ? (key === 'data_perdido' ? R : GRAY1) : GRAY3, marginTop: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>{label}</div>
+                              <div style={{ fontSize: 9, color: hasDate ? (key === 'data_perdido' ? R : GREEN) : GRAY3, fontWeight: 600, marginTop: 1 }}>{fmt(form[key])}</div>
+                            </>
+                          })()}
                         </div>
                         {idx < TIMELINE.length - 1 && (
                           <div style={{ flex: 1, height: 2, background: hasDate && nextHas ? GREEN : '#E5E7EB', marginTop: 4, minWidth: 6 }} />
@@ -1558,6 +1574,12 @@ function LeadPageInner() {
                 <div>
                   <SectionTitle>Datas</SectionTitle>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {isClosedLead && getPipelineStage(form) === 'PERDIDO' && (
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: R, marginBottom: 5 }}>Data de Perda</div>
+                        <input type="date" style={{ ...inputStyle, borderColor: `${R}60` }} value={form.data_perdido || ''} onChange={e => set('data_perdido', e.target.value)} />
+                      </div>
+                    )}
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 5 }}>Data RR</div>
                       {!form.data_ra ? <LockedField message="Preencha Data RA primeiro" /> : <input type="date" style={inputStyle} value={form.data_rr || ''} onChange={e => { set('data_rr', e.target.value); if (!e.target.value) { set('data_assinatura', null); set('data_ativacao', null) } }} />}
