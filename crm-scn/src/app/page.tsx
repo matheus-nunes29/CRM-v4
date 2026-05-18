@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import CRMLayout from '../_components/CRMLayout'
+import CRMLayout from './_components/CRMLayout'
 import {
   R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE,
 } from '@/lib/crm-constants'
