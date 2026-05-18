@@ -126,6 +126,7 @@ export type Projeto = {
   servico: string | null
   etapa_atual: string | null
   servicos_executar: { key: string; volume?: string }[] | null
+  investimento_midia: number | null
   created_at: string
   updated_at: string
 }

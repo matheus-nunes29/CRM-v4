@@ -569,7 +569,7 @@ function getEtapas(tipo: Projeto['tipo'], servico: string | null): string[] {
 // ══════════════════════════════════════════════════════════════════════════════
 function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
   const [showNew, setShowNew] = useState(false)
-  const [form, setForm] = useState({ nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', data_inicio: '', data_fim: '', escopo: '' })
+  const [form, setForm] = useState({ nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' })
   const [servicosSel, setServicosSel] = useState<{ key: string; volume?: string }[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -604,9 +604,10 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
       servico: form.servico || null,
       etapa_atual: etapas[0] ?? null,
       servicos_executar: form.tipo === 'executar' && servicosSel.length > 0 ? servicosSel : null,
+      investimento_midia: form.tipo === 'executar' && form.investimento_midia ? parseFloat(form.investimento_midia) : null,
     })
     setShowNew(false)
-    setForm({ nome: '', tipo: 'saber', servico: '', valor_tipo: 'mensalidade', valor: '', data_inicio: '', data_fim: '', escopo: '' })
+    setForm({ nome: '', tipo: 'saber', servico: '', valor_tipo: 'mensalidade', valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' })
     setServicosSel([])
     await onReload(); setSaving(false)
   }
@@ -688,13 +689,21 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                 </div>
 
                 {/* Valor + data */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: p.tipo === 'executar' && p.investimento_midia ? '1fr 1fr 1fr' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
                   <div>
                     <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>VALOR</div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: t.color }}>
                       {fmt(p.valor)}{p.valor_tipo === 'mensalidade' ? <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}>/mês</span> : <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}> pontual</span>}
                     </div>
                   </div>
+                  {p.tipo === 'executar' && p.investimento_midia != null && (
+                    <div>
+                      <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>INV. MÍDIA</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: BLUE }}>
+                        {fmt(p.investimento_midia)}<span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}>/mês</span>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>INÍCIO</div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} color={GRAY3} />{fmtDate(p.data_inicio)}</div>
@@ -832,6 +841,12 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$)</label>
               <input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} placeholder="0" style={input14} />
             </div>
+            {form.tipo === 'executar' && (
+              <div>
+                <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Investimento em Mídia (R$)</label>
+                <input type="number" value={form.investimento_midia} onChange={e => setForm(p => ({ ...p, investimento_midia: e.target.value }))} placeholder="0" style={input14} />
+              </div>
+            )}
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de início</label>
               <input type="date" value={form.data_inicio} onChange={e => setForm(p => ({ ...p, data_inicio: e.target.value }))} style={input14} />
