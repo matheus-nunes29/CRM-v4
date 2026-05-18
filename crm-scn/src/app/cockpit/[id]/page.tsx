@@ -568,10 +568,14 @@ function getEtapas(tipo: Projeto['tipo'], servico: string | null): string[] {
 // TAB: PROJETOS
 // ══════════════════════════════════════════════════════════════════════════════
 function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
+  const emptyForm = { nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' }
   const [showNew, setShowNew] = useState(false)
-  const [form, setForm] = useState({ nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' })
+  const [form, setForm] = useState(emptyForm)
   const [servicosSel, setServicosSel] = useState<{ key: string; volume?: string }[]>([])
   const [saving, setSaving] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState(emptyForm)
+  const [editServicosSel, setEditServicosSel] = useState<{ key: string; volume?: string }[]>([])
 
   function toggleServico(key: string) {
     setServicosSel(prev =>
@@ -580,6 +584,24 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   }
   function setVolume(key: string, volume: string) {
     setServicosSel(prev => prev.map(s => s.key === key ? { ...s, volume: volume || undefined } : s))
+  }
+  function toggleEditServico(key: string) {
+    setEditServicosSel(prev =>
+      prev.find(s => s.key === key) ? prev.filter(s => s.key !== key) : [...prev, { key }]
+    )
+  }
+  function setEditVolume(key: string, volume: string) {
+    setEditServicosSel(prev => prev.map(s => s.key === key ? { ...s, volume: volume || undefined } : s))
+  }
+  function startEdit(p: Projeto) {
+    setEditForm({
+      nome: p.nome, tipo: p.tipo, servico: p.servico || '',
+      valor_tipo: p.valor_tipo, valor: String(p.valor),
+      investimento_midia: p.investimento_midia != null ? String(p.investimento_midia) : '',
+      data_inicio: p.data_inicio || '', data_fim: p.data_fim || '', escopo: p.escopo || '',
+    })
+    setEditServicosSel(p.servicos_executar || [])
+    setEditId(p.id)
   }
 
   const TIPO: Record<Projeto['tipo'], { color: string; bg: string; border: string; label: string }> = {
@@ -609,6 +631,22 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
     setShowNew(false)
     setForm({ nome: '', tipo: 'saber', servico: '', valor_tipo: 'mensalidade', valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' })
     setServicosSel([])
+    await onReload(); setSaving(false)
+  }
+  async function updateProj() {
+    if (!editForm.nome.trim() || !editId) return
+    setSaving(true)
+    await supabase.from('projetos').update({
+      nome: editForm.nome, tipo: editForm.tipo, valor_tipo: editForm.valor_tipo,
+      valor: parseFloat(editForm.valor) || 0,
+      data_inicio: editForm.data_inicio || null, data_fim: editForm.data_fim || null,
+      escopo: editForm.escopo,
+      servico: editForm.servico || null,
+      servicos_executar: editForm.tipo === 'executar' && editServicosSel.length > 0 ? editServicosSel : null,
+      investimento_midia: editForm.tipo === 'executar' && editForm.investimento_midia ? parseFloat(editForm.investimento_midia) : null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', editId)
+    setEditId(null)
     await onReload(); setSaving(false)
   }
   async function toggleStatus(p: Projeto) {
@@ -654,113 +692,185 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
           const etapas = getEtapas(p.tipo, p.servico)
           const etapaIdx = etapas.indexOf(p.etapa_atual ?? '')
           const servicoLabel = CATALOGO[p.tipo]?.find(s => s.key === p.servico)?.label
+          const isEditing = editId === p.id
           return (
             <div key={p.id} style={{ ...card, overflow: 'hidden' }}>
               <div style={{ height: 3, background: `linear-gradient(90deg, ${t.color}, ${t.color}66)` }} />
               <div style={{ padding: '16px 18px' }}>
-                {/* Header */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                {isEditing ? (
+                  /* ── Edit form ── */
                   <div>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 5 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: t.color, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 5, padding: '2px 8px' }}>{t.label.toUpperCase()}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, border: `1px solid ${st.border}`, borderRadius: 5, padding: '2px 8px' }}>{st.label.toUpperCase()}</span>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Edit2 size={13} color={GRAY2} /> Editar Projeto
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{p.nome}</div>
-                    {servicoLabel && <div style={{ fontSize: 11, color: GRAY2, marginTop: 3 }}>{servicoLabel}</div>}
-                    {p.tipo === 'executar' && p.servicos_executar && p.servicos_executar.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-                        {p.servicos_executar.map(s => {
-                          const def = SERVICOS_EXECUTAR.find(x => x.key === s.key)
-                          if (!def) return null
-                          return (
-                            <span key={s.key} style={{ fontSize: 10, fontWeight: 600, color: '#065F46', background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 5, padding: '2px 7px', whiteSpace: 'nowrap' }}>
-                              {def.label}{s.volume ? ` · ${s.volume}/mês` : ''}
-                            </span>
-                          )
-                        })}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div style={{ gridColumn: '1/-1' }}>
+                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Nome do projeto *</label>
+                        <input value={editForm.nome} onChange={e => setEditForm(f => ({ ...f, nome: e.target.value }))} style={input14} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Tipo</label>
+                        <select value={editForm.tipo} onChange={e => setEditForm(f => ({ ...f, tipo: e.target.value as Projeto['tipo'], servico: '' }))} style={{ ...input14 }}>
+                          <option value="saber">Saber</option><option value="ter">Ter</option><option value="executar">Executar</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Cobrança</label>
+                        <select value={editForm.valor_tipo} onChange={e => setEditForm(f => ({ ...f, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ ...input14 }}>
+                          <option value="mensalidade">Mensalidade</option><option value="pontual">Pontual</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$)</label>
+                        <input type="number" value={editForm.valor} onChange={e => setEditForm(f => ({ ...f, valor: e.target.value }))} style={input14} />
+                      </div>
+                      {editForm.tipo === 'executar' && (
+                        <div>
+                          <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Verba Google/Meta Ads (R$/mês)</label>
+                          <input type="number" value={editForm.investimento_midia} onChange={e => setEditForm(f => ({ ...f, investimento_midia: e.target.value }))} placeholder="0" style={input14} />
+                        </div>
+                      )}
+                      <div>
+                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de início</label>
+                        <input type="date" value={editForm.data_inicio} onChange={e => setEditForm(f => ({ ...f, data_inicio: e.target.value }))} style={input14} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de fim (opcional)</label>
+                        <input type="date" value={editForm.data_fim} onChange={e => setEditForm(f => ({ ...f, data_fim: e.target.value }))} style={input14} />
+                      </div>
+                      {editForm.tipo === 'executar' && (
+                        <div style={{ gridColumn: '1/-1' }}>
+                          <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 8, fontWeight: 600 }}>
+                            Serviços contratados {editServicosSel.length > 0 && <span style={{ color: '#065F46', background: '#D1FAE5', padding: '1px 7px', borderRadius: 10, marginLeft: 6 }}>{editServicosSel.length} selecionado{editServicosSel.length !== 1 ? 's' : ''}</span>}
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                            {SERVICOS_EXECUTAR.map(s => {
+                              const sel = editServicosSel.find(x => x.key === s.key)
+                              const checked = !!sel
+                              return (
+                                <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${checked ? '#A7F3D0' : GRAY5}`, background: checked ? '#F0FDF4' : GRAY4, transition: 'all .15s' }}>
+                                  <input type="checkbox" checked={checked} onChange={() => toggleEditServico(s.key)} style={{ width: 15, height: 15, accentColor: '#065F46', cursor: 'pointer', flexShrink: 0 }} />
+                                  <span style={{ fontSize: 12, color: checked ? '#065F46' : GRAY1, fontWeight: checked ? 600 : 400, flex: 1 }}>{s.label}{s.temVolume && <span style={{ color: GRAY3 }}> *</span>}</span>
+                                  {checked && s.temVolume && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
+                                      <input type="text" placeholder="Volume" value={sel?.volume ?? ''} onChange={e => setEditVolume(s.key, e.target.value)} style={{ width: 80, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                      <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>/mês</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ gridColumn: '1/-1' }}>
+                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Escopo / Descrição</label>
+                        <textarea value={editForm.escopo} onChange={e => setEditForm(f => ({ ...f, escopo: e.target.value }))} rows={2} style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                      <button onClick={updateProj} disabled={!editForm.nome.trim() || saving} style={btnPrimary(!editForm.nome.trim() || saving)}>{saving ? 'Salvando...' : 'Salvar'}</button>
+                      <button onClick={() => setEditId(null)} style={btnGhost}>Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── View mode ── */
+                  <>
+                    {/* Header */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <div>
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 5 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: t.color, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 5, padding: '2px 8px' }}>{t.label.toUpperCase()}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, border: `1px solid ${st.border}`, borderRadius: 5, padding: '2px 8px' }}>{st.label.toUpperCase()}</span>
+                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{p.nome}</div>
+                        {servicoLabel && <div style={{ fontSize: 11, color: GRAY2, marginTop: 3 }}>{servicoLabel}</div>}
+                        {p.tipo === 'executar' && p.servicos_executar && p.servicos_executar.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                            {p.servicos_executar.map(s => {
+                              const def = SERVICOS_EXECUTAR.find(x => x.key === s.key)
+                              if (!def) return null
+                              return (
+                                <span key={s.key} style={{ fontSize: 10, fontWeight: 600, color: '#065F46', background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 5, padding: '2px 7px', whiteSpace: 'nowrap' }}>
+                                  {def.label}{s.volume ? ` · ${s.volume}/mês` : ''}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      {canEdit && (
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          <button onClick={() => toggleStatus(p)} style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                            {p.status === 'ativo' ? 'Pausar' : p.status === 'pausado' ? 'Encerrar' : 'Reativar'}
+                          </button>
+                          <button onClick={() => startEdit(p)} style={{ padding: '5px 7px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                            <Edit2 size={12} color={GRAY3} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Valor + data */}
+                    <div style={{ display: 'grid', gridTemplateColumns: p.tipo === 'executar' && p.investimento_midia ? '1fr 1fr 1fr' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>VALOR</div>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: t.color }}>
+                          {fmt(p.valor)}{p.valor_tipo === 'mensalidade' ? <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}>/mês</span> : <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}> pontual</span>}
+                        </div>
+                      </div>
+                      {p.tipo === 'executar' && p.investimento_midia != null && (
+                        <div>
+                          <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>VERBA GOOGLE/META</div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: BLUE }}>
+                            {fmt(p.investimento_midia)}<span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}> /mês</span>
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>INÍCIO</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} color={GRAY3} />{fmtDate(p.data_inicio)}</div>
+                      </div>
+                    </div>
+
+                    {/* Kanban de etapas */}
+                    {etapas.length > 0 && (
+                      <div style={{ paddingTop: 12, borderTop: `1px solid ${GRAY5}` }}>
+                        <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Etapa atual</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {etapas.map((etapa, idx) => {
+                            const isDone    = idx < etapaIdx
+                            const isCurrent = idx === etapaIdx
+                            const color     = isCurrent ? t.color : isDone ? '#10B981' : GRAY3
+                            const bg        = isCurrent ? `${t.color}12` : isDone ? '#F0FDF4' : GRAY4
+                            const border    = isCurrent ? `${t.color}40` : isDone ? '#BBF7D0' : GRAY5
+                            return (
+                              <button key={etapa} onClick={canEdit ? () => setEtapa(p.id, etapa) : undefined}
+                                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, border: `1px solid ${border}`, background: bg, cursor: canEdit ? 'pointer' : 'default', textAlign: 'left', width: '100%', transition: 'all .15s' }}
+                                onMouseEnter={canEdit ? e => { if (!isCurrent) (e.currentTarget as HTMLElement).style.borderColor = t.color } : undefined}
+                                onMouseLeave={canEdit ? e => { (e.currentTarget as HTMLElement).style.borderColor = border } : undefined}
+                              >
+                                <div style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, background: isCurrent ? t.color : isDone ? '#10B981' : GRAY5, border: `2px solid ${isCurrent ? t.color : isDone ? '#10B981' : GRAY3}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {isDone && <Check size={9} color={WHITE} strokeWidth={3} />}
+                                  {isCurrent && <div style={{ width: 6, height: 6, borderRadius: '50%', background: WHITE }} />}
+                                </div>
+                                <span style={{ fontSize: 12, fontWeight: isCurrent ? 700 : 500, color }}>{etapa}</span>
+                                {isCurrent && <span style={{ marginLeft: 'auto', fontSize: 10, color: t.color, fontWeight: 700 }}>EM ANDAMENTO</span>}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                     )}
-                  </div>
-                  {canEdit && (
-                    <button onClick={() => toggleStatus(p)} style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 10, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                      {p.status === 'ativo' ? 'Pausar' : p.status === 'pausado' ? 'Encerrar' : 'Reativar'}
-                    </button>
-                  )}
-                </div>
 
-                {/* Valor + data */}
-                <div style={{ display: 'grid', gridTemplateColumns: p.tipo === 'executar' && p.investimento_midia ? '1fr 1fr 1fr' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>VALOR</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: t.color }}>
-                      {fmt(p.valor)}{p.valor_tipo === 'mensalidade' ? <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}>/mês</span> : <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}> pontual</span>}
-                    </div>
-                  </div>
-                  {p.tipo === 'executar' && p.investimento_midia != null && (
-                    <div>
-                      <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>VERBA GOOGLE/META</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: BLUE }}>
-                        {fmt(p.investimento_midia)}
-                        <span style={{ fontSize: 11, color: GRAY3, fontWeight: 400 }}> /mês</span>
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, marginBottom: 2 }}>INÍCIO</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} color={GRAY3} />{fmtDate(p.data_inicio)}</div>
-                  </div>
-                </div>
-
-                {/* Kanban de etapas */}
-                {etapas.length > 0 && (
-                  <div style={{ paddingTop: 12, borderTop: `1px solid ${GRAY5}` }}>
-                    <div style={{ fontSize: 10, color: GRAY3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Etapa atual</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {etapas.map((etapa, idx) => {
-                        const isDone    = idx < etapaIdx
-                        const isCurrent = idx === etapaIdx
-                        const color     = isCurrent ? t.color : isDone ? '#10B981' : GRAY3
-                        const bg        = isCurrent ? `${t.color}12` : isDone ? '#F0FDF4' : GRAY4
-                        const border    = isCurrent ? `${t.color}40` : isDone ? '#BBF7D0' : GRAY5
-                        return (
-                          <button
-                            key={etapa}
-                            onClick={canEdit ? () => setEtapa(p.id, etapa) : undefined}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 8,
-                              padding: '7px 10px', borderRadius: 7,
-                              border: `1px solid ${border}`,
-                              background: bg, cursor: canEdit ? 'pointer' : 'default',
-                              textAlign: 'left', width: '100%',
-                              transition: 'all .15s',
-                            }}
-                            onMouseEnter={canEdit ? e => { if (!isCurrent) (e.currentTarget as HTMLElement).style.borderColor = t.color } : undefined}
-                            onMouseLeave={canEdit ? e => { (e.currentTarget as HTMLElement).style.borderColor = border } : undefined}
-                          >
-                            <div style={{
-                              width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                              background: isCurrent ? t.color : isDone ? '#10B981' : GRAY5,
-                              border: `2px solid ${isCurrent ? t.color : isDone ? '#10B981' : GRAY3}`,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>
-                              {isDone && <Check size={9} color={WHITE} strokeWidth={3} />}
-                              {isCurrent && <div style={{ width: 6, height: 6, borderRadius: '50%', background: WHITE }} />}
-                            </div>
-                            <span style={{ fontSize: 12, fontWeight: isCurrent ? 700 : 500, color }}>{etapa}</span>
-                            {isCurrent && <span style={{ marginLeft: 'auto', fontSize: 10, color: t.color, fontWeight: 700 }}>EM ANDAMENTO</span>}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {p.escopo && <div style={{ fontSize: 12, color: GRAY2, lineHeight: 1.55, padding: '10px 0', borderTop: `1px solid ${GRAY5}`, marginTop: etapas.length > 0 ? 12 : 0 }}>{p.escopo}</div>}
-                {canEdit && (
-                  <button onClick={() => deleteProj(p.id)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', border: 'none', background: 'transparent', color: GRAY3, fontSize: 11, cursor: 'pointer' }}
-                    onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                    <Trash2 size={11} /> Excluir projeto
-                  </button>
+                    {p.escopo && <div style={{ fontSize: 12, color: GRAY2, lineHeight: 1.55, padding: '10px 0', borderTop: `1px solid ${GRAY5}`, marginTop: etapas.length > 0 ? 12 : 0 }}>{p.escopo}</div>}
+                    {canEdit && (
+                      <button onClick={() => deleteProj(p.id)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', border: 'none', background: 'transparent', color: GRAY3, fontSize: 11, cursor: 'pointer' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                        <Trash2 size={11} /> Excluir projeto
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
