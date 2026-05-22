@@ -1110,19 +1110,26 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit }: { entr
     const payload = {
       cliente_id: clienteId,
       semana: semanaAtual,
-      resultado,
-      trafego:            parseFloat(trafegoScore.toFixed(2)),
-      entregas_prazo:     parseFloat(entregasScore.toFixed(2)),
-      qualidade_entregas: parseFloat(qualidadeScore.toFixed(2)),
-      relacionamento:     parseFloat(relacionScore.toFixed(2)),
+      // colunas smallint — arredondar para evitar erro de tipo
+      resultado:          Math.round(resultado),
+      trafego:            Math.round(trafegoScore),
+      entregas_prazo:     Math.round(entregasScore),
+      qualidade_entregas: Math.round(qualidadeScore),
+      relacionamento:     Math.round(relacionScore),
+      // score_total é numeric — pode receber decimal
       score_total:        parseFloat(estScore.toFixed(2)),
-      trafego_checklist:      trafegoChecks,
-      entregas_checklist:     entregasChecks,
-      qualidade_checklist:    qualidadeChecks,
+      trafego_checklist:        trafegoChecks,
+      entregas_checklist:       entregasChecks,
+      qualidade_checklist:      qualidadeChecks,
       relacionamento_checklist: relacionChecks,
       observacoes,
     }
-    await supabase.from('health_score_entries').upsert(payload, { onConflict: 'cliente_id,semana' })
+    const { error } = await supabase.from('health_score_entries').upsert(payload, { onConflict: 'cliente_id,semana' })
+    if (error) {
+      alert('Erro ao salvar health score: ' + error.message)
+      setSaving(false)
+      return
+    }
     setShowForm(false); await onReload(); setSaving(false)
   }
 
