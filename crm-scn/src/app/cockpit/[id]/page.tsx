@@ -915,7 +915,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
         })}
       </div>
 
-      {projetos.length === 0 && !showNew && (
+      {projetos.length === 0 && (
         <div style={{ ...card, padding: '48px 0', textAlign: 'center' }}>
           <Layers size={32} color={GRAY3} style={{ marginBottom: 12, opacity: 0.5 }} />
           <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum projeto cadastrado</div>
@@ -923,8 +923,16 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
       )}
 
       {showNew && canEdit && (
-        <div style={{ ...card, padding: 22, marginTop: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1, marginBottom: 16 }}>Novo Projeto</div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => setShowNew(false)}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
+            onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: GRAY1 }}>Novo Projeto</div>
+            <button onClick={() => setShowNew(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex', padding: 4, borderRadius: 6 }}>
+              <X size={18} />
+            </button>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ gridColumn: '1/-1' }}>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Nome do projeto *</label>
@@ -1014,9 +1022,10 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
               <textarea value={form.escopo} onChange={e => setForm(p => ({ ...p, escopo: e.target.value }))} rows={3} placeholder="Descreva o escopo..." style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
             <button onClick={save} disabled={!form.nome.trim() || saving} style={btnPrimary(!form.nome.trim() || saving)}>{saving ? 'Salvando...' : 'Salvar Projeto'}</button>
             <button onClick={() => setShowNew(false)} style={btnGhost}>Cancelar</button>
+          </div>
           </div>
         </div>
       )}
