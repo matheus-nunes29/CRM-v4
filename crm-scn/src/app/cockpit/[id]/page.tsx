@@ -580,14 +580,22 @@ function getEtapas(tipo: Projeto['tipo'], servico: string | null): string[] {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: PROJETOS
 // ══════════════════════════════════════════════════════════════════════════════
-function fmtBRL(val: string): string {
-  if (!val) return ''
-  const n = parseFloat(val)
+// Converte valor numérico do banco (ex: 3500) para string de centavos ("350000")
+function toCents(val: number | string | null | undefined): string {
+  if (val === null || val === undefined || val === '') return ''
+  const n = typeof val === 'string' ? parseFloat(val) : val
   if (isNaN(n)) return ''
-  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return String(Math.round(n * 100))
 }
-function parseCurrInput(raw: string): string {
-  return raw.replace(/[^\d,]/g, '').replace(',', '.')
+// Converte string de centavos para float (ex: "350000" → 3500)
+function fromCents(cents: string): number {
+  if (!cents) return 0
+  return parseInt(cents, 10) / 100
+}
+// Formata string de centavos para exibição (ex: "350000" → "3.500,00")
+function fmtCents(cents: string): string {
+  if (!cents) return ''
+  return (parseInt(cents, 10) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
@@ -599,7 +607,6 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(emptyForm)
   const [editServicosSel, setEditServicosSel] = useState<{ key: string; volume?: string }[]>([])
-  const [currFocus, setCurrFocus] = useState<string | null>(null)
 
   function toggleServico(key: string) {
     setServicosSel(prev =>
@@ -620,8 +627,8 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   function startEdit(p: Projeto) {
     setEditForm({
       nome: p.nome, tipo: p.tipo, servico: p.servico || '',
-      valor_tipo: p.valor_tipo, valor: String(p.valor),
-      investimento_midia: p.investimento_midia != null ? String(p.investimento_midia) : '',
+      valor_tipo: p.valor_tipo, valor: toCents(p.valor),
+      investimento_midia: toCents(p.investimento_midia),
       data_inicio: p.data_inicio || '', data_fim: p.data_fim || '', escopo: p.escopo || '',
     })
     setEditServicosSel(p.servicos_executar || [])
@@ -644,13 +651,13 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
     const etapas = getEtapas(form.tipo, form.servico || null)
     await supabase.from('projetos').insert({
       nome: form.nome, tipo: form.tipo, valor_tipo: form.valor_tipo,
-      valor: parseFloat(form.valor) || 0, cliente_id: clienteId,
+      valor: fromCents(form.valor), cliente_id: clienteId,
       data_inicio: form.data_inicio || null, data_fim: form.data_fim || null,
       escopo: form.escopo,
       servico: form.servico || null,
       etapa_atual: etapas[0] ?? null,
       servicos_executar: form.tipo === 'executar' && servicosSel.length > 0 ? servicosSel : null,
-      investimento_midia: form.tipo === 'executar' && form.investimento_midia ? parseFloat(form.investimento_midia) : null,
+      investimento_midia: form.tipo === 'executar' && form.investimento_midia ? fromCents(form.investimento_midia) : null,
     })
     setShowNew(false)
     setForm({ nome: '', tipo: 'saber', servico: '', valor_tipo: 'mensalidade', valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' })
@@ -662,12 +669,12 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
     setSaving(true)
     await supabase.from('projetos').update({
       nome: editForm.nome, tipo: editForm.tipo, valor_tipo: editForm.valor_tipo,
-      valor: parseFloat(editForm.valor) || 0,
+      valor: fromCents(editForm.valor),
       data_inicio: editForm.data_inicio || null, data_fim: editForm.data_fim || null,
       escopo: editForm.escopo,
       servico: editForm.servico || null,
       servicos_executar: editForm.tipo === 'executar' && editServicosSel.length > 0 ? editServicosSel : null,
-      investimento_midia: editForm.tipo === 'executar' && editForm.investimento_midia ? parseFloat(editForm.investimento_midia) : null,
+      investimento_midia: editForm.tipo === 'executar' && editForm.investimento_midia ? fromCents(editForm.investimento_midia) : null,
       updated_at: new Date().toISOString(),
     }).eq('id', editId)
     setEditId(null)
@@ -747,20 +754,16 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                       <div>
                         <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$)</label>
                         <input type="text" inputMode="numeric"
-                          value={currFocus === 'edit_valor' ? editForm.valor : fmtBRL(editForm.valor)}
-                          onChange={e => setEditForm(f => ({ ...f, valor: parseCurrInput(e.target.value) }))}
-                          onFocus={() => setCurrFocus('edit_valor')}
-                          onBlur={() => setCurrFocus(null)}
+                          value={fmtCents(editForm.valor)}
+                          onChange={e => setEditForm(f => ({ ...f, valor: e.target.value.replace(/\D/g, '') }))}
                           placeholder="0,00" style={input14} />
                       </div>
                       {editForm.tipo === 'executar' && (
                         <div>
                           <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Verba Google/Meta Ads (R$/mês)</label>
                           <input type="text" inputMode="numeric"
-                            value={currFocus === 'edit_midia' ? editForm.investimento_midia : fmtBRL(editForm.investimento_midia)}
-                            onChange={e => setEditForm(f => ({ ...f, investimento_midia: parseCurrInput(e.target.value) }))}
-                            onFocus={() => setCurrFocus('edit_midia')}
-                            onBlur={() => setCurrFocus(null)}
+                            value={fmtCents(editForm.investimento_midia)}
+                            onChange={e => setEditForm(f => ({ ...f, investimento_midia: e.target.value.replace(/\D/g, '') }))}
                             placeholder="0,00" style={input14} />
                         </div>
                       )}
@@ -985,20 +988,16 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$)</label>
               <input type="text" inputMode="numeric"
-                value={currFocus === 'novo_valor' ? form.valor : fmtBRL(form.valor)}
-                onChange={e => setForm(p => ({ ...p, valor: parseCurrInput(e.target.value) }))}
-                onFocus={() => setCurrFocus('novo_valor')}
-                onBlur={() => setCurrFocus(null)}
+                value={fmtCents(form.valor)}
+                onChange={e => setForm(p => ({ ...p, valor: e.target.value.replace(/\D/g, '') }))}
                 placeholder="0,00" style={input14} />
             </div>
             {form.tipo === 'executar' && (
               <div>
                 <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Verba Google/Meta Ads (R$/mês)</label>
                 <input type="text" inputMode="numeric"
-                  value={currFocus === 'novo_midia' ? form.investimento_midia : fmtBRL(form.investimento_midia)}
-                  onChange={e => setForm(p => ({ ...p, investimento_midia: parseCurrInput(e.target.value) }))}
-                  onFocus={() => setCurrFocus('novo_midia')}
-                  onBlur={() => setCurrFocus(null)}
+                  value={fmtCents(form.investimento_midia)}
+                  onChange={e => setForm(p => ({ ...p, investimento_midia: e.target.value.replace(/\D/g, '') }))}
                   placeholder="0,00" style={input14} />
               </div>
             )}
