@@ -1116,8 +1116,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit }: { entr
       entregas_prazo:     Math.round(entregasScore),
       qualidade_entregas: Math.round(qualidadeScore),
       relacionamento:     Math.round(relacionScore),
-      // score_total é numeric — pode receber decimal
-      score_total:        parseFloat(estScore.toFixed(2)),
+      // score_total é GENERATED ALWAYS no banco — não enviar
       trafego_checklist:        trafegoChecks,
       entregas_checklist:       entregasChecks,
       qualidade_checklist:      qualidadeChecks,
