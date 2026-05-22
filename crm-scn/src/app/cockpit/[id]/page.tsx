@@ -1320,6 +1320,7 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit }: { metas: Me
   const [showNew, setShowNew]   = useState(false)
   const [form, setForm]         = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
   const [saving, setSaving]     = useState(false)
+  const [realizadoLocal, setRealizadoLocal] = useState<Record<string, string>>({})
 
   const semanas = useMemo(() => {
     const all = [semanaAtual, ...metas.map(m => m.semana)]
@@ -1451,11 +1452,15 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit }: { metas: Me
                 <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
                   <input
                     type="number"
-                    value={m.valor_realizado ?? ''}
-                    onChange={e => {
-                      const realizado = e.target.value ? parseFloat(e.target.value) : null
+                    value={realizadoLocal[m.id] !== undefined ? realizadoLocal[m.id] : (m.valor_realizado ?? '')}
+                    onChange={e => setRealizadoLocal(prev => ({ ...prev, [m.id]: e.target.value }))}
+                    onBlur={() => {
+                      const raw = realizadoLocal[m.id]
+                      if (raw === undefined) return
+                      const realizado = raw !== '' ? parseFloat(raw) : null
                       const status = calcAutoStatus(realizado, m.valor_meta)
                       updateMeta(m.id, { valor_realizado: realizado, status })
+                      setRealizadoLocal(prev => { const n = { ...prev }; delete n[m.id]; return n })
                     }}
                     placeholder="Resultado realizado"
                     style={{ width: 150, padding: '6px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 6, color: GRAY1, fontSize: 12, outline: 'none' }} />
