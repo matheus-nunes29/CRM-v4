@@ -174,7 +174,10 @@ export default function DashboardPage() {
     }
   }, [leads, mesSel, dataInicio, dataFim, filtroTipo, canalSel, tierSel, closerSel])
 
-  const tcvMes = lm.venda.reduce((s, l) => s + (l.tcv || 0), 0)
+  const tcvMes       = lm.venda.reduce((s, l) => s + (l.tcv || 0), 0)
+  const tcvSaberMes  = lm.venda.reduce((s, l) => s + (l.tcv_saber  || 0), 0)
+  const tcvTerMes    = lm.venda.reduce((s, l) => s + (l.tcv_ter    || 0), 0)
+  const tcvExecMes   = lm.venda.reduce((s, l) => s + (l.tcv_executar || 0), 0)
   const conv = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0
   const convBar = (a: number, b: number) => Math.min(conv(a, b), 100)
   const tooltipStyle = { background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 8, color: GRAY1, fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.10)' }
@@ -681,7 +684,15 @@ export default function DashboardPage() {
             if (canalSel !== 'Canal') return metas[mesSel]?.[canalSel] || {}
             const vals = CANAIS_METAS.map(c => metas[mesSel]?.[c]).filter(Boolean)
             if (vals.length === 0) return {}
-            return { meta_tcv: vals.reduce((s:number,m:any)=>s+(m.meta_tcv||0),0)||null, meta_valor_investido: vals.reduce((s:number,m:any)=>s+(m.meta_valor_investido||0),0)||null, meta_entradas: vals.reduce((s:number,m:any)=>s+(m.meta_entradas||0),0)||null, meta_vendas: vals.reduce((s:number,m:any)=>s+(m.meta_vendas||0),0)||null }
+            return {
+            meta_tcv: vals.reduce((s:number,m:any)=>s+(m.meta_tcv||0),0)||null,
+            meta_tcv_saber: vals.reduce((s:number,m:any)=>s+(m.meta_tcv_saber||0),0)||null,
+            meta_tcv_ter: vals.reduce((s:number,m:any)=>s+(m.meta_tcv_ter||0),0)||null,
+            meta_tcv_executar: vals.reduce((s:number,m:any)=>s+(m.meta_tcv_executar||0),0)||null,
+            meta_valor_investido: vals.reduce((s:number,m:any)=>s+(m.meta_valor_investido||0),0)||null,
+            meta_entradas: vals.reduce((s:number,m:any)=>s+(m.meta_entradas||0),0)||null,
+            meta_vendas: vals.reduce((s:number,m:any)=>s+(m.meta_vendas||0),0)||null,
+          }
           })()
           const mt = mm.meta_tcv
           const pct = mt ? Math.min(Math.round(tcvMes / mt * 100), 999) : null
@@ -720,6 +731,38 @@ export default function DashboardPage() {
                   <div style={{ fontSize: 10, color: GRAY2, marginTop: 7 }}>{over ? `Meta batida! +${fmt(tcvMes - mt)}` : `Falta ${fmt(mt - tcvMes)}`}</div>
                 </div>
               ) : <div style={{ fontSize: 10, color: GRAY3, marginTop: 14 }}>Sem meta definida</div>}
+
+              {/* Breakdown Saber / Ter / Executar */}
+              {(tcvSaberMes > 0 || tcvTerMes > 0 || tcvExecMes > 0) && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${GRAY5}` }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Por Produto</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {[
+                      { label: 'Saber',    val: tcvSaberMes, meta: mm.meta_tcv_saber, color: BLUE },
+                      { label: 'Ter',      val: tcvTerMes,   meta: mm.meta_tcv_ter,   color: PURPLE },
+                      { label: 'Executar', val: tcvExecMes,  meta: mm.meta_tcv_executar, color: GREEN },
+                    ].map(({ label, val, meta, color }) => {
+                      const pctProd = meta ? Math.min(Math.round(val / meta * 100), 999) : null
+                      return (
+                        <div key={label}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color }}>{label}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: GRAY1 }}>{val > 0 ? fmt(val) : '—'}</span>
+                              {pctProd !== null && <span style={{ fontSize: 10, fontWeight: 700, color: pctProd >= 100 ? GREEN : GRAY3 }}>{pctProd}%</span>}
+                            </div>
+                          </div>
+                          {meta && (
+                            <div style={{ height: 3, background: GRAY5, borderRadius: 2 }}>
+                              <div style={{ height: 3, borderRadius: 2, background: color, width: `${Math.min(pctProd || 0, 100)}%`, transition: 'width .7s' }} />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Ticket Médio */}
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${GRAY5}` }}>

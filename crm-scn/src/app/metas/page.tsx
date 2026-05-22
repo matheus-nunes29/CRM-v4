@@ -64,7 +64,7 @@ export default function MetasPageRoute() {
 
 function MetasContent({ metas, mesSel, navMes, saveMeta }: any) {
   const [canalTab, setCanalTab] = useState('Recovery')
-  const [form, setForm] = useState({ meta_entradas: '', meta_ra: '', meta_rr: '', meta_vendas: '', meta_tcv: '', meta_ativacoes: '', meta_valor_investido: '' })
+  const [form, setForm] = useState({ meta_entradas: '', meta_ra: '', meta_rr: '', meta_vendas: '', meta_tcv_saber: '', meta_tcv_ter: '', meta_tcv_executar: '', meta_ativacoes: '', meta_valor_investido: '' })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -72,7 +72,12 @@ function MetasContent({ metas, mesSel, navMes, saveMeta }: any) {
 
   useEffect(() => {
     const m = metas[mesSel]?.[canalKey] || {}
-    setForm({ meta_entradas: m.meta_entradas || '', meta_ra: m.meta_ra || '', meta_rr: m.meta_rr || '', meta_vendas: m.meta_vendas || '', meta_tcv: m.meta_tcv || '', meta_ativacoes: m.meta_ativacoes || '', meta_valor_investido: m.meta_valor_investido || '' })
+    setForm({
+      meta_entradas: m.meta_entradas || '', meta_ra: m.meta_ra || '', meta_rr: m.meta_rr || '',
+      meta_vendas: m.meta_vendas || '',
+      meta_tcv_saber: m.meta_tcv_saber || '', meta_tcv_ter: m.meta_tcv_ter || '', meta_tcv_executar: m.meta_tcv_executar || '',
+      meta_ativacoes: m.meta_ativacoes || '', meta_valor_investido: m.meta_valor_investido || '',
+    })
     setSaved(false)
   }, [mesSel, metas, canalTab])
 
@@ -82,17 +87,20 @@ function MetasContent({ metas, mesSel, navMes, saveMeta }: any) {
     setSaving(true)
     const vals: Record<string, number | null> = {}
     Object.entries(form).forEach(([k, v]) => { vals[k] = v !== '' ? Number(v) : null })
+    // auto-compute meta_tcv total
+    vals.meta_tcv = ((vals.meta_tcv_saber || 0) + (vals.meta_tcv_ter || 0) + (vals.meta_tcv_executar || 0)) || null
     await saveMeta(mesSel, canalKey, vals)
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
+
+  const tcvTotal = (Number(form.meta_tcv_saber) || 0) + (Number(form.meta_tcv_ter) || 0) + (Number(form.meta_tcv_executar) || 0)
 
   const CAMPOS = [
     { key: 'meta_entradas', label: 'Entradas (Leads)', icon: '👥' },
     { key: 'meta_ra', label: 'Reuniões Agendadas (RA)', icon: '📅' },
     { key: 'meta_rr', label: 'Reuniões Realizadas (RR)', icon: '✅' },
     { key: 'meta_vendas', label: 'Vendas (Qtd)', icon: '🏆' },
-    { key: 'meta_tcv', label: 'TCV (R$)', icon: '💰' },
     { key: 'meta_ativacoes', label: 'Ativações', icon: '⚡' },
   ]
 
@@ -126,16 +134,40 @@ function MetasContent({ metas, mesSel, navMes, saveMeta }: any) {
         if (vals.length === 0) return null
         const soma: Record<string, number> = {}
         CAMPOS.forEach(c => { soma[c.key] = vals.reduce((s: number, m: any) => s + (m[c.key] || 0), 0) })
+        const tcvSaber = vals.reduce((s: number, m: any) => s + (m.meta_tcv_saber || 0), 0)
+        const tcvTer = vals.reduce((s: number, m: any) => s + (m.meta_tcv_ter || 0), 0)
+        const tcvExecutar = vals.reduce((s: number, m: any) => s + (m.meta_tcv_executar || 0), 0)
+        const tcvTotal = tcvSaber + tcvTer + tcvExecutar || vals.reduce((s: number, m: any) => s + (m.meta_tcv || 0), 0)
         return (
           <div style={{ background: `${R}06`, border: `1px solid ${R}20`, borderRadius: 14, padding: '16px 22px', marginBottom: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: R, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Meta Geral — {mesFmt(mesSel)} (soma de todos os canais)</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12, alignItems: 'start' }}>
               {CAMPOS.map(c => (
                 <div key={c.key}>
-                  <div style={{ fontSize: 10, color: GRAY2, marginBottom: 3 }}>{c.icon} {c.label.replace(' (R$)', '').replace(' (Qtd)', '').replace(' (Leads)', '')}</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: GRAY1 }}>{c.key === 'meta_tcv' ? fmt(soma[c.key]) : soma[c.key] || '—'}</div>
+                  <div style={{ fontSize: 10, color: GRAY2, marginBottom: 3 }}>{c.icon} {c.label.replace(' (Qtd)', '').replace(' (Leads)', '')}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: GRAY1 }}>{soma[c.key] || '—'}</div>
                 </div>
               ))}
+              {/* TCV breakdown */}
+              <div style={{ gridColumn: 'span 6' }}>
+                <div style={{ height: 1, background: `${R}20`, margin: '8px 0 12px' }} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: GRAY2, marginBottom: 3 }}>💰 TCV Total</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: GRAY1 }}>{fmt(tcvTotal)}</div>
+                  </div>
+                  {[
+                    { label: 'Saber', val: tcvSaber, color: BLUE },
+                    { label: 'Ter', val: tcvTer, color: PURPLE },
+                    { label: 'Executar', val: tcvExecutar, color: GREEN },
+                  ].map(({ label, val, color }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: 10, color: GRAY2, marginBottom: 3 }}>└ {label}</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color }}>{val > 0 ? fmt(val) : '—'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )
@@ -173,11 +205,33 @@ function MetasContent({ metas, mesSel, navMes, saveMeta }: any) {
               </div>
             ))}
 
+            {/* TCV por produto */}
+            <div>
+              <label style={labelCls}>💰 TCV por Produto (R$)</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  { key: 'meta_tcv_saber',    label: 'Saber',    color: BLUE },
+                  { key: 'meta_tcv_ter',      label: 'Ter',      color: PURPLE },
+                  { key: 'meta_tcv_executar', label: 'Executar', color: GREEN },
+                ].map(sub => (
+                  <div key={sub.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 68, fontSize: 12, fontWeight: 700, color: sub.color, flexShrink: 0 }}>{sub.label}</span>
+                    <input type="number" placeholder="0" style={{ ...inputCls, margin: 0 }} value={(form as any)[sub.key]} onChange={e => set(sub.key, e.target.value)} />
+                  </div>
+                ))}
+                {tcvTotal > 0 && (
+                  <div style={{ fontSize: 12, fontWeight: 700, color: GRAY2, textAlign: 'right', paddingRight: 4, marginTop: 2 }}>
+                    Total: {fmt(tcvTotal)}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Lead Broker extra fields */}
             {canalTab === 'Lead Broker' && (() => {
               const metaVI = Number(form.meta_valor_investido) || 0
               const metaEntradas = Number(form.meta_entradas) || 0
-              const metaTCV = Number(form.meta_tcv) || 0
+              const metaTCV = tcvTotal
               const cpmql = metaEntradas > 0 && metaVI > 0 ? metaVI / metaEntradas : null
               const roas = metaVI > 0 && metaTCV > 0 ? metaTCV / metaVI : null
               return (
