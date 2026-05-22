@@ -102,12 +102,13 @@ function EditableField({ label, value, onSave, multiline = false }: { label: str
 function RoleSelect({ label, value, papel, usuarios, onSave, canEdit }: {
   label: string
   value: string | null
-  papel: string
+  papel: string | string[]
   usuarios: { nome: string; papel: string }[]
   onSave?: (v: string | null) => void
   canEdit: boolean
 }) {
-  const options = usuarios.filter(u => u.papel === papel)
+  const roles = Array.isArray(papel) ? papel : [papel]
+  const options = usuarios.filter(u => roles.includes(u.papel))
   return (
     <div>
       <div style={{ fontSize: 11, color: GRAY3, fontWeight: 600, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
@@ -356,7 +357,7 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
 
   useEffect(() => {
     supabase.from('usuarios_permitidos').select('nome, papel')
-      .in('papel', ['gestor_projetos', 'designer', 'analista_midia', 'admin'])
+      .in('papel', ['gestor_projetos', 'designer', 'analista_midia', 'coordenador_peg', 'admin'])
       .order('nome')
       .then(({ data }) => setUsuarios(data || []))
   }, [])
@@ -412,9 +413,9 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
       <div style={{ ...card, padding: 22 }}>
         <SectionTitle icon={Users} label="Equipe" />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <RoleSelect label="Gestor de Projetos" value={cliente.gestor_projetos} papel="gestor_projetos" usuarios={usuarios} canEdit={canEdit} onSave={v => onSaveCliente({ gestor_projetos: v })} />
-          <RoleSelect label="Designer"           value={cliente.designer}        papel="designer"        usuarios={usuarios} canEdit={canEdit} onSave={v => onSaveCliente({ designer: v })} />
-          <RoleSelect label="Analista de Mídia"  value={cliente.analista_midia}  papel="analista_midia"  usuarios={usuarios} canEdit={canEdit} onSave={v => onSaveCliente({ analista_midia: v })} />
+          <RoleSelect label="Gestor de Projetos" value={cliente.gestor_projetos} papel={['gestor_projetos', 'coordenador_peg']} usuarios={usuarios} canEdit={canEdit} onSave={v => onSaveCliente({ gestor_projetos: v })} />
+          <RoleSelect label="Designer"           value={cliente.designer}        papel="designer"                               usuarios={usuarios} canEdit={canEdit} onSave={v => onSaveCliente({ designer: v })} />
+          <RoleSelect label="Analista de Mídia"  value={cliente.analista_midia}  papel={['analista_midia', 'coordenador_peg']}  usuarios={usuarios} canEdit={canEdit} onSave={v => onSaveCliente({ analista_midia: v })} />
         </div>
       </div>
 
