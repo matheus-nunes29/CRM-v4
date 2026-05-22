@@ -580,6 +580,16 @@ function getEtapas(tipo: Projeto['tipo'], servico: string | null): string[] {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: PROJETOS
 // ══════════════════════════════════════════════════════════════════════════════
+function fmtBRL(val: string): string {
+  if (!val) return ''
+  const n = parseFloat(val)
+  if (isNaN(n)) return ''
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function parseCurrInput(raw: string): string {
+  return raw.replace(/[^\d,]/g, '').replace(',', '.')
+}
+
 function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
   const emptyForm = { nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' }
   const [showNew, setShowNew] = useState(false)
@@ -589,6 +599,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(emptyForm)
   const [editServicosSel, setEditServicosSel] = useState<{ key: string; volume?: string }[]>([])
+  const [currFocus, setCurrFocus] = useState<string | null>(null)
 
   function toggleServico(key: string) {
     setServicosSel(prev =>
@@ -735,12 +746,22 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                       </div>
                       <div>
                         <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$)</label>
-                        <input type="number" value={editForm.valor} onChange={e => setEditForm(f => ({ ...f, valor: e.target.value }))} style={input14} />
+                        <input type="text" inputMode="numeric"
+                          value={currFocus === 'edit_valor' ? editForm.valor : fmtBRL(editForm.valor)}
+                          onChange={e => setEditForm(f => ({ ...f, valor: parseCurrInput(e.target.value) }))}
+                          onFocus={() => setCurrFocus('edit_valor')}
+                          onBlur={() => setCurrFocus(null)}
+                          placeholder="0,00" style={input14} />
                       </div>
                       {editForm.tipo === 'executar' && (
                         <div>
                           <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Verba Google/Meta Ads (R$/mês)</label>
-                          <input type="number" value={editForm.investimento_midia} onChange={e => setEditForm(f => ({ ...f, investimento_midia: e.target.value }))} placeholder="0" style={input14} />
+                          <input type="text" inputMode="numeric"
+                            value={currFocus === 'edit_midia' ? editForm.investimento_midia : fmtBRL(editForm.investimento_midia)}
+                            onChange={e => setEditForm(f => ({ ...f, investimento_midia: parseCurrInput(e.target.value) }))}
+                            onFocus={() => setCurrFocus('edit_midia')}
+                            onBlur={() => setCurrFocus(null)}
+                            placeholder="0,00" style={input14} />
                         </div>
                       )}
                       <div>
@@ -963,12 +984,22 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
             </div>
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$)</label>
-              <input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} placeholder="0" style={input14} />
+              <input type="text" inputMode="numeric"
+                value={currFocus === 'novo_valor' ? form.valor : fmtBRL(form.valor)}
+                onChange={e => setForm(p => ({ ...p, valor: parseCurrInput(e.target.value) }))}
+                onFocus={() => setCurrFocus('novo_valor')}
+                onBlur={() => setCurrFocus(null)}
+                placeholder="0,00" style={input14} />
             </div>
             {form.tipo === 'executar' && (
               <div>
                 <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Verba Google/Meta Ads (R$/mês)</label>
-                <input type="number" value={form.investimento_midia} onChange={e => setForm(p => ({ ...p, investimento_midia: e.target.value }))} placeholder="0" style={input14} />
+                <input type="text" inputMode="numeric"
+                  value={currFocus === 'novo_midia' ? form.investimento_midia : fmtBRL(form.investimento_midia)}
+                  onChange={e => setForm(p => ({ ...p, investimento_midia: parseCurrInput(e.target.value) }))}
+                  onFocus={() => setCurrFocus('novo_midia')}
+                  onBlur={() => setCurrFocus(null)}
+                  placeholder="0,00" style={input14} />
               </div>
             )}
             <div>
