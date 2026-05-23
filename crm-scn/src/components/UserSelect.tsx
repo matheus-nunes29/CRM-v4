@@ -10,21 +10,27 @@ type Props = {
   onChange: (nome: string) => void
   placeholder?: string
   borderColor?: string
+  papeis?: string[]
 }
 
-export function UserSelect({ value, onChange, placeholder = 'Selecione', borderColor = '#EEEEF5' }: Props) {
+export function UserSelect({ value, onChange, placeholder = 'Selecione', borderColor = '#EEEEF5', papeis }: Props) {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function load() {
-      // Tenta query direta primeiro (funciona quando a SELECT policy estiver ativa)
-      const { data: direct } = await supabase
+      let query = supabase
         .from('usuarios_permitidos')
-        .select('id, nome, email, avatar_url, ativo')
+        .select('id, nome, email, avatar_url, ativo, papel')
         .eq('ativo', true)
         .order('nome')
+
+      if (papeis && papeis.length > 0) {
+        query = (query as any).in('papel', papeis)
+      }
+
+      const { data: direct } = await query
 
       if (direct && direct.length > 0) {
         setUsuarios(direct)
@@ -33,10 +39,14 @@ export function UserSelect({ value, onChange, placeholder = 'Selecione', borderC
 
       // Fallback: RPC SECURITY DEFINER (sem avatar_url)
       const { data: rpc } = await supabase.rpc('get_usuarios_com_ultimo_login')
-      if (rpc) setUsuarios((rpc as Usuario[]).filter(u => u.ativo))
+      if (rpc) {
+        const all = (rpc as any[]).filter(u => u.ativo)
+        setUsuarios(papeis ? all.filter(u => papeis.includes(u.papel)) : all)
+      }
     }
     load()
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [papeis?.join(',')])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {

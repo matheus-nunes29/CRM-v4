@@ -732,6 +732,7 @@ function LeadPageInner() {
     if (!form.telefone?.trim()) errs.telefone = 'Obrigatório'
     if (!form.origem) errs.origem = 'Obrigatório'
     if (!form.data_entrada) errs.data_entrada = 'Obrigatório'
+    if (!form.responsavel_bdr) errs.responsavel_bdr = 'Obrigatório'
     if (form.situacao_pre_vendas === 'REUNIÃO AGENDADA') {
       if (!form.data_ra) errs.data_ra = 'Obrigatório para Reunião Agendada'
       if (!form.closer) errs.closer = 'Obrigatório para Reunião Agendada'
@@ -964,12 +965,13 @@ function LeadPageInner() {
             </InfoField>
           )}
 
-          <InfoField label="Responsável BDR">
+          <InfoField label="Responsável BDR" required error={errors.responsavel_bdr}>
             <UserSelect
               value={form.responsavel_bdr || null}
               onChange={v => set('responsavel_bdr', v)}
               placeholder="Selecione o BDR"
-              borderColor={BORDER}
+              borderColor={errors.responsavel_bdr ? '#E8001C' : BORDER}
+              papeis={['closer', 'sdr', 'admin']}
             />
           </InfoField>
 
