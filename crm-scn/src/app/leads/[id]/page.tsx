@@ -737,6 +737,7 @@ function LeadPageInner() {
     if (form.situacao_pre_vendas === 'REUNIÃO AGENDADA') {
       if (!form.data_ra) errs.data_ra = 'Obrigatório para Reunião Agendada'
       if (!form.closer) errs.closer = 'Obrigatório para Reunião Agendada'
+      if (!form.segmento) errs.segmento = 'Obrigatório para Reunião Agendada'
       if (bantScore < 3) errs.bant = 'BANT mínimo 3 para Reunião Agendada'
     }
     if (form.data_ra) {
