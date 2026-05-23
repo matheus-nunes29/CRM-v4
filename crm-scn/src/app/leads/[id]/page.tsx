@@ -730,6 +730,7 @@ function LeadPageInner() {
     if (!form.empresa?.trim()) errs.empresa = 'Obrigatório'
     if (!form.nome_lead?.trim()) errs.nome_lead = 'Obrigatório'
     if (!form.telefone?.trim()) errs.telefone = 'Obrigatório'
+    if (!form.email?.trim()) errs.email = 'Obrigatório'
     if (!form.origem) errs.origem = 'Obrigatório'
     if (!form.data_entrada) errs.data_entrada = 'Obrigatório'
     if (!form.responsavel_bdr) errs.responsavel_bdr = 'Obrigatório'
@@ -902,7 +903,7 @@ function LeadPageInner() {
             </div>
           </InfoField>
 
-          <InfoField label="E-mail do Lead" error={errors.email}>
+          <InfoField label="E-mail do Lead" required error={errors.email}>
             <input type="email" style={{ ...inputStyle, borderColor: errors.email ? R : BORDER }} value={form.email || ''} onChange={e => set('email', e.target.value)} placeholder="email@exemplo.com" />
           </InfoField>
 
