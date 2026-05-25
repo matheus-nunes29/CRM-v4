@@ -1505,6 +1505,7 @@ function LeadPageInner() {
                           <select style={inputStyle} value={form.situacao_closer || ''} onChange={e => set('situacao_closer', e.target.value)}>
                             <option value="">Selecione</option>
                             {['EM FOLLOW UP', 'REUNIAO EXTRA AGENDADA', 'AGENDA FUTURA'].map(o => <option key={o}>{o}</option>)}
+                            <option value="PERDIDO CLOSER">PERDIDO</option>
                           </select>
                         )
                       })()}
