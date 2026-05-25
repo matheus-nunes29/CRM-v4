@@ -1510,6 +1510,15 @@ function LeadPageInner() {
                         )
                       })()}
                     </div>
+                    {form.situacao_closer === 'PERDIDO CLOSER' && (
+                      <div style={{ gridColumn: '1 / -1', padding: '12px 14px', background: `${R}06`, borderRadius: 10, border: `1px solid ${R}25` }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: R, marginBottom: 6 }}>MOTIVO DE PERDA — CLOSER</div>
+                        <select style={inputStyle} value={form.motivo_perda_closer || ''} onChange={e => set('motivo_perda_closer', e.target.value)}>
+                          <option value="">Selecione o motivo</option>
+                          {MOTIVOS_PERDA_CLOSER.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    )}
                     <div style={{ gridColumn: '1 / -1' }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: GRAY2, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>TCV — Total Contract Value</div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -1565,15 +1574,6 @@ function LeadPageInner() {
                       ) : null}
                     </div>
                   </div>
-                  {form.situacao_closer === 'PERDIDO CLOSER' && (
-                    <div style={{ marginTop: 12, padding: '12px 14px', background: `${GRAY2}08`, borderRadius: 10, border: `1px solid ${GRAY2}30` }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: GRAY2, marginBottom: 6 }}>MOTIVO DE PERDA — CLOSER</div>
-                      <select style={inputStyle} value={form.motivo_perda_closer || ''} onChange={e => set('motivo_perda_closer', e.target.value)}>
-                        <option value="">Selecione o motivo</option>
-                        {MOTIVOS_PERDA_CLOSER.map(o => <option key={o}>{o}</option>)}
-                      </select>
-                    </div>
-                  )}
                 </div>
 
                 <div>
