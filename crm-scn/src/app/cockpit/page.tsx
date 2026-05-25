@@ -129,15 +129,15 @@ export default function CockpitPage() {
   }, [clientes, filterStatus, filterGestor, search])
 
   const stats = useMemo(() => ({
-    total:       clientes.length,
-    ativos:      clientes.filter(c => c.status === 'ativo').length,
+    total:       filtered.length,
+    ativos:      filtered.filter(c => c.status === 'ativo').length,
     healthMedia: (() => {
-      const scores = clientes.map(c => c.latestHealth?.score_total).filter(v => v != null) as number[]
+      const scores = filtered.map(c => c.latestHealth?.score_total).filter(v => v != null) as number[]
       return scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null
     })(),
-    mrr: clientes.filter(c => c.status === 'ativo').reduce((acc, c) =>
+    mrr: filtered.filter(c => c.status === 'ativo').reduce((acc, c) =>
       acc + c.projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0), 0),
-  }), [clientes])
+  }), [filtered])
 
   const thStyle: React.CSSProperties = {
     padding: '10px 14px', fontSize: 11, fontWeight: 700, color: GRAY3,
