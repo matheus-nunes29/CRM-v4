@@ -49,6 +49,7 @@ export default function CockpitPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'todos' | 'ativo' | 'pausado' | 'churned'>('todos')
+  const [filterGestor, setFilterGestor] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [newEmpresa, setNewEmpresa] = useState('')
   const [newSegmento, setNewSegmento] = useState('')
@@ -111,15 +112,21 @@ export default function CockpitPage() {
     setSaving(false)
   }
 
+  const gestores = useMemo(() => {
+    const names = clientes.map(c => c.gestor_projetos).filter(Boolean) as string[]
+    return Array.from(new Set(names)).sort()
+  }, [clientes])
+
   const filtered = useMemo(() => {
     let list = clientes
     if (filterStatus !== 'todos') list = list.filter(c => c.status === filterStatus)
+    if (filterGestor) list = list.filter(c => c.gestor_projetos === filterGestor)
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(c => c.empresa.toLowerCase().includes(q) || (c.segmento || '').toLowerCase().includes(q))
     }
     return list
-  }, [clientes, filterStatus, search])
+  }, [clientes, filterStatus, filterGestor, search])
 
   const stats = useMemo(() => ({
     total:       clientes.length,
@@ -179,6 +186,13 @@ export default function CockpitPage() {
             </button>
           ))}
         </div>
+        {gestores.length > 0 && (
+          <select value={filterGestor} onChange={e => setFilterGestor(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${filterGestor ? R : GRAY5}`, background: filterGestor ? '#FFF5F5' : GRAY4, color: filterGestor ? R : GRAY2, fontSize: 13, fontWeight: filterGestor ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
+            <option value="">Gestor de Projetos</option>
+            {gestores.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        )}
         <button onClick={() => router.push('/cockpit/health-score')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
           <BarChart2 size={14} strokeWidth={2.5} /> Analytics
         </button>
