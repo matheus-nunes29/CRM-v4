@@ -355,6 +355,10 @@ export default function PipelinePage() {
     if (targetStage === 'PERDIDO') {
       updates.situacao_pre_vendas = 'PERDIDO SDR'
       updates.situacao_closer = 'PERDIDO CLOSER'
+    } else {
+      // Limpa flags de perdido ao reativar o lead
+      if (!updates.situacao_pre_vendas) updates.situacao_pre_vendas = null
+      if (!updates.situacao_closer) updates.situacao_closer = null
     }
     if (targetStage === 'VENDA' && formData.data_assinatura) updates.venda = 'SIM'
 
