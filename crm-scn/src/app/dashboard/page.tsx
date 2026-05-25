@@ -805,13 +805,14 @@ export default function DashboardPage() {
           )
 
           const noShows = lm.ra.filter((l: any) => l.situacao_pre_vendas === 'NO SHOW/REMARCANDO')
+          const noShowBase = noShows.length + lm.rr.length
           const cardConversao = (
             <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, animationDelay: '60ms' }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Taxas de Conversão</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {[
                   { label: 'Entrada → RA', a: lm.ra.length, b: lm.entrada.length },
-                  { label: 'No-Show (% das RAs)', a: noShows.length, b: lm.ra.length },
+                  { label: 'No-Show (% das RAs)', a: noShows.length, b: noShowBase },
                   { label: 'RA → RR', a: lm.rr.length, b: lm.ra.length },
                   { label: 'RR → Venda', a: lm.venda.length, b: lm.rr.length },
                   { label: 'Venda → Ativação', a: lm.ativacao.length, b: lm.venda.length },
