@@ -175,6 +175,7 @@ export type Oportunidade = {
   valor_estimado: number | null
   responsavel: string | null
   data_estimada: string | null
+  link_contrato: string | null
   created_at: string
   updated_at: string
 }

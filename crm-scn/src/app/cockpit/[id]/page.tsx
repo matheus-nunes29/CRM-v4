@@ -1552,22 +1552,65 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit }: { metas: Me
 // TAB: OPORTUNIDADES (Kanban)
 // ══════════════════════════════════════════════════════════════════════════════
 function TabOportunidades({ oportunidades, clienteId, onReload, canEdit }: { oportunidades: Oportunidade[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
-  const [showNew, setShowNew] = useState(false)
-  const [form, setForm]       = useState({ titulo: '', descricao: '', etapa: 'identificada' as Oportunidade['etapa'], valor_estimado: '', data_estimada: '' })
-  const [saving, setSaving]   = useState(false)
+  const [showNew, setShowNew]           = useState(false)
+  const [form, setForm]                 = useState({ titulo: '', descricao: '', etapa: 'identificada' as Oportunidade['etapa'], valor_estimado: '', data_estimada: '' })
+  const [saving, setSaving]             = useState(false)
+  const [ganhoOpp, setGanhoOpp]         = useState<Oportunidade | null>(null)
+  const [ganhoLink, setGanhoLink]       = useState('')
 
   async function save() {
     if (!form.titulo.trim()) return; setSaving(true)
     await supabase.from('oportunidades').insert({ ...form, valor_estimado: form.valor_estimado ? parseFloat(form.valor_estimado) : null, data_estimada: form.data_estimada || null, cliente_id: clienteId })
     setShowNew(false); setForm({ titulo: '', descricao: '', etapa: 'identificada', valor_estimado: '', data_estimada: '' }); await onReload(); setSaving(false)
   }
-  async function moveOpp(id: string, etapa: Oportunidade['etapa']) { await supabase.from('oportunidades').update({ etapa }).eq('id', id); await onReload() }
+  async function moveOpp(id: string, etapa: Oportunidade['etapa'], extra?: Record<string, any>) {
+    await supabase.from('oportunidades').update({ etapa, ...extra }).eq('id', id); await onReload()
+  }
+  async function confirmarGanho() {
+    if (!ganhoOpp) return; setSaving(true)
+    await moveOpp(ganhoOpp.id, 'fechada', { link_contrato: ganhoLink || null })
+    setGanhoOpp(null); setGanhoLink(''); setSaving(false)
+  }
   async function deleteOpp(id: string) { await supabase.from('oportunidades').delete().eq('id', id); await onReload() }
 
   const totalPipeline = oportunidades.filter(o => o.etapa !== 'fechada').reduce((s, o) => s + (o.valor_estimado || 0), 0)
 
   return (
     <div>
+      {/* Modal de ganho */}
+      {ganhoOpp && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => { setGanhoOpp(null); setGanhoLink('') }}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#065F46' }}>🎉 Marcar como Ganho</div>
+              <button onClick={() => { setGanhoOpp(null); setGanhoLink('') }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 4 }}><X size={18} /></button>
+            </div>
+            <div style={{ fontSize: 13, color: GRAY2, marginBottom: 16 }}>
+              <strong style={{ color: GRAY1 }}>{ganhoOpp.titulo}</strong>
+            </div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: GRAY3, display: 'block', marginBottom: 6 }}>Link do Contrato (opcional)</label>
+            <input
+              type="url"
+              value={ganhoLink}
+              onChange={e => setGanhoLink(e.target.value)}
+              placeholder="https://..."
+              style={{ ...input14, marginBottom: 20 }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={confirmarGanho} disabled={saving} style={btnPrimary(saving)}
+                onMouseEnter={e => (e.currentTarget.style.background = '#065F46')}
+                onMouseLeave={e => (e.currentTarget.style.background = R)}>
+                {saving ? 'Salvando...' : 'Confirmar Ganho'}
+              </button>
+              <button onClick={() => { setGanhoOpp(null); setGanhoLink('') }} style={btnGhost}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         {totalPipeline > 0 && (
           <div style={{ padding: '8px 16px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 9 }}>
@@ -1620,13 +1663,21 @@ function TabOportunidades({ oportunidades, clienteId, onReload, canEdit }: { opo
               <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 80 }}>
                 {items.map(o => (
                   <div key={o.id} style={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 9, padding: '10px 12px', boxShadow: '0 1px 3px rgba(0,0,0,.05)' }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, marginBottom: o.valor_estimado || o.data_estimada ? 6 : 0 }}>{o.titulo}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1, marginBottom: 4 }}>{o.titulo}</div>
+                    {o.descricao ? <div style={{ fontSize: 11, color: GRAY2, marginBottom: 6, lineHeight: 1.45 }}>{o.descricao}</div> : null}
                     {o.valor_estimado ? <div style={{ fontSize: 13, fontWeight: 800, color: '#92400E', marginBottom: 4 }}>{fmt(o.valor_estimado)}</div> : null}
-                    {o.data_estimada ? <div style={{ fontSize: 11, color: GRAY3, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 8 }}><Calendar size={10} />{fmtDate(o.data_estimada)}</div> : null}
+                    {o.data_estimada ? <div style={{ fontSize: 11, color: GRAY3, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4 }}><Calendar size={10} />{fmtDate(o.data_estimada)}</div> : null}
+                    {o.link_contrato ? (
+                      <a href={o.link_contrato} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#065F46', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, textDecoration: 'none' }}>
+                        <ExternalLink size={10} /> Ver contrato
+                      </a>
+                    ) : null}
                     {canEdit && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                         {OPP_STAGES.filter(s => s.key !== stage.key).map(s => (
-                          <button key={s.key} onClick={() => moveOpp(o.id, s.key)} style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${GRAY5}`, background: s.bg, color: s.color, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>→ {s.label}</button>
+                          <button key={s.key}
+                            onClick={() => s.key === 'fechada' ? setGanhoOpp(o) : moveOpp(o.id, s.key)}
+                            style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${GRAY5}`, background: s.bg, color: s.color, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>→ {s.label}</button>
                         ))}
                         <button onClick={() => deleteOpp(o.id)} style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid #FECACA', background: '#FEF2F2', color: '#991B1B', fontSize: 10, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>✕</button>
                       </div>
