@@ -68,6 +68,7 @@ export default function DashboardPage() {
     return n.toISOString().slice(0, 10)
   })
 
+  const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set())
   const [healthInfoOpen, setHealthInfoOpen] = useState<string | null>(null)
   const [kpiHover, setKpiHover] = useState<string | null>(null)
   const [kpiPopoverPage, setKpiPopoverPage] = useState(0)
@@ -1020,7 +1021,36 @@ export default function DashboardPage() {
         {/* ── Charts row ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
           <div className="card-hover anim-fade-up" style={{ background: WHITE, borderRadius: 16, padding: '22px 22px', boxShadow: '0 1px 8px rgba(0,0,0,.05)', border: `1px solid ${GRAY5}`, animationDelay: '100ms' }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 20 }}>Evolução Mensal</div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>Evolução Mensal</div>
+            <div style={{ fontSize: 10, color: GRAY3, marginBottom: 14 }}>Clique na legenda para mostrar/ocultar linhas</div>
+            {/* Legenda clicável */}
+            {(() => {
+              const items = [
+                { key: 'tcv',     name: 'TCV',          color: R,         bar: true },
+                { key: 'entrada', name: 'Entradas',      color: '#F97316', bar: false },
+                { key: 'ra',      name: 'Reu. Agend.',   color: '#8B5CF6', bar: false },
+                { key: 'rr',      name: 'Reu. Realiz.',  color: '#0D9488', bar: false },
+                { key: 'vendas',  name: 'Vendas',        color: R,         bar: false },
+                { key: 'ativacao',name: 'Ativações',     color: '#10B981', bar: false },
+              ]
+              return (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                  {items.map(item => {
+                    const hidden = hiddenLines.has(item.key)
+                    return (
+                      <div key={item.key} onClick={() => setHiddenLines(prev => { const n = new Set(prev); if (n.has(item.key)) n.delete(item.key); else n.add(item.key); return n })}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', opacity: hidden ? 0.3 : 1, transition: 'opacity .15s', userSelect: 'none', padding: '4px 8px', borderRadius: 6, border: `1px solid ${hidden ? GRAY5 : item.color + '40'}`, background: hidden ? GRAY4 : `${item.color}0e` }}>
+                        {item.bar
+                          ? <div style={{ width: 10, height: 10, borderRadius: 2, background: hidden ? GRAY3 : item.color, opacity: hidden ? 0.5 : 0.6 }} />
+                          : <div style={{ width: 16, height: 2, background: hidden ? GRAY3 : item.color, borderRadius: 1 }} />
+                        }
+                        <span style={{ fontSize: 10, fontWeight: 700, color: hidden ? GRAY3 : GRAY1 }}>{item.name}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={dadosMensais}>
                 <CartesianGrid strokeDasharray="2 4" stroke={GRAY5} />
@@ -1028,13 +1058,12 @@ export default function DashboardPage() {
                 <YAxis yAxisId="left" tick={{ fill: GRAY2, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fill: `${R}99`, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
                 <Tooltip contentStyle={{ ...tooltipStyle, boxShadow: '0 8px 24px rgba(0,0,0,.12)' }} formatter={(v: any, name: string) => name === 'TCV' ? [fmt(v), name] : [v, name]} />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
-                <Bar yAxisId="right" dataKey="tcv" name="TCV" fill={`${R}22`} stroke={R} strokeWidth={1} radius={[4,4,0,0]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
-                <Line yAxisId="left" type="monotone" dataKey="entrada" name="Entradas" stroke="#F97316" strokeWidth={2} dot={{ r: 3, fill: WHITE, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} isAnimationActive animationDuration={1000} animationEasing="ease-out" />
-                <Line yAxisId="left" type="monotone" dataKey="ra" name="Reu. Agend." stroke="#8B5CF6" strokeWidth={2} dot={{ r: 3, fill: WHITE, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} isAnimationActive animationDuration={1000} animationEasing="ease-out" animationBegin={80} />
-                <Line yAxisId="left" type="monotone" dataKey="rr" name="Reu. Realiz." stroke="#0D9488" strokeWidth={2} dot={{ r: 3, fill: WHITE, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} isAnimationActive animationDuration={1000} animationEasing="ease-out" animationBegin={160} />
-                <Line yAxisId="left" type="monotone" dataKey="vendas" name="Vendas" stroke={R} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} activeDot={{ r: 7, strokeWidth: 0 }} isAnimationActive animationDuration={1000} animationEasing="ease-out" animationBegin={240} />
-                <Line yAxisId="left" type="monotone" dataKey="ativacao" name="Ativações" stroke="#10B981" strokeWidth={2} dot={{ r: 3, fill: WHITE, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} isAnimationActive animationDuration={1000} animationEasing="ease-out" animationBegin={320} />
+                <Bar yAxisId="right" dataKey="tcv" name="TCV" fill={`${R}22`} stroke={R} strokeWidth={1} radius={[4,4,0,0]} hide={hiddenLines.has('tcv')} isAnimationActive animationDuration={800} animationEasing="ease-out" />
+                <Line yAxisId="left" type="monotone" dataKey="entrada" name="Entradas" stroke="#F97316" strokeWidth={2} dot={{ r: 3, fill: WHITE, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} hide={hiddenLines.has('entrada')} isAnimationActive animationDuration={1000} animationEasing="ease-out" />
+                <Line yAxisId="left" type="monotone" dataKey="ra" name="Reu. Agend." stroke="#8B5CF6" strokeWidth={2} dot={{ r: 3, fill: WHITE, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} hide={hiddenLines.has('ra')} isAnimationActive animationDuration={1000} animationEasing="ease-out" animationBegin={80} />
+                <Line yAxisId="left" type="monotone" dataKey="rr" name="Reu. Realiz." stroke="#0D9488" strokeWidth={2} dot={{ r: 3, fill: WHITE, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} hide={hiddenLines.has('rr')} isAnimationActive animationDuration={1000} animationEasing="ease-out" animationBegin={160} />
+                <Line yAxisId="left" type="monotone" dataKey="vendas" name="Vendas" stroke={R} strokeWidth={2.5} dot={{ r: 4, fill: WHITE, strokeWidth: 2.5 }} activeDot={{ r: 7, strokeWidth: 0 }} hide={hiddenLines.has('vendas')} isAnimationActive animationDuration={1000} animationEasing="ease-out" animationBegin={240} />
+                <Line yAxisId="left" type="monotone" dataKey="ativacao" name="Ativações" stroke="#10B981" strokeWidth={2} dot={{ r: 3, fill: WHITE, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} hide={hiddenLines.has('ativacao')} isAnimationActive animationDuration={1000} animationEasing="ease-out" animationBegin={320} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
