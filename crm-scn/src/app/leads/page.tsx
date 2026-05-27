@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Lead } from '@/lib/supabase'
-import { Users, Search, Edit2, Trash2 } from 'lucide-react'
+import { Users, Search, Edit2, Trash2, X, ChevronDown } from 'lucide-react'
 import CRMLayout from '../_components/CRMLayout'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
@@ -81,6 +81,17 @@ export default function LeadsPage() {
   })
   const PAGE_SIZE = 50
 
+  const [bulkModal, setBulkModal] = useState(false)
+  const [bulkField, setBulkField] = useState<'responsavel_bdr' | 'closer' | 'situacao_closer' | 'temperatura' | ''>('')
+  const [bulkValue, setBulkValue] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bdrUsers, setBdrUsers] = useState<{ id: string; nome: string }[]>([])
+
+  useEffect(() => {
+    supabase.from('usuarios_permitidos').select('id, nome, papel').in('papel', ['closer', 'sdr', 'admin']).eq('ativo', true).order('nome')
+      .then(({ data }) => setBdrUsers(data || []))
+  }, [])
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.push('/login'); return }
@@ -150,6 +161,23 @@ export default function LeadsPage() {
         },
       },
     })
+  }
+
+  async function applyBulkEdit() {
+    if (!bulkField || !bulkValue) return
+    setBulkSaving(true)
+    const ids = Array.from(selected)
+    const CHUNK = 50
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      await supabase.from('leads').update({ [bulkField]: bulkValue }).in('id', ids.slice(i, i + CHUNK))
+    }
+    setBulkSaving(false)
+    setBulkModal(false)
+    setBulkField('')
+    setBulkValue('')
+    setSelected(new Set())
+    toast.info(`${ids.length} lead${ids.length > 1 ? 's' : ''} atualizado${ids.length > 1 ? 's' : ''}`)
+    fetchLeads()
   }
 
   function deleteSelected() {
@@ -254,6 +282,9 @@ export default function LeadsPage() {
           {canEdit && selected.size > 0 && (
             <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px', background:`${R}10`, border:`1px solid ${R}33`, borderRadius:10 }}>
               <span style={{ fontSize:13, fontWeight:700, color:R }}>{selected.size} lead{selected.size > 1 ? 's' : ''} selecionado{selected.size > 1 ? 's' : ''}</span>
+              <button onClick={() => { setBulkField(''); setBulkValue(''); setBulkModal(true) }} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', background:WHITE, color:R, border:`1px solid ${R}44`, borderRadius:7, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                <Edit2 size={13}/> Editar em massa
+              </button>
               <button onClick={deleteSelected} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', background:R, color:WHITE, border:'none', borderRadius:7, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                 <Trash2 size={13}/> Excluir selecionados
               </button>
@@ -524,6 +555,62 @@ export default function LeadsPage() {
         )}
 
       </div>
+
+      {bulkModal && (
+        <>
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000 }} onClick={() => setBulkModal(false)} />
+          <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', background:WHITE, borderRadius:16, padding:28, width:420, zIndex:1001, boxShadow:'0 16px 48px rgba(0,0,0,.22)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+              <div>
+                <div style={{ fontSize:16, fontWeight:800, color:GRAY1 }}>Edição em massa</div>
+                <div style={{ fontSize:12, color:GRAY2, marginTop:2 }}>{selected.size} lead{selected.size > 1 ? 's' : ''} selecionado{selected.size > 1 ? 's' : ''}</div>
+              </div>
+              <button onClick={() => setBulkModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:GRAY2, display:'flex' }}><X size={18}/></button>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <div>
+                <label style={labelCls}>Campo a editar</label>
+                <select style={inputCls} value={bulkField} onChange={e => { setBulkField(e.target.value as any); setBulkValue('') }}>
+                  <option value="">Selecione...</option>
+                  <option value="responsavel_bdr">SDR do Lead</option>
+                  <option value="closer">Closer do Lead</option>
+                  <option value="situacao_closer">Situação Closer</option>
+                  <option value="temperatura">Temperatura</option>
+                </select>
+              </div>
+              {bulkField && (
+                <div>
+                  <label style={labelCls}>Novo valor</label>
+                  {bulkField === 'temperatura' ? (
+                    <select style={inputCls} value={bulkValue} onChange={e => setBulkValue(e.target.value)}>
+                      <option value="">Selecione...</option>
+                      {TEMPERATURAS.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  ) : bulkField === 'situacao_closer' ? (
+                    <select style={inputCls} value={bulkValue} onChange={e => setBulkValue(e.target.value)}>
+                      <option value="">Selecione...</option>
+                      {SITUACOES.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  ) : (
+                    <select style={inputCls} value={bulkValue} onChange={e => setBulkValue(e.target.value)}>
+                      <option value="">Selecione...</option>
+                      {bdrUsers.map(u => <option key={u.id} value={u.nome}>{u.nome}</option>)}
+                    </select>
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={{ display:'flex', gap:10, marginTop:24 }}>
+              <button onClick={() => setBulkModal(false)} style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1px solid #E5E7EB', background:WHITE, color:GRAY1, fontSize:13, fontWeight:700, cursor:'pointer' }}>Cancelar</button>
+              <button onClick={applyBulkEdit} disabled={!bulkField || !bulkValue || bulkSaving}
+                style={{ flex:2, padding:'10px 0', borderRadius:10, border:'none', background:(!bulkField || !bulkValue || bulkSaving) ? GRAY3 : R, color:WHITE, fontSize:13, fontWeight:800, cursor:(!bulkField || !bulkValue || bulkSaving) ? 'default' : 'pointer' }}>
+                {bulkSaving ? 'Salvando...' : 'Aplicar'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
     </CRMLayout>
   )
 }
