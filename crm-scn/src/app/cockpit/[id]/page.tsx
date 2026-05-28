@@ -842,8 +842,8 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                           <button onClick={() => toggleStatus(p)} style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                             {p.status === 'ativo' ? 'Pausar' : p.status === 'pausado' ? 'Encerrar' : 'Reativar'}
                           </button>
-                          <button onClick={() => startEdit(p)} style={{ padding: '5px 7px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                            <Edit2 size={12} color={GRAY3} />
+                          <button onClick={() => startEdit(p)} style={{ padding: '5px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: GRAY4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: GRAY2, fontSize: 11, fontWeight: 600 }}>
+                            <Edit2 size={12} /> Editar
                           </button>
                         </div>
                       )}
