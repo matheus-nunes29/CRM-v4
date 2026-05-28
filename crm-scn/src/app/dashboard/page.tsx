@@ -179,6 +179,9 @@ export default function DashboardPage() {
   const tcvSaberMes  = lm.venda.reduce((s, l) => s + (l.tcv_saber  || 0), 0)
   const tcvTerMes    = lm.venda.reduce((s, l) => s + (l.tcv_ter    || 0), 0)
   const tcvExecMes   = lm.venda.reduce((s, l) => s + (l.tcv_executar || 0), 0)
+  const cntSaberMes  = lm.venda.filter(l => (l.tcv_saber    || 0) > 0).length
+  const cntTerMes    = lm.venda.filter(l => (l.tcv_ter      || 0) > 0).length
+  const cntExecMes   = lm.venda.filter(l => (l.tcv_executar || 0) > 0).length
   const conv = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0
   const convBar = (a: number, b: number) => Math.min(conv(a, b), 100)
   const tooltipStyle = { background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 8, color: GRAY1, fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.10)' }
@@ -739,15 +742,18 @@ export default function DashboardPage() {
                   <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Por Produto</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {[
-                      { label: 'Saber',    val: tcvSaberMes, meta: mm.meta_tcv_saber, color: BLUE },
-                      { label: 'Ter',      val: tcvTerMes,   meta: mm.meta_tcv_ter,   color: PURPLE },
-                      { label: 'Executar', val: tcvExecMes,  meta: mm.meta_tcv_executar, color: GREEN },
-                    ].map(({ label, val, meta, color }) => {
+                      { label: 'Saber',    val: tcvSaberMes, cnt: cntSaberMes, meta: mm.meta_tcv_saber, color: BLUE },
+                      { label: 'Ter',      val: tcvTerMes,   cnt: cntTerMes,   meta: mm.meta_tcv_ter,   color: PURPLE },
+                      { label: 'Executar', val: tcvExecMes,  cnt: cntExecMes,  meta: mm.meta_tcv_executar, color: GREEN },
+                    ].map(({ label, val, cnt, meta, color }) => {
                       const pctProd = meta ? Math.min(Math.round(val / meta * 100), 999) : null
                       return (
                         <div key={label}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color }}>{label}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color }}>{label}</span>
+                              {cnt > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: WHITE, background: color, borderRadius: 20, padding: '1px 6px', lineHeight: 1.4 }}>{cnt}</span>}
+                            </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <span style={{ fontSize: 11, fontWeight: 800, color: GRAY1 }}>{val > 0 ? fmt(val) : '—'}</span>
                               {pctProd !== null && <span style={{ fontSize: 10, fontWeight: 700, color: pctProd >= 100 ? GREEN : GRAY3 }}>{pctProd}%</span>}
