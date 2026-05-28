@@ -240,17 +240,19 @@ export default function CockpitPage() {
                   const delta   = score !== null && prev !== null ? score - prev : null
                   const needsFca = score !== null && score < 7
 
+                  const clientUrl = `/cockpit/${c.slug || c.id}`
                   return (
                     <tr
                       key={c.id}
-                      onClick={() => router.push(`/cockpit/${c.slug || c.id}`)}
+                      onClick={e => { if (!(e.target as HTMLElement).closest('a,button')) router.push(clientUrl) }}
+                      onAuxClick={e => { if (e.button === 1) window.open(clientUrl, '_blank') }}
                       style={{ cursor: 'pointer', transition: 'background .12s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = GRAY4)}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
                       {/* Cliente */}
                       <td style={tdStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <a href={clientUrl} onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); router.push(clientUrl) } }} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}>
                           <div style={{ width: 34, height: 34, borderRadius: 8, background: `${R}0F`, border: `1.5px solid ${R}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <span style={{ fontSize: 13, fontWeight: 900, color: R }}>{c.empresa[0].toUpperCase()}</span>
                           </div>
@@ -259,7 +261,7 @@ export default function CockpitPage() {
                             {c.segmento && <div style={{ fontSize: 11, color: GRAY3 }}>{c.segmento}</div>}
                           </div>
                           <StatusBadge status={c.status} />
-                        </div>
+                        </a>
                       </td>
 
                       {/* Health Score */}
