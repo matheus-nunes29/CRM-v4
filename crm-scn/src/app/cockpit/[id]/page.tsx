@@ -1367,6 +1367,9 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit }: { metas: Me
   const [form, setForm]         = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
   const [saving, setSaving]     = useState(false)
   const [realizadoLocal, setRealizadoLocal] = useState<Record<string, string>>({})
+  const [editingMeta, setEditingMeta] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
+  const [editSaving, setEditSaving] = useState(false)
 
   const semanas = useMemo(() => {
     const all = [semanaAtual, ...metas.map(m => m.semana)]
@@ -1397,6 +1400,18 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit }: { metas: Me
   }
   async function updateMeta(id: string, fields: Partial<MetaSemanal>) { await supabase.from('metas_semanais').update(fields).eq('id', id); await onReload() }
   async function deleteMeta(id: string) { await supabase.from('metas_semanais').delete().eq('id', id); await onReload() }
+  async function saveEditMeta() {
+    if (!editingMeta || !editForm.descricao.trim()) return
+    setEditSaving(true)
+    await updateMeta(editingMeta, {
+      descricao: editForm.descricao,
+      valor_meta: editForm.valor_meta ? parseFloat(editForm.valor_meta) : null,
+      unidade: editForm.unidade,
+      projeto_id: editForm.projeto_id || null,
+    })
+    setEditingMeta(null)
+    setEditSaving(false)
+  }
 
   // Chart: one line per meta name (% alcance semana a semana)
   const LINE_COLORS = [BLUE, GREEN, PURPLE, '#F97316', '#06B6D4', '#8B5CF6', R, YELLOW]
@@ -1470,49 +1485,79 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit }: { metas: Me
         {metasSemana.map(m => {
           const st  = STATUS_MAP[m.status]
           const pct = m.valor_meta && m.valor_realizado !== null ? Math.min(100, ((m.valor_realizado ?? 0) / m.valor_meta) * 100) : null
+          const isEditing = editingMeta === m.id
           return (
             <div key={m.id} style={{ ...card, padding: '14px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: GRAY1, marginBottom: 8 }}>{m.descricao}</div>
-                  {m.valor_meta !== null && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <div style={{ flex: 1, height: 6, background: GRAY5, borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: `${pct ?? 0}%`, height: '100%', background: st.color, borderRadius: 3, transition: 'width .3s' }} />
-                      </div>
-                      <span style={{ fontSize: 12, color: GRAY3, whiteSpace: 'nowrap' }}>{m.valor_realizado ?? '—'} / {m.valor_meta} {m.unidade}</span>
+              {isEditing ? (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, marginBottom: 8 }}>
+                    <input autoFocus value={editForm.descricao} onChange={e => setEditForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição *" style={{ ...input14 }} />
+                    <input type="number" value={editForm.valor_meta} onChange={e => setEditForm(p => ({ ...p, valor_meta: e.target.value }))} placeholder="Meta" style={{ ...input14, width: 90 }} />
+                    <input value={editForm.unidade} onChange={e => setEditForm(p => ({ ...p, unidade: e.target.value }))} placeholder="Unidade" style={{ ...input14, width: 90 }} />
+                  </div>
+                  {projetos.length > 0 && (
+                    <select value={editForm.projeto_id} onChange={e => setEditForm(p => ({ ...p, projeto_id: e.target.value }))} style={{ ...input14, marginBottom: 8 }}>
+                      <option value="">Projeto (opcional)</option>
+                      {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                    </select>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={saveEditMeta} disabled={!editForm.descricao.trim() || editSaving} style={btnPrimary(!editForm.descricao.trim() || editSaving)}>{editSaving ? 'Salvando...' : 'Salvar'}</button>
+                    <button onClick={() => setEditingMeta(null)} style={btnGhost}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: GRAY1, marginBottom: 8 }}>{m.descricao}</div>
+                      {m.valor_meta !== null && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                          <div style={{ flex: 1, height: 6, background: GRAY5, borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ width: `${pct ?? 0}%`, height: '100%', background: st.color, borderRadius: 3, transition: 'width .3s' }} />
+                          </div>
+                          <span style={{ fontSize: 12, color: GRAY3, whiteSpace: 'nowrap' }}>{m.valor_realizado ?? '—'} / {m.valor_meta} {m.unidade}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ padding: '5px 9px', background: st.bg, border: `1px solid ${st.border}`, borderRadius: 6, color: st.color, fontSize: 11, fontWeight: 700 }}>{st.label}</span>
+                      {canEdit && (
+                        <>
+                          <button onClick={() => { setEditingMeta(m.id); setEditForm({ descricao: m.descricao, valor_meta: m.valor_meta !== null ? String(m.valor_meta) : '', unidade: m.unidade || '', projeto_id: m.projeto_id || '' }) }}
+                            style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                            onMouseEnter={e => (e.currentTarget.style.color = BLUE)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                            <Edit2 size={13} />
+                          </button>
+                          <button onClick={() => deleteMeta(m.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                            onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {canEdit && m.valor_meta && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        value={realizadoLocal[m.id] !== undefined ? realizadoLocal[m.id] : (m.valor_realizado ?? '')}
+                        onChange={e => setRealizadoLocal(prev => ({ ...prev, [m.id]: e.target.value }))}
+                        onBlur={() => {
+                          const raw = realizadoLocal[m.id]
+                          if (raw === undefined) return
+                          const realizado = raw !== '' ? parseFloat(raw) : null
+                          const status = calcAutoStatus(realizado, m.valor_meta)
+                          updateMeta(m.id, { valor_realizado: realizado, status })
+                          setRealizadoLocal(prev => { const n = { ...prev }; delete n[m.id]; return n })
+                        }}
+                        placeholder="Resultado realizado"
+                        style={{ width: 150, padding: '6px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 6, color: GRAY1, fontSize: 12, outline: 'none' }} />
+                      <span style={{ fontSize: 12, color: GRAY3 }}>{m.unidade}</span>
+                      <span style={{ fontSize: 11, color: GRAY3 }}>de {m.valor_meta} {m.unidade}</span>
                     </div>
                   )}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ padding: '5px 9px', background: st.bg, border: `1px solid ${st.border}`, borderRadius: 6, color: st.color, fontSize: 11, fontWeight: 700 }}>{st.label}</span>
-                  {canEdit && (
-                    <button onClick={() => deleteMeta(m.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
-                      onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              {canEdit && m.valor_meta && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    value={realizadoLocal[m.id] !== undefined ? realizadoLocal[m.id] : (m.valor_realizado ?? '')}
-                    onChange={e => setRealizadoLocal(prev => ({ ...prev, [m.id]: e.target.value }))}
-                    onBlur={() => {
-                      const raw = realizadoLocal[m.id]
-                      if (raw === undefined) return
-                      const realizado = raw !== '' ? parseFloat(raw) : null
-                      const status = calcAutoStatus(realizado, m.valor_meta)
-                      updateMeta(m.id, { valor_realizado: realizado, status })
-                      setRealizadoLocal(prev => { const n = { ...prev }; delete n[m.id]; return n })
-                    }}
-                    placeholder="Resultado realizado"
-                    style={{ width: 150, padding: '6px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 6, color: GRAY1, fontSize: 12, outline: 'none' }} />
-                  <span style={{ fontSize: 12, color: GRAY3 }}>{m.unidade}</span>
-                  <span style={{ fontSize: 11, color: GRAY3 }}>de {m.valor_meta} {m.unidade}</span>
-                </div>
+                </>
               )}
             </div>
           )
