@@ -2,6 +2,7 @@
 import React, { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, PURPLE } from '@/lib/crm-constants'
+import AudioPlayer from '@/components/AudioPlayer'
 
 interface QualificacaoData {
   dadosBasicos: { nomeLead: string; cargo: string; empresa: string; segmento: string; tamanho: string }
@@ -11,6 +12,8 @@ interface QualificacaoData {
   insights: { termometro: string; gatilhoDeOuro: string; sugestaoAbordagem: string }
   informacoesExtras: { nicho: string; historico: string; pontoRapport: string; produtos: string; regiao: string; tempoAtiva: string; nivelConsciencia: string; importanciaMarketing: string; objecoes: string[] }
   personalidade: string[]
+  _audioUrl?: string
+  _transcricao?: string
 }
 
 function gerarHTMLPDF(d: QualificacaoData): string {
@@ -126,6 +129,7 @@ export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
 
     try {
       let body: any
+      let audioPublicUrl: string | null = null
 
       if (modo === 'audio' && file) {
         setProgress('Transcrevendo áudio com Groq Whisper...')
@@ -140,6 +144,7 @@ export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
           .from('qualificacoes-audio')
           .getPublicUrl(uploaded.path)
 
+        audioPublicUrl = publicUrl
         body = { audioUrl: publicUrl }
         setProgress('Analisando com Gemini AI...')
       } else if (modo === 'texto' && transcricao.trim()) {
@@ -158,16 +163,18 @@ export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erro na API')
 
+      const dataToSave = audioPublicUrl ? { ...json, _audioUrl: audioPublicUrl } : json
+
       setProgress('Salvando no lead...')
       const { error: saveErr } = await supabase
         .from('leads')
-        .update({ qualificacao_ia: json })
+        .update({ qualificacao_ia: dataToSave })
         .eq('id', leadId)
       if (saveErr) console.error('Erro ao salvar qualificacao_ia:', saveErr)
       else setSaved(true)
 
-      setResultado(json)
-      onSaved?.(json)
+      setResultado(dataToSave)
+      onSaved?.(dataToSave)
     } catch (e: any) {
       setErro(e.message)
     } finally {
@@ -274,6 +281,11 @@ export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
               📄 Baixar PDF
             </button>
           </div>
+
+          {/* Audio player */}
+          {resultado._audioUrl && (
+            <AudioPlayer url={resultado._audioUrl} title={file?.name} />
+          )}
 
           {/* Preview */}
           {[

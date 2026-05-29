@@ -12,6 +12,7 @@ import { useUserRole } from '@/lib/useUserRole'
 import { useCloserUsers } from '@/lib/useCloserUsers'
 import { getPipelineStage, PIPELINE_STAGES } from '@/lib/crm-pipeline'
 import GerarQualificacao from '@/components/GerarQualificacao'
+import AudioPlayer from '@/components/AudioPlayer'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const R = '#E8001C'
@@ -1344,6 +1345,14 @@ function LeadPageInner() {
                                   <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 20, background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E' }}>⚠ {o}</span>
                                 ))}
                               </div>
+                            </div>
+                          )}
+
+                          {/* Gravação */}
+                          {qa._audioUrl && (
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>Gravação da Ligação</div>
+                              <AudioPlayer url={qa._audioUrl} title="Gravação da Ligação" />
                             </div>
                           )}
                         </div>
