@@ -1296,12 +1296,12 @@ function LeadPageInner() {
                             <div>
                               <div style={{ fontSize: 10, fontWeight: 800, color: '#6B21A8', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>SPICED</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {Object.entries(qa.spiced).filter(([, v]) => !!v).map(([k, v]) => (
+                                {(['situation', 'pain', 'impact', 'criticalEvent', 'decision'] as const).filter(k => !!qa.spiced?.[k]).map((k) => { const v = qa.spiced[k]; return (
                                   <div key={k} style={{ display: 'flex', gap: 10 }}>
                                     <span style={{ fontSize: 11, fontWeight: 800, color: spicedColor[k] || GRAY3, flexShrink: 0, paddingTop: 1, minWidth: 90 }}>{spicedLabel[k] || k}</span>
                                     <span style={{ fontSize: 12, color: GRAY1, lineHeight: 1.6 }}>{v as string}</span>
                                   </div>
-                                ))}
+                                )})}
                               </div>
                             </div>
                           )}
