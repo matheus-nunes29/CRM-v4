@@ -262,6 +262,7 @@ function LeadPageInner() {
   const autoSaveTimer = useRef<any>(null)
   const formRef = useRef<any>(initForm)
   const [cockpitClienteId, setCockpitClienteId] = useState<string | null | 'loading'>('loading')
+  const [showQaModal, setShowQaModal] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -1253,102 +1254,145 @@ function LeadPageInner() {
             {activeTab === 'negociacao' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
 
-                {/* ── Resumo da Qualificação (gerado pelo SDR) ── */}
+                {/* ── Botão Resumo da Qualificação ── */}
                 {form.qualificacao_ia && (() => {
+                  const qa = form.qualificacao_ia as any
+                  const bantKeys = ['budget', 'authority', 'need', 'timing'] as const
+                  const score = bantKeys.filter(k => !!qa.bant?.[k]).length
+                  const scoreColor = score >= 3 ? GREEN : score >= 2 ? '#F59E0B' : R
+                  return (
+                    <button onClick={() => setShowQaModal(true)}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${BORDER}`, background: WHITE, cursor: 'pointer', textAlign: 'left' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 16 }}>📋</span>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: GRAY1 }}>Ver Resumo da Qualificação</div>
+                          <div style={{ fontSize: 11, color: GRAY2, marginTop: 1 }}>BANT · SPICED · Insights · Objeções</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 3 }}>
+                          {bantKeys.map(k => (
+                            <div key={k} style={{ width: 8, height: 8, borderRadius: '50%', background: qa.bant?.[k] ? GREEN : '#E5E7EB' }} />
+                          ))}
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: scoreColor }}>{score}/4</span>
+                        <ChevronRight size={14} color={GRAY3} />
+                      </div>
+                    </button>
+                  )
+                })()}
+
+                {/* ── Modal Resumo da Qualificação ── */}
+                {showQaModal && form.qualificacao_ia && (() => {
                   const qa = form.qualificacao_ia as any
                   const bantKeys = ['budget', 'authority', 'need', 'timing'] as const
                   const bantLabel: Record<string, string> = { budget: 'Budget', authority: 'Authority', need: 'Need', timing: 'Timing' }
                   const score = bantKeys.filter(k => !!qa.bant?.[k]).length
+                  const scoreColor = score >= 3 ? GREEN : score >= 2 ? '#F59E0B' : R
+                  const spicedLabel: Record<string, string> = { situation: 'Situation', pain: 'Pain', impact: 'Impact', criticalEvent: 'Critical Event', decision: 'Decision' }
+                  const spicedColor: Record<string, string> = { situation: '#3B82F6', pain: '#EF4444', impact: '#8B5CF6', criticalEvent: '#F59E0B', decision: '#10B981' }
                   return (
-                    <div style={{ background: '#FAFAFA', border: `1.5px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
-                      {/* Header */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: GRAY1, borderBottom: `1px solid ${BORDER}` }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: WHITE, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Resumo da Qualificação</span>
-                          {qa.dadosBasicos?.empresa && <span style={{ fontSize: 10, color: '#9CA3AF' }}>· {qa.dadosBasicos.empresa}</span>}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ width: 24, height: 24, borderRadius: '50%', background: score >= 3 ? GREEN : score >= 2 ? '#F59E0B' : R, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: WHITE }}>{score}</div>
-                          <span style={{ fontSize: 10, color: '#9CA3AF' }}>BANT</span>
-                        </div>
-                      </div>
+                    <div onClick={() => setShowQaModal(false)}
+                      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                      <div onClick={e => e.stopPropagation()}
+                        style={{ background: WHITE, borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
 
-                      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {/* BANT chips */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                          {bantKeys.map(k => {
-                            const ok = !!qa.bant?.[k]
-                            return (
-                              <div key={k} style={{ padding: '7px 10px', borderRadius: 8, background: ok ? `${GREEN}08` : `${R}06`, border: `1px solid ${ok ? `${GREEN}30` : `${R}25`}` }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-                                  <div style={{ width: 13, height: 13, borderRadius: 3, background: ok ? GREEN : R, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                    <span style={{ fontSize: 8, color: WHITE, fontWeight: 900 }}>{ok ? '✓' : '✗'}</span>
-                                  </div>
-                                  <span style={{ fontSize: 11, fontWeight: 800, color: ok ? GREEN : R }}>{bantLabel[k]}</span>
-                                </div>
-                                {qa.bant?.[k] && <div style={{ fontSize: 10, color: GRAY2, lineHeight: 1.4, paddingLeft: 18 }}>{qa.bant[k]}</div>}
-                              </div>
-                            )
-                          })}
-                        </div>
-
-                        {/* Insights */}
-                        {(qa.insights?.termometro || qa.insights?.gatilhoDeOuro || qa.insights?.sugestaoAbordagem) && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {qa.insights?.termometro && (
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, flexShrink: 0, paddingTop: 1 }}>Termômetro</span>
-                                <span style={{ fontSize: 11, color: GRAY1, lineHeight: 1.5 }}>{qa.insights.termometro}</span>
-                              </div>
-                            )}
-                            {qa.insights?.gatilhoDeOuro && (
-                              <div style={{ padding: '7px 10px', borderRadius: 8, background: '#FFF7ED', border: '1px solid #FED7AA' }}>
-                                <div style={{ fontSize: 9, fontWeight: 800, color: '#EA580C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>Gatilho de Ouro</div>
-                                <div style={{ fontSize: 11, color: '#9A3412', lineHeight: 1.5 }}>{qa.insights.gatilhoDeOuro}</div>
-                              </div>
-                            )}
-                            {qa.insights?.sugestaoAbordagem && (
-                              <div style={{ padding: '7px 10px', borderRadius: 8, background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-                                <div style={{ fontSize: 9, fontWeight: 800, color: GREEN, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>Sugestão de Abordagem</div>
-                                <div style={{ fontSize: 11, color: '#14532D', lineHeight: 1.5 }}>{qa.insights.sugestaoAbordagem}</div>
-                              </div>
-                            )}
+                        {/* Header */}
+                        <div style={{ position: 'sticky', top: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: GRAY1, borderRadius: '16px 16px 0 0', zIndex: 1 }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: WHITE, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Resumo da Qualificação</div>
+                            {qa.dadosBasicos?.empresa && <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{qa.dadosBasicos.empresa}</div>}
                           </div>
-                        )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ textAlign: 'center' }}>
+                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: scoreColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: WHITE }}>{score}</div>
+                              <div style={{ fontSize: 9, color: '#9CA3AF', marginTop: 2 }}>BANT</div>
+                            </div>
+                            <button onClick={() => setShowQaModal(false)}
+                              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: WHITE, fontSize: 16 }}>✕</button>
+                          </div>
+                        </div>
 
-                        {/* SPICED */}
-                        {qa.spiced && Object.values(qa.spiced).some(Boolean) && (() => {
-                          const spicedLabel: Record<string, string> = {
-                            situation: 'Situation', pain: 'Pain', impact: 'Impact',
-                            criticalEvent: 'Critical Event', decision: 'Decision',
-                          }
-                          const spicedColor: Record<string, string> = {
-                            situation: '#3B82F6', pain: '#EF4444', impact: '#8B5CF6',
-                            criticalEvent: '#F59E0B', decision: '#10B981',
-                          }
-                          return (
-                            <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 10 }}>
-                              <div style={{ fontSize: 9, fontWeight: 800, color: '#6B21A8', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>SPICED</div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                          {/* BANT */}
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 800, color: R, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>BANT</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              {bantKeys.map(k => {
+                                const ok = !!qa.bant?.[k]
+                                return (
+                                  <div key={k} style={{ padding: '10px 12px', borderRadius: 10, background: ok ? `${GREEN}08` : `${R}06`, border: `1px solid ${ok ? `${GREEN}30` : `${R}25`}` }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: qa.bant?.[k] ? 4 : 0 }}>
+                                      <div style={{ width: 16, height: 16, borderRadius: 4, background: ok ? GREEN : R, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <span style={{ fontSize: 9, color: WHITE, fontWeight: 900 }}>{ok ? '✓' : '✗'}</span>
+                                      </div>
+                                      <span style={{ fontSize: 12, fontWeight: 800, color: ok ? GREEN : R }}>{bantLabel[k]}</span>
+                                    </div>
+                                    {qa.bant?.[k] && <div style={{ fontSize: 11, color: GRAY2, lineHeight: 1.5, paddingLeft: 22 }}>{qa.bant[k]}</div>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+
+                          {/* SPICED */}
+                          {qa.spiced && Object.values(qa.spiced).some(Boolean) && (
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: '#6B21A8', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>SPICED</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {Object.entries(qa.spiced).filter(([, v]) => !!v).map(([k, v]) => (
-                                  <div key={k} style={{ display: 'flex', gap: 8 }}>
-                                    <span style={{ fontSize: 10, fontWeight: 800, color: spicedColor[k] || GRAY3, flexShrink: 0, paddingTop: 1, minWidth: 80 }}>{spicedLabel[k] || k}</span>
-                                    <span style={{ fontSize: 11, color: GRAY1, lineHeight: 1.5 }}>{v as string}</span>
+                                  <div key={k} style={{ display: 'flex', gap: 10 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: spicedColor[k] || GRAY3, flexShrink: 0, paddingTop: 1, minWidth: 90 }}>{spicedLabel[k] || k}</span>
+                                    <span style={{ fontSize: 12, color: GRAY1, lineHeight: 1.6 }}>{v as string}</span>
                                   </div>
                                 ))}
                               </div>
                             </div>
-                          )
-                        })()}
+                          )}
 
-                        {/* Personalidade + Objeções */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', borderTop: `1px solid ${BORDER}`, paddingTop: 10 }}>
-                          {qa.personalidade?.map((p: string) => (
-                            <span key={p} style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: `${R}10`, border: `1px solid ${R}25`, color: R }}>{p}</span>
-                          ))}
-                          {qa.informacoesExtras?.objecoes?.map((o: string, i: number) => (
-                            <span key={i} style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E' }}>⚠ {o}</span>
-                          ))}
+                          {/* Insights */}
+                          {(qa.insights?.termometro || qa.insights?.gatilhoDeOuro || qa.insights?.sugestaoAbordagem) && (
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>Insights para o Closer</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {qa.insights?.termometro && (
+                                  <div style={{ display: 'flex', gap: 10 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: GRAY3, flexShrink: 0, paddingTop: 1, minWidth: 90 }}>Termômetro</span>
+                                    <span style={{ fontSize: 12, color: GRAY1, lineHeight: 1.5 }}>{qa.insights.termometro}</span>
+                                  </div>
+                                )}
+                                {qa.insights?.gatilhoDeOuro && (
+                                  <div style={{ padding: '10px 12px', borderRadius: 10, background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                                    <div style={{ fontSize: 9, fontWeight: 800, color: '#EA580C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Gatilho de Ouro</div>
+                                    <div style={{ fontSize: 12, color: '#9A3412', lineHeight: 1.6 }}>{qa.insights.gatilhoDeOuro}</div>
+                                  </div>
+                                )}
+                                {qa.insights?.sugestaoAbordagem && (
+                                  <div style={{ padding: '10px 12px', borderRadius: 10, background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                                    <div style={{ fontSize: 9, fontWeight: 800, color: GREEN, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Sugestão de Abordagem</div>
+                                    <div style={{ fontSize: 12, color: '#14532D', lineHeight: 1.6 }}>{qa.insights.sugestaoAbordagem}</div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Personalidade + Objeções */}
+                          {((qa.personalidade?.length > 0) || (qa.informacoesExtras?.objecoes?.length > 0)) && (
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>Perfil e Objeções</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {qa.personalidade?.map((p: string) => (
+                                  <span key={p} style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 20, background: `${R}10`, border: `1px solid ${R}25`, color: R }}>{p}</span>
+                                ))}
+                                {qa.informacoesExtras?.objecoes?.map((o: string, i: number) => (
+                                  <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 20, background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E' }}>⚠ {o}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
