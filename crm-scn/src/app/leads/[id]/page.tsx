@@ -204,6 +204,7 @@ const initForm = {
   motivo_perda_pre_vendas: null, motivo_perda_closer: null,
   link_gravacao: '', link_plano_roi: '', link_contrato: '',
   responsavel_bdr: null, data_perdido: null,
+  qualificacao_ia: null,
 }
 
 const LOGGED_FIELDS: Record<string, string> = {
@@ -1160,7 +1161,7 @@ function LeadPageInner() {
                   )}
                 </div>
 
-                {!isNew && <GerarQualificacao leadId={id} empresa={form.empresa} />}
+                {!isNew && <GerarQualificacao leadId={id} empresa={form.empresa} onSaved={qa => setFormState((f: any) => ({ ...f, qualificacao_ia: qa }))} />}
               </div>
             )}
 
@@ -1251,6 +1252,84 @@ function LeadPageInner() {
             {/* ─── NEGOCIAÇÃO ─── */}
             {activeTab === 'negociacao' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+                {/* ── Resumo da Qualificação (gerado pelo SDR) ── */}
+                {form.qualificacao_ia && (() => {
+                  const qa = form.qualificacao_ia as any
+                  const bantKeys = ['budget', 'authority', 'need', 'timing'] as const
+                  const bantLabel: Record<string, string> = { budget: 'Budget', authority: 'Authority', need: 'Need', timing: 'Timing' }
+                  const score = bantKeys.filter(k => !!qa.bant?.[k]).length
+                  return (
+                    <div style={{ background: '#FAFAFA', border: `1.5px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
+                      {/* Header */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: GRAY1, borderBottom: `1px solid ${BORDER}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: WHITE, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Resumo da Qualificação</span>
+                          {qa.dadosBasicos?.empresa && <span style={{ fontSize: 10, color: '#9CA3AF' }}>· {qa.dadosBasicos.empresa}</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ width: 24, height: 24, borderRadius: '50%', background: score >= 3 ? GREEN : score >= 2 ? '#F59E0B' : R, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: WHITE }}>{score}</div>
+                          <span style={{ fontSize: 10, color: '#9CA3AF' }}>BANT</span>
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {/* BANT chips */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                          {bantKeys.map(k => {
+                            const ok = !!qa.bant?.[k]
+                            return (
+                              <div key={k} style={{ padding: '7px 10px', borderRadius: 8, background: ok ? `${GREEN}08` : `${R}06`, border: `1px solid ${ok ? `${GREEN}30` : `${R}25`}` }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                                  <div style={{ width: 13, height: 13, borderRadius: 3, background: ok ? GREEN : R, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <span style={{ fontSize: 8, color: WHITE, fontWeight: 900 }}>{ok ? '✓' : '✗'}</span>
+                                  </div>
+                                  <span style={{ fontSize: 11, fontWeight: 800, color: ok ? GREEN : R }}>{bantLabel[k]}</span>
+                                </div>
+                                {qa.bant?.[k] && <div style={{ fontSize: 10, color: GRAY2, lineHeight: 1.4, paddingLeft: 18 }}>{qa.bant[k]}</div>}
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* Insights */}
+                        {(qa.insights?.termometro || qa.insights?.gatilhoDeOuro || qa.insights?.sugestaoAbordagem) && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {qa.insights?.termometro && (
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, flexShrink: 0, paddingTop: 1 }}>Termômetro</span>
+                                <span style={{ fontSize: 11, color: GRAY1, lineHeight: 1.5 }}>{qa.insights.termometro}</span>
+                              </div>
+                            )}
+                            {qa.insights?.gatilhoDeOuro && (
+                              <div style={{ padding: '7px 10px', borderRadius: 8, background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                                <div style={{ fontSize: 9, fontWeight: 800, color: '#EA580C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>Gatilho de Ouro</div>
+                                <div style={{ fontSize: 11, color: '#9A3412', lineHeight: 1.5 }}>{qa.insights.gatilhoDeOuro}</div>
+                              </div>
+                            )}
+                            {qa.insights?.sugestaoAbordagem && (
+                              <div style={{ padding: '7px 10px', borderRadius: 8, background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                                <div style={{ fontSize: 9, fontWeight: 800, color: GREEN, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>Sugestão de Abordagem</div>
+                                <div style={{ fontSize: 11, color: '#14532D', lineHeight: 1.5 }}>{qa.insights.sugestaoAbordagem}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Personalidade + Objeções */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                          {qa.personalidade?.map((p: string) => (
+                            <span key={p} style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: `${R}10`, border: `1px solid ${R}25`, color: R }}>{p}</span>
+                          ))}
+                          {qa.informacoesExtras?.objecoes?.map((o: string, i: number) => (
+                            <span key={i} style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E' }}>⚠ {o}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 <div>
                   <SectionTitle>Closer</SectionTitle>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

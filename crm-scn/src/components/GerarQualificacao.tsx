@@ -104,9 +104,10 @@ ${secTitle('Personalidade do Lead')}
 interface Props {
   leadId: string
   empresa?: string
+  onSaved?: (data: QualificacaoData) => void
 }
 
-export default function GerarQualificacao({ leadId, empresa }: Props) {
+export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
   const [modo, setModo] = useState<'audio' | 'texto'>('audio')
   const [file, setFile] = useState<File | null>(null)
   const [transcricao, setTranscricao] = useState('')
@@ -114,18 +115,20 @@ export default function GerarQualificacao({ leadId, empresa }: Props) {
   const [progress, setProgress] = useState('')
   const [resultado, setResultado] = useState<QualificacaoData | null>(null)
   const [erro, setErro] = useState('')
+  const [saved, setSaved] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function gerar() {
     setErro('')
     setResultado(null)
+    setSaved(false)
     setLoading(true)
 
     try {
       let body: any
 
       if (modo === 'audio' && file) {
-        setProgress('Enviando áudio para o servidor...')
+        setProgress('Transcrevendo áudio com Groq Whisper...')
         const ext = file.name.split('.').pop()
         const path = `${leadId}/${Date.now()}.${ext}`
         const { data: uploaded, error: uploadErr } = await supabase.storage
@@ -154,7 +157,17 @@ export default function GerarQualificacao({ leadId, empresa }: Props) {
 
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erro na API')
+
+      setProgress('Salvando no lead...')
+      const { error: saveErr } = await supabase
+        .from('leads')
+        .update({ qualificacao_ia: json })
+        .eq('id', leadId)
+      if (saveErr) console.error('Erro ao salvar qualificacao_ia:', saveErr)
+      else setSaved(true)
+
       setResultado(json)
+      onSaved?.(json)
     } catch (e: any) {
       setErro(e.message)
     } finally {
@@ -252,7 +265,10 @@ export default function GerarQualificacao({ leadId, empresa }: Props) {
       {resultado && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: GREEN }}>✓ Qualificação gerada!</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: GREEN }}>✓ Qualificação gerada!</div>
+              {saved && <span style={{ fontSize: 10, fontWeight: 700, color: GREEN, background: `${GREEN}15`, padding: '2px 8px', borderRadius: 20 }}>salvo no lead</span>}
+            </div>
             <button onClick={baixarPDF}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: R, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
               📄 Baixar PDF
