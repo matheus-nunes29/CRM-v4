@@ -11,6 +11,7 @@ import { UserSelect } from '@/components/UserSelect'
 import { useUserRole } from '@/lib/useUserRole'
 import { useCloserUsers } from '@/lib/useCloserUsers'
 import { getPipelineStage, PIPELINE_STAGES } from '@/lib/crm-pipeline'
+import GerarQualificacao from '@/components/GerarQualificacao'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const R = '#E8001C'
@@ -1427,6 +1428,8 @@ function LeadPageInner() {
                     </div>
                   )}
                 </div>
+
+                {!isNew && <GerarQualificacao leadId={id} empresa={form.empresa} />}
               </div>
             )}
 
