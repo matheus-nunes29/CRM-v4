@@ -1316,8 +1316,33 @@ function LeadPageInner() {
                           </div>
                         )}
 
+                        {/* SPICED */}
+                        {qa.spiced && Object.values(qa.spiced).some(Boolean) && (() => {
+                          const spicedLabel: Record<string, string> = {
+                            situation: 'Situation', pain: 'Pain', impact: 'Impact',
+                            criticalEvent: 'Critical Event', decision: 'Decision',
+                          }
+                          const spicedColor: Record<string, string> = {
+                            situation: '#3B82F6', pain: '#EF4444', impact: '#8B5CF6',
+                            criticalEvent: '#F59E0B', decision: '#10B981',
+                          }
+                          return (
+                            <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 10 }}>
+                              <div style={{ fontSize: 9, fontWeight: 800, color: '#6B21A8', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>SPICED</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {Object.entries(qa.spiced).filter(([, v]) => !!v).map(([k, v]) => (
+                                  <div key={k} style={{ display: 'flex', gap: 8 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 800, color: spicedColor[k] || GRAY3, flexShrink: 0, paddingTop: 1, minWidth: 80 }}>{spicedLabel[k] || k}</span>
+                                    <span style={{ fontSize: 11, color: GRAY1, lineHeight: 1.5 }}>{v as string}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })()}
+
                         {/* Personalidade + Objeções */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', borderTop: `1px solid ${BORDER}`, paddingTop: 10 }}>
                           {qa.personalidade?.map((p: string) => (
                             <span key={p} style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: `${R}10`, border: `1px solid ${R}25`, color: R }}>{p}</span>
                           ))}
