@@ -739,6 +739,7 @@ function LeadPageInner() {
       if (!form.closer) errs.closer = 'Obrigatório para Reunião Agendada'
       if (!form.segmento) errs.segmento = 'Obrigatório para Reunião Agendada'
       if (bantScore < 3) errs.bant = 'BANT mínimo 3 para Reunião Agendada'
+      if (!(form as any).link_qualificacao?.trim()) errs.link_qualificacao = 'Obrigatório para Reunião Agendada'
     }
     if (form.data_ra) {
       if (!form.email?.trim()) errs.email = 'Obrigatório quando há data de RA'
@@ -748,7 +749,7 @@ function LeadPageInner() {
     }
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
-      if (errs.data_ra || errs.bant) setActiveTab('qualificacao')
+      if (errs.data_ra || errs.bant || (errs as any).link_qualificacao) setActiveTab('qualificacao')
       else if (errs.closer) setActiveTab('negociacao')
       return
     }
@@ -1141,6 +1142,53 @@ function LeadPageInner() {
             {/* ─── QUALIFICAÇÃO ─── */}
             {activeTab === 'qualificacao' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+                {/* Links da qualificação */}
+                <div>
+                  <SectionTitle>Links da Qualificação</SectionTitle>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: (errors as any).link_qualificacao ? R : GRAY2, marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        Link da Qualificação{form.situacao_pre_vendas === 'REUNIÃO AGENDADA' && <span style={{ color: R }}>*</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          style={{ ...inputStyle, flex: 1, borderColor: (errors as any).link_qualificacao ? R : BORDER }}
+                          value={(form as any).link_qualificacao || ''}
+                          onChange={e => set('link_qualificacao', e.target.value)}
+                          placeholder="https://docs.google.com/..."
+                        />
+                        {(form as any).link_qualificacao && (
+                          <a href={(form as any).link_qualificacao} target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', padding: '0 8px', borderRadius: 6, border: `1px solid ${BORDER}`, color: '#7C3AED', background: WHITE, textDecoration: 'none' }}>
+                            <ExternalLink size={11} />
+                          </a>
+                        )}
+                      </div>
+                      {(errors as any).link_qualificacao && <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: R }}><AlertCircle size={11} /><span>{(errors as any).link_qualificacao}</span></div>}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        Gravação da Ligação
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          style={{ ...inputStyle, flex: 1 }}
+                          value={(form as any).link_gravacao || ''}
+                          onChange={e => set('link_gravacao', e.target.value)}
+                          placeholder="https://..."
+                        />
+                        {(form as any).link_gravacao && (
+                          <a href={(form as any).link_gravacao} target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', padding: '0 8px', borderRadius: 6, border: `1px solid ${BORDER}`, color: '#DC2626', background: WHITE, textDecoration: 'none' }}>
+                            <ExternalLink size={11} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <SectionTitle>Tags do Lead</SectionTitle>
                   <div style={{ marginBottom: 14 }}>
