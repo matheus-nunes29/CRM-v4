@@ -58,6 +58,21 @@ Personalidade deve ser um array com os perfis identificados entre: "Executor", "
 Objeções deve ser um array de strings.
 Use as palavras exatas do lead quando possível. Se uma informação não foi mencionada, deixe como string vazia ou array vazio.`
 
+async function generateWithRetry(model: any, content: any, maxRetries = 3): Promise<any> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await model.generateContent(content)
+    } catch (e: any) {
+      const is503 = e.message?.includes('503') || e.message?.includes('Service Unavailable') || e.message?.includes('high demand')
+      if (is503 && attempt < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, 3000 * (attempt + 1)))
+        continue
+      }
+      throw e
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { audioUrl, transcricao } = await req.json()
@@ -67,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
     let parts: any[]
 
@@ -85,7 +100,7 @@ export async function POST(req: NextRequest) {
       parts = [{ text: `Transcrição da ligação de qualificação:\n\n${transcricao}\n\n${PROMPT}` }]
     }
 
-    const result = await model.generateContent({ contents: [{ role: 'user', parts }] })
+    const result = await generateWithRetry(model, { contents: [{ role: 'user', parts }] })
     const text = result.response.text().trim()
 
     const jsonStr = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
