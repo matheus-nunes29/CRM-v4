@@ -169,10 +169,21 @@ function AudioAnalysis({ onApplyBant }: AudioAnalysisProps) {
     setApplied(false)
 
     try {
-      // Step 1: Transcribe
-      const fd = new FormData()
-      fd.append('audio', file)
-      const t1 = await fetch('/api/transcribe', { method: 'POST', body: fd })
+      // Step 1: Upload to Supabase Storage (bypass Vercel 4.5MB body limit)
+      const ext = file.name.split('.').pop()
+      const path = `tmp/${Date.now()}.${ext}`
+      const { data: uploaded, error: uploadErr } = await supabase.storage
+        .from('qualificacoes-audio')
+        .upload(path, file, { contentType: file.type, upsert: false })
+      if (uploadErr) throw new Error('Falha no upload: ' + uploadErr.message)
+      const { data: { publicUrl } } = supabase.storage.from('qualificacoes-audio').getPublicUrl(uploaded.path)
+
+      // Step 2: Transcribe via URL
+      const t1 = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audioUrl: publicUrl }),
+      })
       const d1 = await t1.json()
       if (!t1.ok || d1.error) throw new Error(d1.error || 'Erro na transcrição')
       setTranscription(d1.transcription)

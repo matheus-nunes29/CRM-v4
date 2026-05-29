@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const maxDuration = 60
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GROQ_API_KEY
@@ -7,20 +9,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'GROQ_API_KEY não configurada no servidor.' }, { status: 500 })
     }
 
-    const formData = await req.formData()
-    const file = formData.get('audio') as File | null
+    const contentType = req.headers.get('content-type') || ''
+    let fileBlob: Blob
+    let fileName = 'audio.mp3'
 
-    if (!file) {
-      return NextResponse.json({ error: 'Nenhum arquivo de áudio enviado.' }, { status: 400 })
+    if (contentType.includes('application/json')) {
+      // Receive URL, fetch audio server-side (bypasses Vercel 4.5MB body limit)
+      const { audioUrl } = await req.json()
+      if (!audioUrl) return NextResponse.json({ error: 'Forneça audioUrl.' }, { status: 400 })
+      const fetched = await fetch(audioUrl)
+      if (!fetched.ok) throw new Error('Falha ao buscar áudio da URL')
+      fileBlob = await fetched.blob()
+      const urlParts = audioUrl.split('/')
+      fileName = urlParts[urlParts.length - 1] || 'audio.mp3'
+    } else {
+      // Legacy: FormData (only works for files ≤ 4.5MB)
+      const formData = await req.formData()
+      const file = formData.get('audio') as File | null
+      if (!file) return NextResponse.json({ error: 'Nenhum arquivo de áudio enviado.' }, { status: 400 })
+      fileBlob = file
+      fileName = file.name
     }
 
-    // Max 25MB (Groq limit)
-    if (file.size > 25 * 1024 * 1024) {
+    if (fileBlob.size > 25 * 1024 * 1024) {
       return NextResponse.json({ error: 'Arquivo muito grande. Máximo: 25MB.' }, { status: 400 })
     }
 
     const groqForm = new FormData()
-    groqForm.append('file', file)
+    groqForm.append('file', fileBlob, fileName)
     groqForm.append('model', 'whisper-large-v3-turbo')
     groqForm.append('language', 'pt')
     groqForm.append('response_format', 'text')
