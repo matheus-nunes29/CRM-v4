@@ -48,7 +48,7 @@ export default function CockpitPage() {
   const [clientes, setClientes] = useState<ClienteEnriquecido[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState<'todos' | 'ativo' | 'pausado' | 'churned'>('todos')
+  const [filterStatus, setFilterStatus] = useState<'todos' | 'ativo' | 'pausado' | 'churned'>('ativo')
   const [filterTipo, setFilterTipo] = useState<'todos' | 'saber' | 'executar' | 'ter'>('todos')
   const [filterGestor, setFilterGestor] = useState('')
   const [showNew, setShowNew] = useState(false)
