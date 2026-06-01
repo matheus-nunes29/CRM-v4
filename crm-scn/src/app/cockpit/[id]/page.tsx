@@ -892,9 +892,9 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                   /* ── View mode ── */
                   <>
                     {/* Header */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <div>
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 5 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 5, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 10, fontWeight: 700, color: t.color, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 5, padding: '2px 8px' }}>{t.label.toUpperCase()}</span>
                           <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, border: `1px solid ${st.border}`, borderRadius: 5, padding: '2px 8px' }}>{st.label.toUpperCase()}</span>
                         </div>
@@ -916,10 +916,10 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                       </div>
                       {canEdit && (
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          <button onClick={() => toggleStatus(p)} style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                          <button onClick={() => toggleStatus(p)} style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 10, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                             {p.status === 'ativo' ? 'Pausar' : p.status === 'pausado' ? 'Encerrar' : 'Reativar'}
                           </button>
-                          <button onClick={() => startEdit(p)} style={{ padding: '5px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: GRAY4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: GRAY2, fontSize: 11, fontWeight: 600 }}>
+                          <button onClick={() => startEdit(p)} style={{ padding: '5px 9px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: GRAY4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: GRAY2, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>
                             <Edit2 size={12} /> Editar
                           </button>
                         </div>
