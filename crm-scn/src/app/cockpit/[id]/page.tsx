@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
@@ -12,7 +12,7 @@ import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown,
   Link2, Layers, TrendingUp, Target, AlertTriangle, Users,
   Calendar, Package, Clock, Trash2, Globe, Info,
-  Building2, Phone, Mail, ExternalLink, Video,
+  Building2, Phone, Mail, ExternalLink, Video, FileText, Upload,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 
@@ -210,6 +210,7 @@ export default function ClienteCockpitPage() {
   const [fcaEntries, setFCA]          = useState<FcaEntry[]>([])
   const [reunioes, setReunioes]       = useState<Reuniao[]>([])
   const [loading, setLoading]         = useState(true)
+  const [leadContrato, setLeadContrato] = useState<string | null>(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -226,6 +227,14 @@ export default function ClienteCockpitPage() {
     const actualId = clienteData.id
     setCliente(clienteData)
     setClienteRealId(actualId)
+
+    // Pull contract from originating lead if available
+    if (clienteData.lead_id) {
+      const { data: lead } = await supabase.from('leads').select('link_contrato').eq('id', clienteData.lead_id).maybeSingle()
+      setLeadContrato(lead?.link_contrato ?? null)
+    } else {
+      setLeadContrato(null)
+    }
 
     const [ct, pr, hs, mt, op, fc, re] = await Promise.all([
       supabase.from('contatos').select('*').eq('cliente_id', actualId).order('is_primary', { ascending: false }),
@@ -329,7 +338,7 @@ export default function ClienteCockpitPage() {
 
       {/* ── Tab content ── */}
       <div>
-        {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteRealId} canEdit={canEditCockpit} />}
+        {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteRealId} canEdit={canEditCockpit} leadContrato={leadContrato} />}
         {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
@@ -344,9 +353,10 @@ export default function ClienteCockpitPage() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: VISÃO GERAL
 // ══════════════════════════════════════════════════════════════════════════════
-function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReload, clienteId, canEdit }: {
+function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReload, clienteId, canEdit, leadContrato }: {
   cliente: Cliente; contatos: Contato[]; projetos: Projeto[]; lt: string
   onSaveCliente: (f: Partial<Cliente>) => void; onReload: () => void; clienteId: string; canEdit: boolean
+  leadContrato: string | null
 }) {
   const [newStack, setNewStack]       = useState('')
   const [newLink, setNewLink]         = useState({ label: '', url: '' })
@@ -354,6 +364,8 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
   const [newContact, setNewC]         = useState({ nome: '', cargo: '', email: '', telefone: '', is_primary: false })
   const [saving, setSaving]           = useState(false)
   const [usuarios, setUsuarios]       = useState<{ nome: string; papel: string }[]>([])
+  const [uploadingContract, setUploadingContract] = useState(false)
+  const contractInputRef              = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     supabase.from('usuarios_permitidos').select('nome, papel')
@@ -383,6 +395,25 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
     await onReload(); setSaving(false)
   }
   async function deleteContato(id: string) { await supabase.from('contatos').delete().eq('id', id); await onReload() }
+
+  async function uploadContrato(file: File) {
+    setUploadingContract(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `clientes/${clienteId}/${Date.now()}.${ext}`
+      const { data: uploaded, error: uploadErr } = await supabase.storage
+        .from('contratos')
+        .upload(path, file, { contentType: file.type, upsert: false })
+      if (uploadErr) throw uploadErr
+      const { data: { publicUrl } } = supabase.storage.from('contratos').getPublicUrl(uploaded.path)
+      await onSaveCliente({ link_contrato: publicUrl })
+    } finally {
+      setUploadingContract(false)
+    }
+  }
+
+  const effectiveContrato = cliente.link_contrato || leadContrato
+  const contratoFromLead  = !cliente.link_contrato && !!leadContrato
 
   const links = Object.entries(cliente.links || {})
 
@@ -502,6 +533,52 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
             </div>
           )}
         </div>
+      </div>
+
+      {/* Contrato */}
+      <div style={{ ...card, padding: 22 }}>
+        <input ref={contractInputRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display: 'none' }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) uploadContrato(f); e.target.value = '' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <SectionTitle icon={FileText} label="Contrato" />
+          {canEdit && (
+            <button onClick={() => contractInputRef.current?.click()} disabled={uploadingContract}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: uploadingContract ? 0.5 : 1 }}>
+              <Upload size={11} /> {uploadingContract ? 'Enviando...' : effectiveContrato ? 'Substituir' : 'Enviar'}
+            </button>
+          )}
+        </div>
+        {effectiveContrato ? (
+          <div style={{ padding: '14px 16px', background: GRAY4, borderRadius: 10, border: `1px solid ${GRAY5}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: `${R}10`, border: `1px solid ${R}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <FileText size={16} color={R} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: GRAY1 }}>Contrato</span>
+                  {contratoFromLead && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#065F46', background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.05em' }}>DO CRM</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: GRAY3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{decodeURIComponent(effectiveContrato.split('/').pop() || effectiveContrato)}</div>
+              </div>
+              <a href={effectiveContrato} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 7, background: R, color: WHITE, fontSize: 12, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>
+                <ExternalLink size={12} /> Abrir
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div onClick={canEdit ? () => contractInputRef.current?.click() : undefined}
+            style={{ padding: '28px 16px', textAlign: 'center', border: `2px dashed ${GRAY5}`, borderRadius: 10, cursor: canEdit ? 'pointer' : 'default', background: GRAY4, transition: 'border-color .15s' }}
+            onMouseEnter={canEdit ? e => { (e.currentTarget as HTMLElement).style.borderColor = R } : undefined}
+            onMouseLeave={canEdit ? e => { (e.currentTarget as HTMLElement).style.borderColor = GRAY5 } : undefined}>
+            <FileText size={22} color={GRAY3} style={{ marginBottom: 8 }} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: GRAY2 }}>{canEdit ? 'Clique para enviar o contrato' : 'Nenhum contrato anexado'}</div>
+            {canEdit && <div style={{ fontSize: 11, color: GRAY3, marginTop: 4 }}>PDF, DOC ou DOCX</div>}
+          </div>
+        )}
       </div>
 
       {/* Links */}

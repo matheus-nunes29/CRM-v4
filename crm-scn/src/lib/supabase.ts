@@ -97,6 +97,7 @@ export type Cliente = {
   gestor_projetos: string | null
   designer: string | null
   analista_midia: string | null
+  link_contrato: string | null
   created_at: string
   updated_at: string
 }
