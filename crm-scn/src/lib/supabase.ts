@@ -127,7 +127,7 @@ export type Projeto = {
   responsaveis: string[]
   servico: string | null
   etapa_atual: string | null
-  servicos_executar: { key: string; volume?: string }[] | null
+  servicos_executar: { key: string; volume?: string; campanhas?: number; posts?: number; estaticos?: number; videos?: number }[] | null
   investimento_midia: number | null
   created_at: string
   updated_at: string

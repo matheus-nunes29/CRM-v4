@@ -632,23 +632,54 @@ const CATALOGO: Record<Projeto['tipo'], { key: string; label: string; etapas: st
   executar: [],
 }
 
-// Serviços disponíveis para projetos Executar
-const SERVICOS_EXECUTAR: { key: string; label: string; temVolume: boolean }[] = [
-  { key: 'marketplace',         label: 'MarketPlace',             temVolume: true  },
-  { key: 'manutencao_crm',      label: 'Manutenção CRM',          temVolume: false },
-  { key: 'seo',                 label: 'SEO',                     temVolume: false },
-  { key: 'manutencao_lp',       label: 'Manutenção LP',           temVolume: false },
-  { key: 'manutencao_bi',       label: 'Manutenção BI',           temVolume: false },
-  { key: 'manutencao_site',     label: 'Manutenção Site',         temVolume: false },
-  { key: 'webdesign',           label: 'WebDesign',               temVolume: false },
-  { key: 'sales_enablement',    label: 'Sales Enablement',        temVolume: false },
-  { key: 'bi',                  label: 'BI',                      temVolume: false },
-  { key: 'social_media',        label: 'Social Media',            temVolume: true  },
-  { key: 'midia_paga',          label: 'Mídia Paga',              temVolume: true  },
-  { key: 'design_grafico',      label: 'Design Gráfico',          temVolume: true  },
-  { key: 'redacao_publicitaria',label: 'Redação Publicitária',    temVolume: true  },
-  { key: 'crm',                 label: 'CRM',                     temVolume: true  },
+type ServicoSel = {
+  key: string
+  volume?: string
+  campanhas?: number
+  posts?: number
+  estaticos?: number
+  videos?: number
+}
+
+// volumeType: 'campanhas' | 'posts' | 'design' have required specific fields; 'generic' is optional free text
+const SERVICOS_EXECUTAR: { key: string; label: string; temVolume: boolean; volumeType?: 'campanhas' | 'posts' | 'design' | 'generic' }[] = [
+  { key: 'marketplace',         label: 'MarketPlace',             temVolume: true,  volumeType: 'generic'   },
+  { key: 'manutencao_crm',      label: 'Manutenção CRM',          temVolume: false                          },
+  { key: 'seo',                 label: 'SEO',                     temVolume: false                          },
+  { key: 'manutencao_lp',       label: 'Manutenção LP',           temVolume: false                          },
+  { key: 'manutencao_bi',       label: 'Manutenção BI',           temVolume: false                          },
+  { key: 'manutencao_site',     label: 'Manutenção Site',         temVolume: false                          },
+  { key: 'webdesign',           label: 'WebDesign',               temVolume: false                          },
+  { key: 'sales_enablement',    label: 'Sales Enablement',        temVolume: false                          },
+  { key: 'bi',                  label: 'BI',                      temVolume: false                          },
+  { key: 'social_media',        label: 'Social Media',            temVolume: true,  volumeType: 'posts'     },
+  { key: 'midia_paga',          label: 'Mídia Paga',              temVolume: true,  volumeType: 'campanhas' },
+  { key: 'design_grafico',      label: 'Design Gráfico',          temVolume: true,  volumeType: 'design'    },
+  { key: 'redacao_publicitaria',label: 'Redação Publicitária',    temVolume: true,  volumeType: 'generic'   },
+  { key: 'crm',                 label: 'CRM',                     temVolume: true,  volumeType: 'generic'   },
 ]
+
+function servicoChipLabel(s: ServicoSel, def: typeof SERVICOS_EXECUTAR[number]): string {
+  if (def.volumeType === 'campanhas' && s.campanhas) return `${def.label} · ${s.campanhas} campanhas/mês`
+  if (def.volumeType === 'posts'     && s.posts)     return `${def.label} · ${s.posts} posts/mês`
+  if (def.volumeType === 'design') {
+    const parts: string[] = []
+    if (s.estaticos) parts.push(`${s.estaticos} estáticos`)
+    if (s.videos)    parts.push(`${s.videos} vídeos`)
+    return parts.length ? `${def.label} · ${parts.join(' + ')}/mês` : def.label
+  }
+  if (s.volume) return `${def.label} · ${s.volume}/mês`
+  return def.label
+}
+
+function isMissingVolume(s: ServicoSel): boolean {
+  const def = SERVICOS_EXECUTAR.find(x => x.key === s.key)
+  if (!def?.temVolume) return false
+  if (def.volumeType === 'campanhas') return !s.campanhas
+  if (def.volumeType === 'posts')     return !s.posts
+  if (def.volumeType === 'design')    return !s.estaticos || !s.videos
+  return false
+}
 
 function getEtapas(tipo: Projeto['tipo'], servico: string | null): string[] {
   if (!servico) return []
@@ -680,28 +711,51 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   const emptyForm = { nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' }
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(emptyForm)
-  const [servicosSel, setServicosSel] = useState<{ key: string; volume?: string }[]>([])
+  const [servicosSel, setServicosSel] = useState<ServicoSel[]>([])
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(emptyForm)
-  const [editServicosSel, setEditServicosSel] = useState<{ key: string; volume?: string }[]>([])
+  const [editServicosSel, setEditServicosSel] = useState<ServicoSel[]>([])
 
   function toggleServico(key: string) {
     setServicosSel(prev =>
       prev.find(s => s.key === key) ? prev.filter(s => s.key !== key) : [...prev, { key }]
     )
   }
-  function setVolume(key: string, volume: string) {
-    setServicosSel(prev => prev.map(s => s.key === key ? { ...s, volume: volume || undefined } : s))
+  function setServicoField(key: string, field: keyof ServicoSel, value: any) {
+    setServicosSel(prev => prev.map(s => s.key === key ? { ...s, [field]: value === '' ? undefined : value } : s))
   }
   function toggleEditServico(key: string) {
     setEditServicosSel(prev =>
       prev.find(s => s.key === key) ? prev.filter(s => s.key !== key) : [...prev, { key }]
     )
   }
-  function setEditVolume(key: string, volume: string) {
-    setEditServicosSel(prev => prev.map(s => s.key === key ? { ...s, volume: volume || undefined } : s))
+  function setEditServicoField(key: string, field: keyof ServicoSel, value: any) {
+    setEditServicosSel(prev => prev.map(s => s.key === key ? { ...s, [field]: value === '' ? undefined : value } : s))
   }
+
+  function migrateServicos(raw: Projeto['servicos_executar']): ServicoSel[] {
+    return (raw || []).map(s => {
+      if (s.key === 'midia_paga' && s.volume && !s.campanhas) {
+        const n = parseInt(s.volume, 10)
+        return { key: s.key, campanhas: isNaN(n) ? undefined : n }
+      }
+      if (s.key === 'social_media' && s.volume && !s.posts) {
+        const n = parseInt(s.volume, 10)
+        return { key: s.key, posts: isNaN(n) ? undefined : n }
+      }
+      if (s.key === 'design_grafico' && s.volume && !s.estaticos && !s.videos) {
+        const nums = s.volume.match(/\d+/g) || []
+        return {
+          key: s.key,
+          estaticos: nums[0] ? parseInt(nums[0], 10) : undefined,
+          videos:    nums[1] ? parseInt(nums[1], 10) : undefined,
+        }
+      }
+      return s
+    })
+  }
+
   function startEdit(p: Projeto) {
     setEditForm({
       nome: p.nome, tipo: p.tipo, servico: p.servico || '',
@@ -709,7 +763,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
       investimento_midia: toCents(p.investimento_midia),
       data_inicio: p.data_inicio || '', data_fim: p.data_fim || '', escopo: p.escopo || '',
     })
-    setEditServicosSel(p.servicos_executar || [])
+    setEditServicosSel(migrateServicos(p.servicos_executar))
     setEditId(p.id)
   }
 
@@ -725,7 +779,12 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   }
 
   async function save() {
-    if (!form.nome.trim()) return; setSaving(true)
+    if (!form.nome.trim()) return
+    if (form.tipo === 'executar') {
+      const missing = servicosSel.filter(isMissingVolume).map(s => SERVICOS_EXECUTAR.find(x => x.key === s.key)?.label)
+      if (missing.length) { alert(`Preencha os volumes obrigatórios: ${missing.join(', ')}`) ; return }
+    }
+    setSaving(true)
     const etapas = getEtapas(form.tipo, form.servico || null)
     await supabase.from('projetos').insert({
       nome: form.nome, tipo: form.tipo, valor_tipo: form.valor_tipo,
@@ -744,6 +803,10 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   }
   async function updateProj() {
     if (!editForm.nome.trim() || !editId) return
+    if (editForm.tipo === 'executar') {
+      const missing = editServicosSel.filter(isMissingVolume).map(s => SERVICOS_EXECUTAR.find(x => x.key === s.key)?.label)
+      if (missing.length) { alert(`Preencha os volumes obrigatórios: ${missing.join(', ')}`) ; return }
+    }
     setSaving(true)
     await supabase.from('projetos').update({
       nome: editForm.nome, tipo: editForm.tipo, valor_tipo: editForm.valor_tipo,
@@ -862,14 +925,41 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                             {SERVICOS_EXECUTAR.map(s => {
                               const sel = editServicosSel.find(x => x.key === s.key)
                               const checked = !!sel
+                              const isDesign = s.key === 'design_grafico'
                               return (
-                                <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${checked ? '#A7F3D0' : GRAY5}`, background: checked ? '#F0FDF4' : GRAY4, transition: 'all .15s' }}>
+                                <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${checked ? '#A7F3D0' : GRAY5}`, background: checked ? '#F0FDF4' : GRAY4, transition: 'all .15s', gridColumn: checked && isDesign ? '1/-1' : undefined }}>
                                   <input type="checkbox" checked={checked} onChange={() => toggleEditServico(s.key)} style={{ width: 15, height: 15, accentColor: '#065F46', cursor: 'pointer', flexShrink: 0 }} />
-                                  <span style={{ fontSize: 12, color: checked ? '#065F46' : GRAY1, fontWeight: checked ? 600 : 400, flex: 1 }}>{s.label}{s.temVolume && <span style={{ color: GRAY3 }}> *</span>}</span>
+                                  <span style={{ fontSize: 12, color: checked ? '#065F46' : GRAY1, fontWeight: checked ? 600 : 400, flex: 1 }}>{s.label}{s.volumeType && s.volumeType !== 'generic' && <span style={{ color: GRAY3 }}> *</span>}</span>
                                   {checked && s.temVolume && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
-                                      <input type="text" placeholder="Volume" value={sel?.volume ?? ''} onChange={e => setEditVolume(s.key, e.target.value)} style={{ width: 80, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
-                                      <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>/mês</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+                                      {s.volumeType === 'campanhas' && <>
+                                        <input type="number" min="0" placeholder="Qtd" value={sel?.campanhas ?? ''}
+                                          onChange={e => setEditServicoField(s.key, 'campanhas', e.target.value ? Number(e.target.value) : '')}
+                                          style={{ width: 65, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                        <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>campanhas/mês</span>
+                                      </>}
+                                      {s.volumeType === 'posts' && <>
+                                        <input type="number" min="0" placeholder="Qtd" value={sel?.posts ?? ''}
+                                          onChange={e => setEditServicoField(s.key, 'posts', e.target.value ? Number(e.target.value) : '')}
+                                          style={{ width: 65, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                        <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>posts/mês</span>
+                                      </>}
+                                      {s.volumeType === 'design' && <>
+                                        <input type="number" min="0" placeholder="Estáticos" value={sel?.estaticos ?? ''}
+                                          onChange={e => setEditServicoField(s.key, 'estaticos', e.target.value ? Number(e.target.value) : '')}
+                                          style={{ width: 70, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                        <span style={{ fontSize: 11, color: GRAY3 }}>est</span>
+                                        <input type="number" min="0" placeholder="Vídeos" value={sel?.videos ?? ''}
+                                          onChange={e => setEditServicoField(s.key, 'videos', e.target.value ? Number(e.target.value) : '')}
+                                          style={{ width: 70, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                        <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>vid/mês</span>
+                                      </>}
+                                      {s.volumeType === 'generic' && <>
+                                        <input type="text" placeholder="Volume" value={sel?.volume ?? ''}
+                                          onChange={e => setEditServicoField(s.key, 'volume', e.target.value)}
+                                          style={{ width: 80, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                        <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>/mês</span>
+                                      </>}
                                     </div>
                                   )}
                                 </div>
@@ -907,7 +997,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                               if (!def) return null
                               return (
                                 <span key={s.key} style={{ fontSize: 10, fontWeight: 600, color: '#065F46', background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 5, padding: '2px 7px', whiteSpace: 'nowrap' }}>
-                                  {def.label}{s.volume ? ` · ${s.volume}/mês` : ''}
+                                  {servicoChipLabel(s, def)}
                                 </span>
                               )
                             })}
@@ -1040,29 +1130,51 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                   {SERVICOS_EXECUTAR.map(s => {
                     const sel = servicosSel.find(x => x.key === s.key)
                     const checked = !!sel
+                    const isDesign = s.key === 'design_grafico'
                     return (
-                      <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${checked ? '#A7F3D0' : GRAY5}`, background: checked ? '#F0FDF4' : GRAY4, transition: 'all .15s' }}>
+                      <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${checked ? '#A7F3D0' : GRAY5}`, background: checked ? '#F0FDF4' : GRAY4, transition: 'all .15s', gridColumn: checked && isDesign ? '1/-1' : undefined }}>
                         <input type="checkbox" checked={checked} onChange={() => toggleServico(s.key)}
                           style={{ width: 15, height: 15, accentColor: '#065F46', cursor: 'pointer', flexShrink: 0 }} />
                         <span style={{ fontSize: 12, color: checked ? '#065F46' : GRAY1, fontWeight: checked ? 600 : 400, flex: 1 }}>
-                          {s.label}{s.temVolume && <span style={{ color: GRAY3 }}> *</span>}
+                          {s.label}{s.volumeType && s.volumeType !== 'generic' && <span style={{ color: GRAY3 }}> *</span>}
                         </span>
                         {checked && s.temVolume && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
-                            <input
-                              type="text" placeholder="Volume"
-                              value={sel?.volume ?? ''}
-                              onChange={e => setVolume(s.key, e.target.value)}
-                              style={{ width: 80, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }}
-                            />
-                            <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>/mês</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+                            {s.volumeType === 'campanhas' && <>
+                              <input type="number" min="0" placeholder="Qtd" value={sel?.campanhas ?? ''}
+                                onChange={e => setServicoField(s.key, 'campanhas', e.target.value ? Number(e.target.value) : '')}
+                                style={{ width: 65, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                              <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>campanhas/mês</span>
+                            </>}
+                            {s.volumeType === 'posts' && <>
+                              <input type="number" min="0" placeholder="Qtd" value={sel?.posts ?? ''}
+                                onChange={e => setServicoField(s.key, 'posts', e.target.value ? Number(e.target.value) : '')}
+                                style={{ width: 65, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                              <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>posts/mês</span>
+                            </>}
+                            {s.volumeType === 'design' && <>
+                              <input type="number" min="0" placeholder="Estáticos" value={sel?.estaticos ?? ''}
+                                onChange={e => setServicoField(s.key, 'estaticos', e.target.value ? Number(e.target.value) : '')}
+                                style={{ width: 70, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                              <span style={{ fontSize: 11, color: GRAY3 }}>est</span>
+                              <input type="number" min="0" placeholder="Vídeos" value={sel?.videos ?? ''}
+                                onChange={e => setServicoField(s.key, 'videos', e.target.value ? Number(e.target.value) : '')}
+                                style={{ width: 70, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                              <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>vid/mês</span>
+                            </>}
+                            {s.volumeType === 'generic' && <>
+                              <input type="text" placeholder="Volume" value={sel?.volume ?? ''}
+                                onChange={e => setServicoField(s.key, 'volume', e.target.value)}
+                                style={{ width: 80, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                              <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>/mês</span>
+                            </>}
                           </div>
                         )}
                       </div>
                     )
                   })}
                 </div>
-                <div style={{ fontSize: 10, color: GRAY3, marginTop: 6 }}>* Informe o volume contratado para os serviços marcados</div>
+                <div style={{ fontSize: 10, color: GRAY3, marginTop: 6 }}>* Volume mensal obrigatório para Mídia Paga, Design Gráfico e Social Media</div>
               </div>
             )}
             <div>
