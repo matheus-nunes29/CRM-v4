@@ -49,6 +49,7 @@ export default function CockpitPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'todos' | 'ativo' | 'pausado' | 'churned'>('todos')
+  const [filterTipo, setFilterTipo] = useState<'todos' | 'saber' | 'executar' | 'ter'>('todos')
   const [filterGestor, setFilterGestor] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [newEmpresa, setNewEmpresa] = useState('')
@@ -120,13 +121,14 @@ export default function CockpitPage() {
   const filtered = useMemo(() => {
     let list = clientes
     if (filterStatus !== 'todos') list = list.filter(c => c.status === filterStatus)
+    if (filterTipo !== 'todos') list = list.filter(c => c.projetos.some(p => p.tipo === filterTipo))
     if (filterGestor) list = list.filter(c => c.gestor_projetos === filterGestor)
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(c => c.empresa.toLowerCase().includes(q) || (c.segmento || '').toLowerCase().includes(q))
     }
     return list
-  }, [clientes, filterStatus, filterGestor, search])
+  }, [clientes, filterStatus, filterTipo, filterGestor, search])
 
   const stats = useMemo(() => ({
     total:       filtered.length,
@@ -183,6 +185,20 @@ export default function CockpitPage() {
           {(['todos', 'ativo', 'pausado', 'churned'] as const).map(s => (
             <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${filterStatus === s ? R : GRAY5}`, background: filterStatus === s ? R : WHITE, color: filterStatus === s ? WHITE : GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all .15s', textTransform: 'capitalize' }}>
               {s === 'todos' ? 'Todos' : s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
+        <div style={{ width: 1, height: 24, background: GRAY5, flexShrink: 0 }} />
+        <div style={{ display: 'flex', gap: 6 }}>
+          {([
+            { key: 'todos',    label: 'Tipo: Todos' },
+            { key: 'saber',    label: 'Saber' },
+            { key: 'executar', label: 'Executar' },
+            { key: 'ter',      label: 'Ter' },
+          ] as const).map(({ key, label }) => (
+            <button key={key} onClick={() => setFilterTipo(key)}
+              style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${filterTipo === key ? BLUE : GRAY5}`, background: filterTipo === key ? BLUE : WHITE, color: filterTipo === key ? WHITE : GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all .15s' }}>
+              {label}
             </button>
           ))}
         </div>
