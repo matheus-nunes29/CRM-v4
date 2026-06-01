@@ -132,7 +132,7 @@ export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
       let audioPublicUrl: string | null = null
 
       if (modo === 'audio' && file) {
-        setProgress('Transcrevendo áudio com Groq Whisper...')
+        setProgress('Transcrevendo áudio...')
         const ext = file.name.split('.').pop()
         const path = `${leadId}/${Date.now()}.${ext}`
         const { data: uploaded, error: uploadErr } = await supabase.storage
@@ -231,7 +231,7 @@ export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
               <div>
                 <div style={{ fontSize: 22, marginBottom: 6 }}>🎙️</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: GRAY2 }}>Clique para selecionar o áudio</div>
-                <div style={{ fontSize: 11, color: GRAY3, marginTop: 4 }}>MP3, M4A, WAV, OGG — até 50MB</div>
+                <div style={{ fontSize: 11, color: GRAY3, marginTop: 4 }}>MP3, M4A, WAV, OGG · até 50MB (acima de 24MB usa Gemini)</div>
               </div>
             )}
           </div>

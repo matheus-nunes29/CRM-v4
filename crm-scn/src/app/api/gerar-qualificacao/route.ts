@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-export const maxDuration = 60
+export const maxDuration = 120
+
+const GROQ_MAX = 24 * 1024 * 1024 // 24 MB — Groq hard limit is 25 MB
 
 const PROMPT = `Você é um especialista em qualificação de leads comerciais da V4 Company.
 Analise a transcrição desta ligação de qualificação e extraia as informações estruturadas.
@@ -58,34 +60,80 @@ Personalidade deve ser um array com os perfis identificados entre: "Executor", "
 Objeções deve ser um array de strings.
 Use as palavras exatas do lead quando possível. Se uma informação não foi mencionada, deixe como string vazia ou array vazio.`
 
-async function transcreverComGroq(audioUrl: string): Promise<string> {
+async function transcreverComGroq(blob: Blob, filename: string): Promise<string> {
   const groqKey = process.env.GROQ_API_KEY
   if (!groqKey) throw new Error('GROQ_API_KEY não configurada')
 
-  // Fetch audio from Supabase Storage
-  const audioRes = await fetch(audioUrl)
-  if (!audioRes.ok) throw new Error('Falha ao buscar áudio')
-  const audioBlob = await audioRes.blob()
-
-  // Send to Groq Whisper
   const form = new FormData()
-  form.append('file', audioBlob, 'audio.mp3')
+  form.append('file', blob, filename)
   form.append('model', 'whisper-large-v3-turbo')
   form.append('language', 'pt')
   form.append('response_format', 'text')
 
-  const groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+  const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${groqKey}` },
     body: form,
   })
 
-  if (!groqRes.ok) {
-    const err = await groqRes.text()
-    throw new Error('Groq Whisper error: ' + err)
-  }
+  if (!res.ok) throw new Error('Groq Whisper error: ' + await res.text())
+  return (await res.text()).trim()
+}
 
-  return (await groqRes.text()).trim()
+async function transcreverComGemini(blob: Blob, mimeType: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY!
+
+  // Step 1: start resumable upload
+  const startRes = await fetch(
+    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': String(blob.size),
+        'X-Goog-Upload-Header-Content-Type': mimeType,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ file: { display_name: 'audio' } }),
+    }
+  )
+  if (!startRes.ok) throw new Error('Gemini Files upload start failed: ' + await startRes.text())
+
+  const uploadUrl = startRes.headers.get('X-Goog-Upload-URL')
+  if (!uploadUrl) throw new Error('Gemini não retornou URL de upload')
+
+  // Step 2: upload the binary data
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Length': String(blob.size),
+      'X-Goog-Upload-Offset': '0',
+      'X-Goog-Upload-Command': 'upload, finalize',
+    },
+    body: blob,
+  })
+  if (!uploadRes.ok) throw new Error('Gemini Files upload data failed: ' + await uploadRes.text())
+
+  const fileInfo = await uploadRes.json()
+  const fileUri = fileInfo.file?.uri
+  if (!fileUri) throw new Error('Gemini não retornou URI do arquivo')
+
+  // Step 3: transcribe using the uploaded file
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+
+  const result = await model.generateContent({
+    contents: [{
+      role: 'user',
+      parts: [
+        { fileData: { mimeType, fileUri } },
+        { text: 'Transcreva este áudio na íntegra em português. Retorne apenas o texto transcrito, sem comentários, sem timestamps, sem formatação.' },
+      ],
+    }],
+  })
+
+  return result.response.text().trim()
 }
 
 export async function POST(req: NextRequest) {
@@ -96,10 +144,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forneça audioUrl ou transcricao' }, { status: 400 })
     }
 
-    // Step 1: Get transcription (Groq Whisper for audio, or use provided text)
-    const texto = audioUrl ? await transcreverComGroq(audioUrl) : transcricao
+    let texto: string
 
-    // Step 2: Analyze with Gemini
+    if (audioUrl) {
+      // Fetch the audio file server-side
+      const audioRes = await fetch(audioUrl)
+      if (!audioRes.ok) throw new Error('Falha ao buscar áudio')
+      const blob = await audioRes.blob()
+
+      const filename = decodeURIComponent(audioUrl.split('/').pop() || 'audio.mp3')
+      const mimeType = blob.type || 'audio/mpeg'
+
+      if (blob.size <= GROQ_MAX && process.env.GROQ_API_KEY) {
+        texto = await transcreverComGroq(blob, filename)
+      } else {
+        // File too large for Groq — use Gemini Files API
+        texto = await transcreverComGemini(blob, mimeType)
+      }
+    } else {
+      texto = transcricao
+    }
+
+    // Analyze with Gemini
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
