@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
-import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE } from '@/lib/crm-constants'
+import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE, SEGMENTOS } from '@/lib/crm-constants'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
@@ -65,10 +65,10 @@ const OPP_STAGES: { key: Oportunidade['etapa']; label: string; color: string; bg
 ]
 
 // ── Inline editable field ─────────────────────────────────────────────────────
-function EditableField({ label, value, onSave, multiline = false }: { label: string; value: string; onSave?: (v: string) => void; multiline?: boolean }) {
+function EditableField({ label, value, onSave, multiline = false, options }: { label: string; value: string; onSave?: (v: string) => void; multiline?: boolean; options?: string[] }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
-  const commit = () => { onSave!(draft); setEditing(false) }
+  const commit = (v = draft) => { onSave!(v); setEditing(false) }
   const cancel = () => { setDraft(value); setEditing(false) }
 
   return (
@@ -76,17 +76,22 @@ function EditableField({ label, value, onSave, multiline = false }: { label: str
       <div style={{ fontSize: 11, color: GRAY3, fontWeight: 600, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
       {editing ? (
         <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-          {multiline
-            ? <textarea value={draft} onChange={e => setDraft(e.target.value)} autoFocus rows={3} style={{ flex: 1, padding: '8px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
-            : <input value={draft} onChange={e => setDraft(e.target.value)} autoFocus onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }} style={{ flex: 1, padding: '8px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 13, outline: 'none' }} />
+          {options
+            ? <select value={draft} autoFocus onChange={e => { setDraft(e.target.value); commit(e.target.value) }} style={{ flex: 1, padding: '8px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 13, outline: 'none' }}>
+                <option value="">— Selecione —</option>
+                {options.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            : multiline
+              ? <textarea value={draft} onChange={e => setDraft(e.target.value)} autoFocus rows={3} style={{ flex: 1, padding: '8px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+              : <input value={draft} onChange={e => setDraft(e.target.value)} autoFocus onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }} style={{ flex: 1, padding: '8px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 7, color: GRAY1, fontSize: 13, outline: 'none' }} />
           }
-          <button onClick={commit} style={{ padding: '7px', borderRadius: 6, border: 'none', background: GREEN, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Check size={13} color={WHITE} /></button>
+          {!options && <button onClick={() => commit()} style={{ padding: '7px', borderRadius: 6, border: 'none', background: GREEN, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Check size={13} color={WHITE} /></button>}
           <button onClick={cancel} style={{ padding: '7px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={13} color={GRAY3} /></button>
         </div>
       ) : (
         <div
           onClick={onSave ? () => { setDraft(value); setEditing(true) } : undefined}
-          style={{ fontSize: 13, color: value ? GRAY1 : GRAY3, cursor: onSave ? 'text' : 'default', padding: '7px 0', borderBottom: `1px ${onSave ? 'dashed' : 'solid'} ${GRAY5}`, minHeight: 30, display: 'flex', alignItems: 'center', gap: 6, transition: 'border-color .15s' }}
+          style={{ fontSize: 13, color: value ? GRAY1 : GRAY3, cursor: onSave ? 'pointer' : 'default', padding: '7px 0', borderBottom: `1px ${onSave ? 'dashed' : 'solid'} ${GRAY5}`, minHeight: 30, display: 'flex', alignItems: 'center', gap: 6, transition: 'border-color .15s' }}
           onMouseEnter={onSave ? e => ((e.currentTarget as HTMLElement).style.borderColor = '#9CA3AF') : undefined}
           onMouseLeave={onSave ? e => ((e.currentTarget as HTMLElement).style.borderColor = GRAY5) : undefined}
         >
@@ -425,7 +430,7 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
         <SectionTitle icon={Building2} label="Dados Gerais" />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <EditableField label="Empresa" value={cliente.empresa} onSave={canEdit ? v => onSaveCliente({ empresa: v }) : undefined} />
-          <EditableField label="Segmento" value={cliente.segmento || ''} onSave={canEdit ? v => onSaveCliente({ segmento: v || null }) : undefined} />
+          <EditableField label="Segmento" value={cliente.segmento || ''} onSave={canEdit ? v => onSaveCliente({ segmento: v || null }) : undefined} options={SEGMENTOS} />
           <EditableField label="Anotações" value={cliente.anotacoes || ''} onSave={canEdit ? v => onSaveCliente({ anotacoes: v }) : undefined} multiline />
           <div style={{ display: 'flex', gap: 28, paddingTop: 8, borderTop: `1px solid ${GRAY5}` }}>
             <div>

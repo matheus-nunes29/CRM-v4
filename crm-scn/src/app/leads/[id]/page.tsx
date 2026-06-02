@@ -11,6 +11,7 @@ import { UserSelect } from '@/components/UserSelect'
 import { useUserRole } from '@/lib/useUserRole'
 import { useCloserUsers } from '@/lib/useCloserUsers'
 import { getPipelineStage, PIPELINE_STAGES } from '@/lib/crm-pipeline'
+import { SEGMENTOS } from '@/lib/crm-constants'
 import GerarQualificacao from '@/components/GerarQualificacao'
 import AudioPlayer from '@/components/AudioPlayer'
 
@@ -26,7 +27,6 @@ const BORDER = '#EEEEF5'
 
 // ─── Options ──────────────────────────────────────────────────────────────────
 const ORIGENS = ['Recovery', 'Lead Broker', 'Recomendação', 'Eventos', 'Indicação']
-const SEGMENTOS = ['Serviço', 'Varejo', 'Indústria', 'Saúde', 'Educação', 'Tecnologia', 'Imobiliário', 'Agronegócio', 'Outro']
 const CARGOS = ['Não identificado', 'Sócio', 'Diretor', 'Gerente', 'Coordenador', 'Analista', 'Assistente', 'Outro']
 const CLOSERS = ['MATHEUS', 'VITOR']
 const CLOSER_EMAILS: Record<string, string> = {

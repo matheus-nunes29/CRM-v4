@@ -34,7 +34,28 @@ export const SITUACOES          = ['EM FOLLOW UP', 'REUNIAO EXTRA AGENDADA', 'AG
 export const SITUACOES_PRE_VENDAS = ['TENTANDO CONTATO', 'EM QUALIFICAÇÃO', 'REUNIÃO AGENDADA', 'REUNIÃO REALIZADA', 'PERDIDO SDR', 'NO SHOW/REMARCANDO', 'REEMBOLSO', 'AGENDA FUTURA']
 export const TEMPERATURAS       = ['FRIO', 'MORNO', 'QUENTE', 'FECHADO']
 export const ORIGENS            = ['Lead Broker', 'Recomendação', 'Eventos', 'Prospecção Ativa (BDR/Hunter)', 'Indicação', 'Recovery']
-export const SEGMENTOS          = ['Varejo', 'Serviço', 'Indústria', 'Food Service', 'Educação', 'SAAS', 'Imobiliária', 'Outro']
+export const SEGMENTOS          = [
+  'Varejo',
+  'Food Service',
+  'Saúde',
+  'Serviços',
+  'Turismo & Hotelaria',
+  'Tecnologia & SaaS',
+  'Imobiliário',
+  'Construção Civil',
+  'Educação',
+  'E-commerce',
+  'Indústria',
+  'Automotivo',
+  'Finanças & Investimentos',
+  'Agronegócio',
+  'Energia Solar',
+  'Fitness & Bem-estar',
+  'Eventos',
+  'Aviação',
+  'Engenharia',
+  'Outro',
+]
 export const CARGOS_OPTIONS     = ['Não identificado', 'Sócio', 'Diretor', 'Gerente', 'Coordenador', 'Analista', 'Assistente', 'Outro']
 export const MESES              = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 export const CANAIS_METAS       = ['Recovery', 'Lead Broker', 'Recomendação', 'Eventos', 'Indicação']

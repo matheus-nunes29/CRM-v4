@@ -2,6 +2,7 @@
 import React, { useState } from 'react'
 import { X, AlertCircle, Building2, CheckCircle2, ExternalLink, Lock } from 'lucide-react'
 import type { Lead } from '@/lib/supabase'
+import { SEGMENTOS } from '@/lib/crm-constants'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const R = '#E8001C'
@@ -15,7 +16,6 @@ const BORDER = '#EEEEF5'
 
 // ─── Options ──────────────────────────────────────────────────────────────────
 const ORIGENS = ['Recovery', 'Lead Broker', 'Recomendação', 'Eventos', 'Indicação']
-const SEGMENTOS = ['Serviço', 'Varejo', 'Indústria', 'Saúde', 'Educação', 'Tecnologia', 'Imobiliário', 'Agronegócio', 'Outro']
 const CARGOS = ['Não identificado', 'Sócio', 'Diretor', 'Gerente', 'Coordenador', 'Analista', 'Assistente', 'Outro']
 const CLOSERS = ['MATHEUS', 'VITOR']
 const CLOSER_EMAILS: Record<string, string> = {
