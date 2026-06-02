@@ -204,3 +204,17 @@ export type Reuniao = {
   created_at: string
   updated_at: string
 }
+
+export type EntregaMensal = {
+  id: string
+  projeto_id: string
+  cliente_id: string
+  mes: string
+  design_estaticos: number | null
+  design_videos: number | null
+  midia_campanhas: number | null
+  social_posts: number | null
+  notas: string | null
+  created_at: string
+  updated_at: string
+}

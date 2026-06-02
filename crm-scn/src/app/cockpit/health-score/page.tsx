@@ -22,6 +22,10 @@ type ClienteRow = {
   gestor_projetos: string | null; designer: string | null; analista_midia: string | null
   entries: HS[]; latest: HS | null; prev: HS | null; delta: number | null
   mrr: number; servicos: string[]; hasFca: boolean; consecutiveLow: number; ltMonths: number
+  hasExecutarAtivo: boolean; hasSaberTerAtivo: boolean
+  mrrExecutar: number; verbaMidia: number
+  volContratado: { campanhas: number; estaticos: number; videos: number; posts: number }
+  entregaUltimoMes: { campanhas: number | null; estaticos: number | null; videos: number | null; posts: number | null; mes: string | null } | null
 }
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -96,6 +100,7 @@ export default function HSAnalysisPage() {
   const [loading, setLoading]       = useState(true)
 
   // filtros
+  const [fTipoProjeto, setFTipoProjeto] = useState<'todos' | 'executar' | 'saber_ter'>('todos')
   const [fGestor,   setFGestor]   = useState('todos')
   const [fScore,    setFScore]    = useState('todos')
   const [fStatus,   setFStatus]   = useState('todos')
@@ -115,13 +120,21 @@ export default function HSAnalysisPage() {
 
   async function loadData() {
     setLoading(true)
-    const [{ data: cl }, { data: hs }, { data: pr }, { data: fc }] = await Promise.all([
+    const d = new Date(); d.setMonth(d.getMonth() - 2)
+    const mesSince = d.toISOString().slice(0, 7)
+    const [{ data: cl }, { data: hs }, { data: pr }, { data: fc }, { data: em }] = await Promise.all([
       supabase.from('clientes').select('*').order('empresa'),
       supabase.from('health_score_entries').select('*').order('semana', { ascending: false }),
-      supabase.from('projetos').select('id,cliente_id,valor,valor_tipo,status,tipo,servicos_executar,data_inicio'),
+      supabase.from('projetos').select('id,cliente_id,valor,valor_tipo,status,tipo,servicos_executar,data_inicio,investimento_midia'),
       supabase.from('fca_entries').select('id,cliente_id'),
+      supabase.from('entregas_mensais').select('*').gte('mes', mesSince).order('mes', { ascending: false }),
     ])
     const fcaSet = new Set((fc || []).map((f: any) => f.cliente_id as string))
+    const sumField = (entries: any[], field: string): number | null => {
+      const withVal = entries.filter((e: any) => e[field] !== null)
+      if (!withVal.length) return null
+      return withVal.reduce((s: number, e: any) => s + (e[field] as number), 0)
+    }
     const rows: ClienteRow[] = (cl || []).map((c: any) => {
       const entries: HS[] = (hs || []).filter((h: any) => h.cliente_id === c.id)
       const projs          = (pr || []).filter((p: any) => p.cliente_id === c.id)
@@ -134,7 +147,37 @@ export default function HSAnalysisPage() {
       for (const e of entries) { if (e.score_total < 7) consecutiveLow++; else break }
       const dates          = projs.map((p: any) => p.data_inicio as string | null).filter(Boolean) as string[]
       const ltMonths       = dates.length ? Math.floor((Date.now() - new Date(dates.sort()[0]).getTime()) / (1000 * 60 * 60 * 24 * 30.44)) : 0
-      return { ...c, entries, latest, prev, delta, mrr, servicos, hasFca: fcaSet.has(c.id), consecutiveLow, ltMonths }
+
+      const execAtivos     = projs.filter((p: any) => p.tipo === 'executar' && p.status === 'ativo')
+      const saberTerAtivos = projs.filter((p: any) => (p.tipo === 'saber' || p.tipo === 'ter') && p.status === 'ativo')
+      const hasExecutarAtivo  = execAtivos.length > 0
+      const hasSaberTerAtivo  = saberTerAtivos.length > 0
+      const mrrExecutar    = execAtivos.filter((p: any) => p.valor_tipo === 'mensalidade').reduce((s: number, p: any) => s + p.valor, 0)
+      const verbaMidia     = execAtivos.reduce((s: number, p: any) => s + (p.investimento_midia || 0), 0)
+      const volContratado  = { campanhas: 0, estaticos: 0, videos: 0, posts: 0 }
+      execAtivos.forEach((p: any) => {
+        ;(p.servicos_executar || []).forEach((s: any) => {
+          if (s.key === 'midia_paga')     volContratado.campanhas  += s.campanhas  || 0
+          if (s.key === 'design_grafico') { volContratado.estaticos += s.estaticos || 0; volContratado.videos += s.videos || 0 }
+          if (s.key === 'social_media')   volContratado.posts      += s.posts      || 0
+        })
+      })
+
+      const emCliente = (em || []).filter((e: any) => e.cliente_id === c.id)
+      let entregaUltimoMes: ClienteRow['entregaUltimoMes'] = null
+      if (emCliente.length > 0) {
+        const latestMes = emCliente.reduce((max: string, e: any) => e.mes > max ? e.mes : max, '')
+        const mesEntries = emCliente.filter((e: any) => e.mes === latestMes)
+        entregaUltimoMes = {
+          mes: latestMes,
+          campanhas: sumField(mesEntries, 'midia_campanhas'),
+          estaticos: sumField(mesEntries, 'design_estaticos'),
+          videos:    sumField(mesEntries, 'design_videos'),
+          posts:     sumField(mesEntries, 'social_posts'),
+        }
+      }
+
+      return { ...c, entries, latest, prev, delta, mrr, servicos, hasFca: fcaSet.has(c.id), consecutiveLow, ltMonths, hasExecutarAtivo, hasSaberTerAtivo, mrrExecutar, verbaMidia, volContratado, entregaUltimoMes }
     })
     setClientes(rows)
     setLineClients(new Set(rows.filter(r => r.latest).slice(0, 8).map(r => r.id)))
@@ -143,6 +186,8 @@ export default function HSAnalysisPage() {
 
   // ── filtrado ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => clientes.filter(c => {
+    if (fTipoProjeto === 'executar'  && !c.hasExecutarAtivo)         return false
+    if (fTipoProjeto === 'saber_ter' && !c.hasSaberTerAtivo)         return false
     if (fGestor   !== 'todos' && c.gestor_projetos !== fGestor)    return false
     if (fStatus   !== 'todos' && c.status          !== fStatus)    return false
     if (fSegmento !== 'todos' && c.segmento        !== fSegmento)  return false
@@ -156,11 +201,11 @@ export default function HSAnalysisPage() {
     if (fScore === 'atencao'  && (s < 5 || s >= 7)) return false
     if (fScore === 'risco'    && s >= 5)          return false
     return true
-  }), [clientes, fGestor, fScore, fStatus, fSegmento, fMrr, fServico])
+  }), [clientes, fTipoProjeto, fGestor, fScore, fStatus, fSegmento, fMrr, fServico])
 
   const gestores  = useMemo(() => Array.from(new Set(clientes.map(c => c.gestor_projetos).filter(Boolean))) as string[], [clientes])
   const segmentos = useMemo(() => Array.from(new Set(clientes.map(c => c.segmento).filter(Boolean))) as string[], [clientes])
-  const hasFilter = fGestor !== 'todos' || fScore !== 'todos' || fStatus !== 'todos' || fSegmento !== 'todos' || fMrr !== 'todos' || fServico !== 'todos'
+  const hasFilter = fTipoProjeto !== 'todos' || fGestor !== 'todos' || fScore !== 'todos' || fStatus !== 'todos' || fSegmento !== 'todos' || fMrr !== 'todos' || fServico !== 'todos'
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -259,6 +304,14 @@ export default function HSAnalysisPage() {
     }).filter(Boolean).sort((a, b) => b!.avg - a!.avg) as { label: string; avg: number; count: number }[],
   [filtered])
 
+  // ── MRR × Volume contratado (executar) ────────────────────────────────────
+  const mrrVolTable = useMemo(() =>
+    filtered.filter(c => c.hasExecutarAtivo).map(c => ({
+      id: c.id, empresa: c.empresa, mrr: c.mrrExecutar, verba: c.verbaMidia,
+      volC: c.volContratado, volE: c.entregaUltimoMes,
+    })).sort((a, b) => b.mrr - a.mrr),
+  [filtered])
+
   // ── correlação ────────────────────────────────────────────────────────────
   const correlacoes = useMemo(() => {
     const ws = filtered.filter(c => c.latest)
@@ -345,6 +398,14 @@ export default function HSAnalysisPage() {
       {/* ── Filtros ── */}
       <div style={{ ...card, padding: '14px 18px', marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: GRAY3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Filtros</span>
+        <div style={{ display: 'flex', borderRadius: 7, overflow: 'hidden', border: `1px solid ${GRAY5}` }}>
+          {([['todos', 'Todos'] as const, ['executar', 'Executar'] as const, ['saber_ter', 'Saber/Ter'] as const]).map(([v, l]) => (
+            <button key={v} onClick={() => setFTipoProjeto(v)}
+              style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer', background: fTipoProjeto === v ? R : WHITE, color: fTipoProjeto === v ? WHITE : GRAY2, borderRight: `1px solid ${GRAY5}` }}>
+              {l}
+            </button>
+          ))}
+        </div>
         <select value={fGestor}   onChange={e => setFGestor(e.target.value)}   style={selStyle}>
           <option value="todos">Todos os Gestores</option>
           {gestores.map(g => <option key={g} value={g}>{g}</option>)}
@@ -376,7 +437,7 @@ export default function HSAnalysisPage() {
           {SERVICOS_EX.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
         {hasFilter && (
-          <button onClick={() => { setFGestor('todos'); setFScore('todos'); setFStatus('todos'); setFSegmento('todos'); setFMrr('todos'); setFServico('todos') }}
+          <button onClick={() => { setFTipoProjeto('todos'); setFGestor('todos'); setFScore('todos'); setFStatus('todos'); setFSegmento('todos'); setFMrr('todos'); setFServico('todos') }}
             style={{ padding: '6px 12px', borderRadius: 7, border: `1px solid ${R}`, background: '#FEE2E2', color: '#991B1B', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
             Limpar filtros
           </button>
@@ -575,6 +636,62 @@ export default function HSAnalysisPage() {
                       {row.consecutiveLow >= 3 ? <span style={{ fontSize: 11, fontWeight: 700, color: R }}>{row.consecutiveLow}×</span>
                       : row.consecutiveLow > 0  ? <span style={{ fontSize: 11, color: YELLOW }}>{row.consecutiveLow}×</span>
                       : <span style={{ color: GRAY3 }}>—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Executar: MRR × Volume ── */}
+      {mrrVolTable.length > 0 && (
+        <div style={{ ...card, marginBottom: 20, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${GRAY5}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>Executar: MRR × Volume Contratado vs Entregue</div>
+            <div style={{ fontSize: 11, color: GRAY3, marginTop: 3 }}>Volumes do último mês com registro · <span style={{ color: GREEN, fontWeight: 700 }}>Verde</span> = entregue ≥ contratado · <span style={{ color: YELLOW, fontWeight: 700 }}>Amarelo</span> = parcial · <span style={{ color: R, fontWeight: 700 }}>Vermelho</span> = sem entrega · — = não contratado</div>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thS, textAlign: 'left' }}>Cliente</th>
+                  <th style={{ ...thS, textAlign: 'right' }}>MRR Exec.</th>
+                  <th style={{ ...thS, textAlign: 'right' }}>Verba Mídia</th>
+                  <th style={{ ...thS, textAlign: 'center' }}>Campanhas<br /><span style={{ fontSize: 9, fontWeight: 400 }}>contrat. / entreg.</span></th>
+                  <th style={{ ...thS, textAlign: 'center' }}>Estáticos<br /><span style={{ fontSize: 9, fontWeight: 400 }}>contrat. / entreg.</span></th>
+                  <th style={{ ...thS, textAlign: 'center' }}>Vídeos<br /><span style={{ fontSize: 9, fontWeight: 400 }}>contrat. / entreg.</span></th>
+                  <th style={{ ...thS, textAlign: 'center' }}>Posts<br /><span style={{ fontSize: 9, fontWeight: 400 }}>contrat. / entreg.</span></th>
+                  <th style={{ ...thS, textAlign: 'center' }}>Mês ref.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mrrVolTable.map(row => (
+                  <tr key={row.id} onClick={() => router.push(`/cockpit/${row.id}`)} style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = GRAY4)}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    <td style={{ ...tdS, fontWeight: 600 }}>{row.empresa}</td>
+                    <td style={{ ...tdS, textAlign: 'right', fontSize: 12 }}>{row.mrr > 0 ? fmtMRR(row.mrr) : '—'}</td>
+                    <td style={{ ...tdS, textAlign: 'right', fontSize: 12 }}>{row.verba > 0 ? fmtMRR(row.verba) : '—'}</td>
+                    {(['campanhas', 'estaticos', 'videos', 'posts'] as const).map(k => {
+                      const c = row.volC[k]
+                      const e = row.volE?.[k] ?? null
+                      if (c === 0) return <td key={k} style={{ ...tdS, textAlign: 'center', color: GRAY3 }}>—</td>
+                      const clr = e === null ? R : e >= c ? GREEN : e > 0 ? YELLOW : R
+                      const bg  = e === null ? '#FEE2E210' : e >= c ? '#DCFCE710' : e > 0 ? '#FEF9C310' : '#FEE2E210'
+                      return (
+                        <td key={k} style={{ ...tdS, textAlign: 'center', background: bg }}>
+                          <span style={{ fontWeight: 700, color: GRAY2, fontSize: 12 }}>{c}</span>
+                          <span style={{ color: GRAY3, fontSize: 11 }}> / </span>
+                          {e !== null
+                            ? <span style={{ fontWeight: 700, color: clr, fontSize: 12 }}>{e}</span>
+                            : <span style={{ color: GRAY3, fontSize: 12 }}>—</span>}
+                        </td>
+                      )
+                    })}
+                    <td style={{ ...tdS, textAlign: 'center', fontSize: 11, color: GRAY3 }}>
+                      {row.volE?.mes ? row.volE.mes : <span style={{ color: R }}>sem registro</span>}
                     </td>
                   </tr>
                 ))}

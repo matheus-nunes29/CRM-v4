@@ -716,6 +716,10 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(emptyForm)
   const [editServicosSel, setEditServicosSel] = useState<ServicoSel[]>([])
+  const [entregaProjetoId, setEntregaProjetoId] = useState<string | null>(null)
+  const [entregaMes, setEntregaMes] = useState(() => new Date().toISOString().slice(0, 7))
+  const [entregaForm, setEntregaForm] = useState({ campanhas: '', estaticos: '', videos: '', posts: '' })
+  const [savingEntrega, setSavingEntrega] = useState(false)
 
   function toggleServico(key: string) {
     setServicosSel(prev =>
@@ -754,6 +758,26 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
       }
       return s
     })
+  }
+
+  function openEntrega(p: Projeto) {
+    setEntregaProjetoId(p.id)
+    setEntregaMes(new Date().toISOString().slice(0, 7))
+    setEntregaForm({ campanhas: '', estaticos: '', videos: '', posts: '' })
+  }
+
+  async function saveEntrega(projetoId: string) {
+    setSavingEntrega(true)
+    const vals: any = { projeto_id: projetoId, cliente_id: clienteId, mes: entregaMes }
+    const p = projetos.find(x => x.id === projetoId)
+    const servicos = (p?.servicos_executar || []).map(s => s.key)
+    if (servicos.includes('midia_paga'))     vals.midia_campanhas  = entregaForm.campanhas  ? parseInt(entregaForm.campanhas, 10)  : null
+    if (servicos.includes('design_grafico')) { vals.design_estaticos = entregaForm.estaticos ? parseInt(entregaForm.estaticos, 10) : null; vals.design_videos = entregaForm.videos ? parseInt(entregaForm.videos, 10) : null }
+    if (servicos.includes('social_media'))   vals.social_posts     = entregaForm.posts      ? parseInt(entregaForm.posts, 10)      : null
+    const { error } = await supabase.from('entregas_mensais').upsert(vals, { onConflict: 'projeto_id,mes' })
+    setSavingEntrega(false)
+    if (error) { alert('Erro ao salvar: ' + error.message); return }
+    setEntregaProjetoId(null)
   }
 
   function startEdit(p: Projeto) {
@@ -1069,6 +1093,11 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                     )}
 
                     {p.escopo && <div style={{ fontSize: 12, color: GRAY2, lineHeight: 1.55, padding: '10px 0', borderTop: `1px solid ${GRAY5}`, marginTop: etapas.length > 0 ? 12 : 0 }}>{p.escopo}</div>}
+                    {p.tipo === 'executar' && (
+                      <button onClick={() => openEntrega(p)} style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 7, border: `1px solid ${BLUE}40`, background: `${BLUE}08`, color: BLUE, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <Package size={11} /> Lançar Entrega do Mês
+                      </button>
+                    )}
                     {canEdit && (
                       <button onClick={() => deleteProj(p.id)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', border: 'none', background: 'transparent', color: GRAY3, fontSize: 11, cursor: 'pointer' }}
                         onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
@@ -1089,6 +1118,71 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
           <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum projeto cadastrado</div>
         </div>
       )}
+
+      {entregaProjetoId && (() => {
+        const p = projetos.find(x => x.id === entregaProjetoId)
+        if (!p) return null
+        const servicos = (p.servicos_executar || []).map(s => s.key)
+        const hasMidia  = servicos.includes('midia_paga')
+        const hasDesign = servicos.includes('design_grafico')
+        const hasSocial = servicos.includes('social_media')
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+            onClick={() => setEntregaProjetoId(null)}>
+            <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: GRAY1 }}>Lançar Entrega do Mês</div>
+                  <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>{p.nome}</div>
+                </div>
+                <button onClick={() => setEntregaProjetoId(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 4, borderRadius: 6, display: 'flex' }}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Mês de referência</label>
+                  <input type="month" value={entregaMes} onChange={e => setEntregaMes(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                {hasMidia && (
+                  <div>
+                    <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Campanhas rodadas (Mídia Paga)</label>
+                    <input type="number" min="0" value={entregaForm.campanhas} onChange={e => setEntregaForm(f => ({ ...f, campanhas: e.target.value }))} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                )}
+                {hasDesign && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Estáticos entregues</label>
+                      <input type="number" min="0" value={entregaForm.estaticos} onChange={e => setEntregaForm(f => ({ ...f, estaticos: e.target.value }))} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Vídeos entregues</label>
+                      <input type="number" min="0" value={entregaForm.videos} onChange={e => setEntregaForm(f => ({ ...f, videos: e.target.value }))} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+                )}
+                {hasSocial && (
+                  <div>
+                    <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Posts publicados (Social Media)</label>
+                    <input type="number" min="0" value={entregaForm.posts} onChange={e => setEntregaForm(f => ({ ...f, posts: e.target.value }))} placeholder="0" style={{ width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                )}
+                {!hasMidia && !hasDesign && !hasSocial && (
+                  <div style={{ fontSize: 12, color: GRAY3, padding: '12px 0', textAlign: 'center' }}>Nenhum serviço com volume configurado neste projeto.</div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+                <button onClick={() => setEntregaProjetoId(null)} style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={() => saveEntrega(entregaProjetoId)} disabled={savingEntrega} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: BLUE, color: WHITE, fontSize: 13, fontWeight: 700, cursor: savingEntrega ? 'not-allowed' : 'pointer', opacity: savingEntrega ? 0.7 : 1 }}>
+                  {savingEntrega ? 'Salvando...' : 'Salvar Entrega'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {showNew && canEdit && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
