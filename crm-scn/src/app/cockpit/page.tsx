@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase, Cliente, HealthScoreEntry, Projeto, FcaEntry } from '@/lib/supabase'
 import CRMLayout from '../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, SEGMENTOS } from '@/lib/crm-constants'
-import { Plus, Search, Building2, TrendingUp, Layers, Users, ArrowUp, ArrowDown, Minus, AlertTriangle, BarChart2 } from 'lucide-react'
+import { Plus, Search, Building2, TrendingUp, Layers, Users, ArrowUp, ArrowDown, Minus, AlertTriangle, BarChart2, X } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 
 type ClienteEnriquecido = Cliente & {
@@ -178,62 +178,101 @@ export default function CockpitPage() {
       </div>
 
       {/* Toolbar */}
-      <div style={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 12, padding: '14px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
-          <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: GRAY3 }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar empresa ou segmento..."
-            style={{ width: '100%', padding: '8px 12px 8px 32px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 8, color: GRAY1, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {(['todos', 'ativo', 'pausado', 'churned'] as const).map(s => (
-            <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${filterStatus === s ? R : GRAY5}`, background: filterStatus === s ? R : WHITE, color: filterStatus === s ? WHITE : GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all .15s', textTransform: 'capitalize' }}>
-              {s === 'todos' ? 'Todos' : s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
-        </div>
-        <div style={{ width: 1, height: 24, background: GRAY5, flexShrink: 0 }} />
-        <div style={{ display: 'flex', gap: 6 }}>
-          {([
-            { key: 'todos',    label: 'Tipo: Todos' },
-            { key: 'saber',    label: 'Saber' },
-            { key: 'executar', label: 'Executar' },
-            { key: 'ter',      label: 'Ter' },
-          ] as const).map(({ key, label }) => (
-            <button key={key} onClick={() => setFilterTipo(key)}
-              style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${filterTipo === key ? BLUE : GRAY5}`, background: filterTipo === key ? BLUE : WHITE, color: filterTipo === key ? WHITE : GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all .15s' }}>
-              {label}
-            </button>
-          ))}
-        </div>
-        {gestores.length > 0 && (
-          <select value={filterGestor} onChange={e => setFilterGestor(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${filterGestor ? R : GRAY5}`, background: filterGestor ? '#FFF5F5' : GRAY4, color: filterGestor ? R : GRAY2, fontSize: 13, fontWeight: filterGestor ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
-            <option value="">Gestor de Projetos</option>
-            {gestores.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-        )}
-        {analistas.length > 0 && (
-          <select value={filterAnalista} onChange={e => setFilterAnalista(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${filterAnalista ? R : GRAY5}`, background: filterAnalista ? '#FFF5F5' : GRAY4, color: filterAnalista ? R : GRAY2, fontSize: 13, fontWeight: filterAnalista ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
-            <option value="">Gestor de Tráfego</option>
-            {analistas.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-        )}
-        {designers.length > 0 && (
-          <select value={filterDesigner} onChange={e => setFilterDesigner(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${filterDesigner ? BLUE : GRAY5}`, background: filterDesigner ? '#EFF6FF' : GRAY4, color: filterDesigner ? BLUE : GRAY2, fontSize: 13, fontWeight: filterDesigner ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
-            <option value="">Designer</option>
-            {designers.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-        )}
-        <button onClick={() => router.push('/cockpit/health-score')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          <BarChart2 size={14} strokeWidth={2.5} /> Analytics
-        </button>
-        {canEditCockpit && (
-          <button onClick={() => setShowNew(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: `0 2px 8px ${R}40` }}>
-            <Plus size={14} strokeWidth={2.5} /> Novo Cliente
+      <div style={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+
+        {/* Linha 1: busca + ações */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: GRAY3, pointerEvents: 'none' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar empresa ou segmento..."
+              style={{ width: '100%', padding: '8px 12px 8px 32px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 8, color: GRAY1, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <button onClick={() => router.push('/cockpit/health-score')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <BarChart2 size={13} strokeWidth={2.5} /> Analytics
           </button>
-        )}
+          {canEditCockpit && (
+            <button onClick={() => setShowNew(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: R, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: `0 2px 6px ${R}40` }}>
+              <Plus size={13} strokeWidth={2.5} /> Novo Cliente
+            </button>
+          )}
+        </div>
+
+        {/* Linha 2: filtros */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+
+          {/* Status — segmented */}
+          <div style={{ display: 'flex', background: GRAY4, borderRadius: 8, padding: 3, gap: 2, flexShrink: 0 }}>
+            {([
+              { v: 'todos',   l: 'Todos',   activeColor: GRAY1 },
+              { v: 'ativo',   l: 'Ativo',   activeColor: '#15803D' },
+              { v: 'pausado', l: 'Pausado', activeColor: '#B45309' },
+              { v: 'churned', l: 'Churned', activeColor: R },
+            ] as const).map(({ v, l, activeColor }) => {
+              const on = filterStatus === v
+              return (
+                <button key={v} onClick={() => setFilterStatus(v)}
+                  style={{ padding: '4px 12px', borderRadius: 6, border: 'none', background: on ? WHITE : 'transparent', color: on ? activeColor : GRAY3, fontSize: 12, fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: on ? '0 1px 3px rgba(0,0,0,.1)' : 'none', transition: 'all .12s' }}>
+                  {l}
+                </button>
+              )
+            })}
+          </div>
+
+          <div style={{ width: 1, height: 18, background: GRAY5, flexShrink: 0 }} />
+
+          {/* Tipo — segmented */}
+          <div style={{ display: 'flex', background: GRAY4, borderRadius: 8, padding: 3, gap: 2, flexShrink: 0 }}>
+            {([
+              { v: 'todos',    l: 'Todos' },
+              { v: 'saber',    l: 'Saber' },
+              { v: 'executar', l: 'Executar' },
+              { v: 'ter',      l: 'Ter' },
+            ] as const).map(({ v, l }) => {
+              const on = filterTipo === v
+              return (
+                <button key={v} onClick={() => setFilterTipo(v)}
+                  style={{ padding: '4px 12px', borderRadius: 6, border: 'none', background: on ? WHITE : 'transparent', color: on ? BLUE : GRAY3, fontSize: 12, fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: on ? '0 1px 3px rgba(0,0,0,.1)' : 'none', transition: 'all .12s' }}>
+                  {l}
+                </button>
+              )
+            })}
+          </div>
+
+          {(gestores.length > 0 || analistas.length > 0 || designers.length > 0) && (
+            <div style={{ width: 1, height: 18, background: GRAY5, flexShrink: 0 }} />
+          )}
+
+          {/* Equipe — selects */}
+          {gestores.length > 0 && (
+            <select value={filterGestor} onChange={e => setFilterGestor(e.target.value)}
+              style={{ padding: '4px 10px', height: 30, borderRadius: 7, border: `1px solid ${filterGestor ? R : GRAY5}`, background: filterGestor ? '#FEF2F2' : GRAY4, color: filterGestor ? R : GRAY2, fontSize: 12, fontWeight: filterGestor ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
+              <option value="">Gestor de Projetos</option>
+              {gestores.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          )}
+          {analistas.length > 0 && (
+            <select value={filterAnalista} onChange={e => setFilterAnalista(e.target.value)}
+              style={{ padding: '4px 10px', height: 30, borderRadius: 7, border: `1px solid ${filterAnalista ? R : GRAY5}`, background: filterAnalista ? '#FEF2F2' : GRAY4, color: filterAnalista ? R : GRAY2, fontSize: 12, fontWeight: filterAnalista ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
+              <option value="">Gestor de Tráfego</option>
+              {analistas.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          )}
+          {designers.length > 0 && (
+            <select value={filterDesigner} onChange={e => setFilterDesigner(e.target.value)}
+              style={{ padding: '4px 10px', height: 30, borderRadius: 7, border: `1px solid ${filterDesigner ? BLUE : GRAY5}`, background: filterDesigner ? '#EFF6FF' : GRAY4, color: filterDesigner ? BLUE : GRAY2, fontSize: 12, fontWeight: filterDesigner ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
+              <option value="">Designer</option>
+              {designers.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          )}
+
+          {/* Limpar filtros */}
+          {(filterStatus !== 'ativo' || filterTipo !== 'todos' || filterGestor || filterAnalista || filterDesigner) && (
+            <button onClick={() => { setFilterStatus('ativo'); setFilterTipo('todos'); setFilterGestor(''); setFilterAnalista(''); setFilterDesigner('') }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', height: 30, borderRadius: 7, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY3, fontSize: 11, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>
+              <X size={11} /> Limpar filtros
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tabela */}
