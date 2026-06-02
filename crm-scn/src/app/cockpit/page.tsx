@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, Cliente, HealthScoreEntry, Projeto, FcaEntry } from '@/lib/supabase'
 import CRMLayout from '../_components/CRMLayout'
-import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW } from '@/lib/crm-constants'
+import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, SEGMENTOS } from '@/lib/crm-constants'
 import { Plus, Search, Building2, TrendingUp, Layers, Users, ArrowUp, ArrowDown, Minus, AlertTriangle, BarChart2 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 
@@ -50,7 +50,9 @@ export default function CockpitPage() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'todos' | 'ativo' | 'pausado' | 'churned'>('ativo')
   const [filterTipo, setFilterTipo] = useState<'todos' | 'saber' | 'executar' | 'ter'>('todos')
-  const [filterGestor, setFilterGestor] = useState('')
+  const [filterGestor,   setFilterGestor]   = useState('')
+  const [filterAnalista, setFilterAnalista] = useState('')
+  const [filterDesigner, setFilterDesigner] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [newEmpresa, setNewEmpresa] = useState('')
   const [newSegmento, setNewSegmento] = useState('')
@@ -113,22 +115,23 @@ export default function CockpitPage() {
     setSaving(false)
   }
 
-  const gestores = useMemo(() => {
-    const names = clientes.map(c => c.gestor_projetos).filter(Boolean) as string[]
-    return Array.from(new Set(names)).sort()
-  }, [clientes])
+  const gestores  = useMemo(() => Array.from(new Set(clientes.map(c => c.gestor_projetos).filter(Boolean) as string[])).sort(), [clientes])
+  const analistas = useMemo(() => Array.from(new Set(clientes.map(c => c.analista_midia).filter(Boolean) as string[])).sort(), [clientes])
+  const designers = useMemo(() => Array.from(new Set(clientes.map(c => c.designer).filter(Boolean) as string[])).sort(), [clientes])
 
   const filtered = useMemo(() => {
     let list = clientes
     if (filterStatus !== 'todos') list = list.filter(c => c.status === filterStatus)
     if (filterTipo !== 'todos') list = list.filter(c => c.projetos.some(p => p.tipo === filterTipo))
-    if (filterGestor) list = list.filter(c => c.gestor_projetos === filterGestor)
+    if (filterGestor)   list = list.filter(c => c.gestor_projetos === filterGestor)
+    if (filterAnalista) list = list.filter(c => c.analista_midia  === filterAnalista)
+    if (filterDesigner) list = list.filter(c => c.designer        === filterDesigner)
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(c => c.empresa.toLowerCase().includes(q) || (c.segmento || '').toLowerCase().includes(q))
     }
     return list
-  }, [clientes, filterStatus, filterTipo, filterGestor, search])
+  }, [clientes, filterStatus, filterTipo, filterGestor, filterAnalista, filterDesigner, search])
 
   const stats = useMemo(() => ({
     total:       filtered.length,
@@ -207,6 +210,20 @@ export default function CockpitPage() {
             style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${filterGestor ? R : GRAY5}`, background: filterGestor ? '#FFF5F5' : GRAY4, color: filterGestor ? R : GRAY2, fontSize: 13, fontWeight: filterGestor ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
             <option value="">Gestor de Projetos</option>
             {gestores.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        )}
+        {analistas.length > 0 && (
+          <select value={filterAnalista} onChange={e => setFilterAnalista(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${filterAnalista ? R : GRAY5}`, background: filterAnalista ? '#FFF5F5' : GRAY4, color: filterAnalista ? R : GRAY2, fontSize: 13, fontWeight: filterAnalista ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
+            <option value="">Gestor de Tráfego</option>
+            {analistas.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        )}
+        {designers.length > 0 && (
+          <select value={filterDesigner} onChange={e => setFilterDesigner(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${filterDesigner ? BLUE : GRAY5}`, background: filterDesigner ? '#EFF6FF' : GRAY4, color: filterDesigner ? BLUE : GRAY2, fontSize: 13, fontWeight: filterDesigner ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
+            <option value="">Designer</option>
+            {designers.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         )}
         <button onClick={() => router.push('/cockpit/health-score')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -358,7 +375,10 @@ export default function CockpitPage() {
               </div>
               <div>
                 <label style={{ fontSize: 12, color: GRAY2, display: 'block', marginBottom: 5, fontWeight: 600 }}>Segmento</label>
-                <input value={newSegmento} onChange={e => setNewSegmento(e.target.value)} onKeyDown={e => e.key === 'Enter' && createCliente()} placeholder="Ex: E-commerce, Saúde..." style={{ width: '100%', padding: '10px 12px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 8, color: GRAY1, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+                <select value={newSegmento} onChange={e => setNewSegmento(e.target.value)} style={{ width: '100%', padding: '10px 12px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 8, color: newSegmento ? GRAY1 : GRAY3, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}>
+                  <option value="">Selecione um segmento...</option>
+                  {SEGMENTOS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
