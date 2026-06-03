@@ -34,7 +34,7 @@ function tempoRelativo(dateStr: string | null | undefined): string {
   return `há ${mo} mes${mo !== 1 ? 'es' : ''}`
 }
 
-const EMPTY_FILTERS = { closer:'', temperatura:'', situacao:'', origem:'', tier:'', mes_entrada:'', mes_ra:'', mes_rr:'', mes_venda:'', mes_ativacao:'', situacao_pre_vendas:'' }
+const EMPTY_FILTERS = { closer:'', sdr:'', temperatura:'', situacao:'', origem:'', tier:'', mes_entrada:'', mes_ra:'', mes_rr:'', mes_venda:'', mes_ativacao:'', situacao_pre_vendas:'' }
 
 const STAGE_COLOR: Record<string, string> = Object.fromEntries(
   PIPELINE_STAGES.map(s => [s.key, s.color])
@@ -76,7 +76,7 @@ export default function LeadsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [filterOpen, setFilterOpen] = useState(false)
   const [draftFilters, setDraftFilters] = useState({
-    closer:'', temperatura:'', situacao:'', origem:'', tier:'',
+    closer:'', sdr:'', temperatura:'', situacao:'', origem:'', tier:'',
     mes_entrada:'', mes_ra:'', mes_rr:'', mes_venda:'', mes_ativacao:'', situacao_pre_vendas:''
   })
   const PAGE_SIZE = 50
@@ -209,6 +209,7 @@ export default function LeadsPage() {
   const filtered = useMemo(() => leads.filter(l =>
     (!search || l.empresa?.toLowerCase().includes(search.toLowerCase()) || l.closer?.toLowerCase().includes(search.toLowerCase()) || (l as any).nome_lead?.toLowerCase().includes(search.toLowerCase()))
     && (!filters.closer || l.closer === filters.closer)
+    && (!filters.sdr || (l as any).responsavel_bdr === filters.sdr)
     && (!filters.temperatura || l.temperatura === filters.temperatura)
     && (!filters.situacao || l.situacao_closer === filters.situacao)
     && (!filters.origem || l.origem === filters.origem)
@@ -228,6 +229,7 @@ export default function LeadsPage() {
   const emptyFilters = EMPTY_FILTERS
   const activeFilters = [
     filters.closer && { key:'closer', label:`Closer: ${filters.closer}`, onRemove:()=>setFilters(p=>({...p,closer:''})) },
+    filters.sdr && { key:'sdr', label:`SDR: ${filters.sdr}`, onRemove:()=>setFilters(p=>({...p,sdr:''})) },
     filters.temperatura && { key:'temperatura', label:filters.temperatura, onRemove:()=>setFilters(p=>({...p,temperatura:''})) },
     filters.tier && { key:'tier', label:`Tier: ${filters.tier}`, onRemove:()=>setFilters(p=>({...p,tier:''})) },
     filters.origem && { key:'origem', label:`Origem: ${filters.origem}`, onRemove:()=>setFilters(p=>({...p,origem:''})) },
@@ -321,6 +323,13 @@ export default function LeadsPage() {
                         <select style={inputCls} value={draftFilters.closer} onChange={e => setDraftFilters(p=>({...p,closer:e.target.value}))}>
                           <option value="">Todos</option>
                           {closerUsers.map(u=><option key={u.nome} value={u.nome}>{u.nome}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={labelCls}>SDR</label>
+                        <select style={inputCls} value={draftFilters.sdr} onChange={e => setDraftFilters(p=>({...p,sdr:e.target.value}))}>
+                          <option value="">Todos</option>
+                          {Array.from(new Set(leads.map(l => (l as any).responsavel_bdr).filter(Boolean))).sort().map(s => <option key={s as string} value={s as string}>{s as string}</option>)}
                         </select>
                       </div>
                       <div>
