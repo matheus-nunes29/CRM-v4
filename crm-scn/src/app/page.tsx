@@ -89,7 +89,7 @@ export default function InicioPage() {
     const tcvGerado = vendasFechadas.reduce((acc, l) => acc + (l.tcv || 0), 0)
 
     setKpisVendas([
-      { label: 'Leads novos',        value: leadsNovos,              sub: 'no mês',        icon: UserPlus,     color: BLUE,   bg: '#EFF6FF' },
+      { label: 'Leads novos',        value: leadsNovos,              sub: 'no mês',        icon: UserPlus,     color: BLUE,   bg: '#F5F3FF' },
       { label: 'Reuniões realizadas', value: reunioes,               sub: 'no mês',        icon: Video,        color: PURPLE, bg: '#F5F3FF' },
       { label: 'Vendas fechadas',     value: vendasFechadas.length,  sub: 'no mês',        icon: ShoppingBag,  color: GREEN,  bg: '#ECFDF5' },
       { label: 'TCV gerado',          value: tcvGerado > 0 ? fmtCurrency(tcvGerado) : '—', sub: 'no mês', icon: DollarSign, color: '#065F46', bg: '#ECFDF5' },

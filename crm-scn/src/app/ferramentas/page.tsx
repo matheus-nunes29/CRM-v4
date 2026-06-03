@@ -7,7 +7,7 @@ import CRMLayout from '../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GREEN } from '@/lib/crm-constants'
 
 const BORDER = '#E5E7EB'
-const BLUE   = '#3B82F6'
+const BLUE   = '#7C3AED'
 const PURPLE = '#8B5CF6'
 
 const TOOLS = [
@@ -40,8 +40,8 @@ const TOOLS = [
     href: '/calculadoras/executar',
     icon: '⚙️',
     color: BLUE,
-    bg: '#EFF6FF',
-    border: '#BFDBFE',
+    bg: '#F5F3FF',
+    border: '#DDD6FE',
     label: 'Calculadora Executar',
     subtitle: 'Planejamento · Metas',
     description: 'Ferramenta de planejamento para definir metas, calcular capacidade operacional e dimensionar a estrutura necessária para atingir os objetivos.',

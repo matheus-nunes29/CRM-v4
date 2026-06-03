@@ -259,7 +259,7 @@ export default function CockpitPage() {
           )}
           {designers.length > 0 && (
             <select value={filterDesigner} onChange={e => setFilterDesigner(e.target.value)}
-              style={{ padding: '4px 10px', height: 30, borderRadius: 7, border: `1px solid ${filterDesigner ? BLUE : GRAY5}`, background: filterDesigner ? '#EFF6FF' : GRAY4, color: filterDesigner ? BLUE : GRAY2, fontSize: 12, fontWeight: filterDesigner ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '4px 10px', height: 30, borderRadius: 7, border: `1px solid ${filterDesigner ? BLUE : GRAY5}`, background: filterDesigner ? '#F5F3FF' : GRAY4, color: filterDesigner ? BLUE : GRAY2, fontSize: 12, fontWeight: filterDesigner ? 700 : 500, outline: 'none', cursor: 'pointer' }}>
               <option value="">Designer</option>
               {designers.map(d => <option key={d} value={d}>{d}</option>)}
             </select>

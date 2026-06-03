@@ -59,7 +59,7 @@ const TABS = [
 
 const OPP_STAGES: { key: Oportunidade['etapa']; label: string; color: string; bg: string }[] = [
   { key: 'identificada',      label: 'Identificada',      color: GRAY2,   bg: GRAY4 },
-  { key: 'em_conversa',       label: 'Em Conversa',       color: BLUE,    bg: '#EFF6FF' },
+  { key: 'em_conversa',       label: 'Em Conversa',       color: BLUE,    bg: '#F5F3FF' },
   { key: 'proposta_enviada',  label: 'Proposta Enviada',  color: '#92400E', bg: '#FEF3C7' },
   { key: 'fechada',           label: 'Fechada',           color: '#065F46', bg: '#ECFDF5' },
 ]
@@ -475,7 +475,7 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
           {contatos.map(c => (
             <div key={c.id} style={{ padding: '10px 12px', background: GRAY4, borderRadius: 9, border: `1px solid ${GRAY5}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#EFF6FF', border: `1px solid #BFDBFE`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#F5F3FF', border: `1px solid #DDD6FE`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: BLUE }}>{c.nome[0].toUpperCase()}</span>
                 </div>
                 <div>
@@ -797,7 +797,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   }
 
   const TIPO: Record<Projeto['tipo'], { color: string; bg: string; border: string; label: string }> = {
-    saber:    { color: BLUE,   bg: '#EFF6FF', border: '#BFDBFE', label: 'Saber' },
+    saber:    { color: BLUE,   bg: '#F5F3FF', border: '#DDD6FE', label: 'Saber' },
     ter:      { color: PURPLE, bg: '#F5F3FF', border: '#DDD6FE', label: 'Ter' },
     executar: { color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0', label: 'Executar' },
   }
@@ -874,7 +874,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
             </div>
           )}
           {totalPontual > 0 && (
-            <div style={{ padding: '8px 16px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 9 }}>
+            <div style={{ padding: '8px 16px', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 9 }}>
               <span style={{ fontSize: 11, color: GRAY3 }}>Pontual </span>
               <span style={{ fontSize: 15, fontWeight: 800, color: BLUE }}>{fmt(totalPontual)}</span>
             </div>

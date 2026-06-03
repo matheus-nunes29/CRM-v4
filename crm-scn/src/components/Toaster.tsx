@@ -32,7 +32,7 @@ export function Toaster() {
         const colors = {
           success: { bg: '#F0FDF4', border: '#BBF7D0', icon: '#16A34A', text: '#15803D', action: '#15803D' },
           error:   { bg: '#FEF2F2', border: '#FECACA', icon: '#E8001C', text: '#B91C1C', action: '#E8001C' },
-          info:    { bg: '#EFF6FF', border: '#BFDBFE', icon: '#2563EB', text: '#1D4ED8', action: '#2563EB' },
+          info:    { bg: '#F5F3FF', border: '#DDD6FE', icon: '#7C3AED', text: '#5B21B6', action: '#7C3AED' },
         }[t.type]
         const Icon = t.type === 'success' ? CheckCircle2 : t.type === 'error' ? XCircle : Info
         return (

@@ -14,7 +14,7 @@ type OportunidadeEnriquecida = Oportunidade & { cliente_nome: string }
 // ── Constantes ────────────────────────────────────────────────────────────────
 const STAGES: { key: Oportunidade['etapa']; label: string; color: string; bg: string; border: string }[] = [
   { key: 'identificada',     label: 'Identificada',     color: GRAY2,     bg: '#F9FAFB', border: GRAY5 },
-  { key: 'em_conversa',      label: 'Em Conversa',      color: BLUE,      bg: '#EFF6FF', border: '#BFDBFE' },
+  { key: 'em_conversa',      label: 'Em Conversa',      color: BLUE,      bg: '#F5F3FF', border: '#DDD6FE' },
   { key: 'proposta_enviada', label: 'Proposta Enviada', color: '#92400E', bg: '#FEF3C7', border: '#FDE68A' },
   { key: 'fechada',          label: 'Fechada',          color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0' },
 ]

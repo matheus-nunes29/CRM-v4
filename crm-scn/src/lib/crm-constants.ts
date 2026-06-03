@@ -15,7 +15,7 @@ export const GRAY5   = '#E5E7EB'                       // borders
 
 // ── Semantic accents ──────────────────────────────────────────────────────
 export const GREEN   = '#10B981'
-export const BLUE    = '#3B82F6'
+export const BLUE    = '#7C3AED'
 export const YELLOW  = '#D97706'
 export const PURPLE  = '#8B5CF6'
 

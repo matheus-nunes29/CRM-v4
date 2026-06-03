@@ -51,7 +51,7 @@ const fatToTier = (f: string) => {
 }
 
 const tempColor = (t: string | null) => {
-  if (t === 'FRIO') return '#3B82F6'
+  if (t === 'FRIO') return '#64748B'
   if (t === 'MORNO') return '#F59E0B'
   if (t === 'QUENTE') return R
   if (t === 'FECHADO') return GREEN
@@ -225,7 +225,7 @@ const LOGGED_FIELDS: Record<string, string> = {
 }
 
 const LINK_DEFS = [
-  { key: 'link_site',                 label: 'Site',                   placeholder: 'https://site.com.br',              icon: Globe,       color: '#3B82F6' },
+  { key: 'link_site',                 label: 'Site',                   placeholder: 'https://site.com.br',              icon: Globe,       color: '#7C3AED' },
   { key: 'link_instagram',            label: 'Instagram',              placeholder: 'https://instagram.com/...',         icon: AtSign,      color: '#E1306C' },
   { key: 'link_biblioteca_anuncios',  label: 'Biblioteca de Anúncios', placeholder: 'https://facebook.com/ads/library/', icon: Layers,      color: '#1877F2' },
   { key: 'link_qualificacao',         label: 'Qualificação',           placeholder: 'https://...',                       icon: CheckCircle2,color: '#7C3AED' },
@@ -577,7 +577,7 @@ function LeadPageInner() {
                 {isNew ? 'Novo Lead' : (form.empresa || 'Editar Lead')}
               </span>
               <div style={{ display: 'flex', gap: 4 }}>
-                {form.origem && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EFF6FF', color: '#3B82F6' }}>{form.origem}</span>}
+                {form.origem && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#F5F3FF', color: '#7C3AED' }}>{form.origem}</span>}
                 {form.temperatura && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${tempColor(form.temperatura)}18`, color: tempColor(form.temperatura) }}>{form.temperatura}</span>}
               </div>
             </div>
@@ -616,7 +616,7 @@ function LeadPageInner() {
                     router.push(`/cockpit/${data.id}`)
                   }
                 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 9, border: `1px solid ${cockpitClienteId ? '#BFDBFE' : '#FCA5A5'}`, background: cockpitClienteId ? '#EFF6FF' : '#FEF2F2', color: cockpitClienteId ? '#1D4ED8' : '#B91C1C', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 9, border: `1px solid ${cockpitClienteId ? '#DDD6FE' : '#FCA5A5'}`, background: cockpitClienteId ? '#F5F3FF' : '#FEF2F2', color: cockpitClienteId ? '#5B21B6' : '#B91C1C', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
                 <Layers size={13} />
                 {cockpitClienteId ? 'Ver no Cockpit' : 'Criar no Cockpit'}
@@ -760,7 +760,7 @@ function LeadPageInner() {
                       <input style={{ ...inputStyle, flex: 1, fontSize: 11 }} value={(form as any)[key] || ''} onChange={e => set(key, e.target.value)} placeholder={placeholder} />
                       {(form as any)[key] && (
                         <a href={(form as any)[key]} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', padding: '0 8px', borderRadius: 6, border: `1px solid ${BORDER}`, color: '#3B82F6', background: WHITE, textDecoration: 'none', pointerEvents: 'auto' }}>
+                          style={{ display: 'flex', alignItems: 'center', padding: '0 8px', borderRadius: 6, border: `1px solid ${BORDER}`, color: '#7C3AED', background: WHITE, textDecoration: 'none', pointerEvents: 'auto' }}>
                           <ExternalLink size={11} />
                         </a>
                       )}
@@ -1245,7 +1245,7 @@ function LeadPageInner() {
                   const score = bantKeys.filter(k => !!qa.bant?.[k]).length
                   const scoreColor = score >= 3 ? GREEN : score >= 2 ? '#F59E0B' : R
                   const spicedLabel: Record<string, string> = { situation: 'Situation', pain: 'Pain', impact: 'Impact', criticalEvent: 'Critical Event', decision: 'Decision' }
-                  const spicedColor: Record<string, string> = { situation: '#3B82F6', pain: '#EF4444', impact: '#8B5CF6', criticalEvent: '#F59E0B', decision: '#10B981' }
+                  const spicedColor: Record<string, string> = { situation: '#7C3AED', pain: '#EF4444', impact: '#8B5CF6', criticalEvent: '#F59E0B', decision: '#10B981' }
                   return (
                     <div onClick={() => setShowQaModal(false)}
                       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>

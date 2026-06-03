@@ -38,7 +38,7 @@ const fatToTier = (f: string) => {
 }
 
 const tempColor = (t: string | null) => {
-  if (t === 'FRIO') return '#3B82F6'
+  if (t === 'FRIO') return '#64748B'
   if (t === 'MORNO') return '#F59E0B'
   if (t === 'QUENTE') return R
   if (t === 'FECHADO') return GREEN
@@ -199,7 +199,7 @@ const LeadModal = React.memo(function LeadModal({
                 {isNew ? 'Novo Lead' : (form.empresa || 'Editar Lead')}
               </div>
               <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
-                {form.origem && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: '#EFF6FF', color: '#3B82F6', letterSpacing: '0.04em' }}>{form.origem}</span>}
+                {form.origem && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: '#F5F3FF', color: '#7C3AED', letterSpacing: '0.04em' }}>{form.origem}</span>}
                 {form.temperatura && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: `${tempColor(form.temperatura)}18`, color: tempColor(form.temperatura), letterSpacing: '0.04em' }}>{form.temperatura}</span>}
                 {form.cadencia && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: '#FEF3C7', color: '#D97706', letterSpacing: '0.04em' }}>Dia {form.cadencia}</span>}
                 {form.contato_agendado && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: '#F0FDF4', color: GREEN, letterSpacing: '0.04em' }}>Contato Agendado</span>}
@@ -470,7 +470,7 @@ Apresentaremos como a V4 Company poderá contribuir com a operação da ${empres
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input style={{ ...inputStyle, flex: 1 }} value={form.link_qualificacao || ''} onChange={e => set('link_qualificacao', e.target.value)} placeholder="https://..." />
                       {form.link_qualificacao && (
-                        <button type="button" onClick={() => window.open(form.link_qualificacao, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', color: '#3B82F6', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        <button type="button" onClick={() => window.open(form.link_qualificacao, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', color: '#7C3AED', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
                           <ExternalLink size={13} />Abrir
                         </button>
                       )}
@@ -553,7 +553,7 @@ Apresentaremos como a V4 Company poderá contribuir com a operação da ${empres
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input style={{ ...inputStyle, flex: 1 }} value={form.link_transcricao || ''} onChange={e => set('link_transcricao', e.target.value)} placeholder="https://..." />
                       {form.link_transcricao && (
-                        <button type="button" onClick={() => window.open(form.link_transcricao, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', color: '#3B82F6', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        <button type="button" onClick={() => window.open(form.link_transcricao, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: WHITE, cursor: 'pointer', color: '#7C3AED', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
                           <ExternalLink size={13} />Abrir
                         </button>
                       )}

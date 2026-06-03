@@ -22,7 +22,7 @@ export function ConfirmModal() {
 
   if (!pending) return null
 
-  const color = pending.danger !== false ? R : '#2563EB'
+  const color = pending.danger !== false ? R : '#7C3AED'
   const confirm = () => { pending.resolve(true);  setPending(null) }
   const cancel  = () => { pending.resolve(false); setPending(null) }
 

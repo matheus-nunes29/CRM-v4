@@ -52,7 +52,7 @@ const SERVICOS_EX = [
   { key: 'redacao_publicitaria', label: 'Redação Publicitária' },
   { key: 'crm',                  label: 'CRM' },
 ]
-const LINE_PALETTE = [GREEN, BLUE, PURPLE, '#F97316', '#06B6D4', '#8B5CF6', R, YELLOW, '#EC4899', '#14B8A6']
+const LINE_PALETTE = [GREEN, PURPLE, '#F97316', '#06B6D4', BLUE, R, YELLOW, '#EC4899', '#14B8A6', '#64748B']
 const card: React.CSSProperties = { background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────

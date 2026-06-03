@@ -9,7 +9,7 @@ import { confirmDialog } from '@/lib/confirmDialog'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GREEN } from '@/lib/crm-constants'
 
 const BORDER = '#E5E7EB'
-const BLUE   = '#3B82F6'
+const BLUE   = '#7C3AED'
 
 // ─── Conteúdo padrão ──────────────────────────────────────────────────────────
 

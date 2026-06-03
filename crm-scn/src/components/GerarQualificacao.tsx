@@ -61,7 +61,7 @@ ${secTitle('1. Dados Básicos')}
 ${(d.links?.site || d.links?.instagram || d.links?.bibAnunciosMeta) ? `
 ${secTitle('Links Úteis')}
 <div class="grid2">
-  ${item('Site', d.links.site ? `<a href="${d.links.site}" style="color:#3B82F6;">${d.links.site}</a>` : '')}
+  ${item('Site', d.links.site ? `<a href="${d.links.site}" style="color:#7C3AED;">${d.links.site}</a>` : '')}
   ${item('Instagram', d.links.instagram ? `<a href="${d.links.instagram}" style="color:#E1306C;">${d.links.instagram}</a>` : '')}
   ${item('Bib. Anúncios Meta', d.links.bibAnunciosMeta)}
   ${item('Bib. Anúncios Google', d.links.bibAnunciosGoogle)}

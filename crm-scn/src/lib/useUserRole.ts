@@ -61,7 +61,7 @@ export const PAPEL_COLORS: Record<Papel, { bg: string; text: string }> = {
   sdr:             { bg: '#EDE9FE', text: '#5B21B6' },
   closer:          { bg: '#DCFCE7', text: '#166534' },
   viewer:          { bg: '#F3F4F6', text: '#6B7280' },
-  financeiro:      { bg: '#DBEAFE', text: '#1D4ED8' },
+  financeiro:      { bg: '#EDE9FE', text: '#5B21B6' },
   designer:        { bg: '#FCE7F3', text: '#9D174D' },
   analista_midia:  { bg: '#FEF9C3', text: '#854D0E' },
   gestor_projetos: { bg: '#D1FAE5', text: '#065F46' },
