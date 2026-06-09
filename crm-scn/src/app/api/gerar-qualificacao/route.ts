@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 
 export const maxDuration = 120
 
-const GROQ_MAX = 24 * 1024 * 1024 // 24 MB — Groq hard limit is 25 MB
+const GROQ_MAX = 25 * 1024 * 1024 // 25 MB — Groq hard limit
 
 const PROMPT = `Você é um especialista em qualificação de leads comerciais da V4 Company.
 Analise a transcrição desta ligação de qualificação e extraia as informações estruturadas.
@@ -98,7 +98,13 @@ async function transcreverComGemini(blob: Blob, mimeType: string): Promise<strin
       body: JSON.stringify({ file: { display_name: 'audio' } }),
     }
   )
-  if (!startRes.ok) throw new Error('Gemini Files upload start failed: ' + await startRes.text())
+  if (!startRes.ok) {
+    const errBody = await startRes.text()
+    if (errBody.includes('RESOURCE_EXHAUSTED') || errBody.includes('credits are depleted')) {
+      throw new Error(`Arquivo muito grande para o Groq (${(blob.size / 1024 / 1024).toFixed(1)} MB > 25 MB) e os créditos do Gemini estão esgotados. Comprima o áudio para menos de 25 MB e tente novamente.`)
+    }
+    throw new Error('Gemini Files upload start failed: ' + errBody)
+  }
 
   const uploadUrl = startRes.headers.get('X-Goog-Upload-URL')
   if (!uploadUrl) throw new Error('Gemini não retornou URL de upload')
@@ -155,23 +161,34 @@ export async function POST(req: NextRequest) {
       const filename = decodeURIComponent(audioUrl.split('/').pop() || 'audio.mp3')
       const mimeType = blob.type || 'audio/mpeg'
 
-      if (blob.size <= GROQ_MAX && process.env.GROQ_API_KEY) {
+      if (blob.size <= GROQ_MAX) {
         texto = await transcreverComGroq(blob, filename)
       } else {
-        // File too large for Groq — use Gemini Files API
+        // File too large for Groq (>25 MB) — use Gemini Files API as fallback
+        if (!process.env.GEMINI_API_KEY) {
+          throw new Error(`Arquivo muito grande (${(blob.size / 1024 / 1024).toFixed(1)} MB). O limite é 25 MB. Comprima o áudio e tente novamente.`)
+        }
         texto = await transcreverComGemini(blob, mimeType)
       }
     } else {
       texto = transcricao
     }
 
-    // Analyze with Gemini
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-
-    const parts = [{ text: `Transcrição da ligação de qualificação:\n\n${texto}\n\n${PROMPT}` }]
-    const result = await model.generateContent({ contents: [{ role: 'user', parts }] })
-    const text = result.response.text().trim()
+    // Analyze with Groq LLaMA
+    const groqKey = process.env.GROQ_API_KEY
+    if (!groqKey) throw new Error('GROQ_API_KEY não configurada')
+    const analysisRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: `Transcrição da ligação de qualificação:\n\n${texto}\n\n${PROMPT}` }],
+        temperature: 0.1,
+      }),
+    })
+    if (!analysisRes.ok) throw new Error('Groq analysis error: ' + await analysisRes.text())
+    const analysisData = await analysisRes.json()
+    const text = analysisData.choices[0].message.content.trim()
 
     const jsonStr = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()
     const data = JSON.parse(jsonStr)
