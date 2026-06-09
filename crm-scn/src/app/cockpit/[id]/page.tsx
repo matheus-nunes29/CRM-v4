@@ -898,117 +898,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
             <div key={p.id} style={{ ...card, overflow: 'hidden' }}>
               <div style={{ height: 3, background: `linear-gradient(90deg, ${t.color}, ${t.color}66)` }} />
               <div style={{ padding: '16px 18px' }}>
-                {isEditing ? (
-                  /* ── Edit form ── */
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Edit2 size={13} color={GRAY2} /> Editar Projeto
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      <div style={{ gridColumn: '1/-1' }}>
-                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Nome do projeto *</label>
-                        <input value={editForm.nome} onChange={e => setEditForm(f => ({ ...f, nome: e.target.value }))} style={input14} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Tipo</label>
-                        <select value={editForm.tipo} onChange={e => setEditForm(f => ({ ...f, tipo: e.target.value as Projeto['tipo'], servico: '' }))} style={{ ...input14 }}>
-                          <option value="saber">Saber</option><option value="ter">Ter</option><option value="executar">Executar</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Cobrança</label>
-                        <select value={editForm.valor_tipo} onChange={e => setEditForm(f => ({ ...f, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ ...input14 }}>
-                          <option value="mensalidade">Mensalidade</option><option value="pontual">Pontual</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$)</label>
-                        <input type="text" inputMode="numeric"
-                          value={fmtCents(editForm.valor)}
-                          onChange={e => setEditForm(f => ({ ...f, valor: e.target.value.replace(/\D/g, '') }))}
-                          placeholder="0,00" style={input14} />
-                      </div>
-                      {editForm.tipo === 'executar' && (
-                        <div>
-                          <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Verba Google/Meta Ads (R$/mês)</label>
-                          <input type="text" inputMode="numeric"
-                            value={fmtCents(editForm.investimento_midia)}
-                            onChange={e => setEditForm(f => ({ ...f, investimento_midia: e.target.value.replace(/\D/g, '') }))}
-                            placeholder="0,00" style={input14} />
-                        </div>
-                      )}
-                      <div>
-                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de início</label>
-                        <input type="date" value={editForm.data_inicio} onChange={e => setEditForm(f => ({ ...f, data_inicio: e.target.value }))} style={input14} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de fim (opcional)</label>
-                        <input type="date" value={editForm.data_fim} onChange={e => setEditForm(f => ({ ...f, data_fim: e.target.value }))} style={input14} />
-                      </div>
-                      {editForm.tipo === 'executar' && (
-                        <div style={{ gridColumn: '1/-1' }}>
-                          <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 8, fontWeight: 600 }}>
-                            Serviços contratados {editServicosSel.length > 0 && <span style={{ color: '#065F46', background: '#D1FAE5', padding: '1px 7px', borderRadius: 10, marginLeft: 6 }}>{editServicosSel.length} selecionado{editServicosSel.length !== 1 ? 's' : ''}</span>}
-                          </label>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                            {SERVICOS_EXECUTAR.map(s => {
-                              const sel = editServicosSel.find(x => x.key === s.key)
-                              const checked = !!sel
-                              const isDesign = s.key === 'design_grafico'
-                              return (
-                                <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${checked ? '#A7F3D0' : GRAY5}`, background: checked ? '#F0FDF4' : GRAY4, transition: 'all .15s', gridColumn: checked && isDesign ? '1/-1' : undefined }}>
-                                  <input type="checkbox" checked={checked} onChange={() => toggleEditServico(s.key)} style={{ width: 15, height: 15, accentColor: '#065F46', cursor: 'pointer', flexShrink: 0 }} />
-                                  <span style={{ fontSize: 12, color: checked ? '#065F46' : GRAY1, fontWeight: checked ? 600 : 400, flex: 1 }}>{s.label}{s.volumeType && s.volumeType !== 'generic' && <span style={{ color: GRAY3 }}> *</span>}</span>
-                                  {checked && s.temVolume && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
-                                      {s.volumeType === 'campanhas' && <>
-                                        <input type="number" min="0" placeholder="Qtd" value={sel?.campanhas ?? ''}
-                                          onChange={e => setEditServicoField(s.key, 'campanhas', e.target.value ? Number(e.target.value) : '')}
-                                          style={{ width: 65, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
-                                        <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>campanhas/mês</span>
-                                      </>}
-                                      {s.volumeType === 'posts' && <>
-                                        <input type="number" min="0" placeholder="Qtd" value={sel?.posts ?? ''}
-                                          onChange={e => setEditServicoField(s.key, 'posts', e.target.value ? Number(e.target.value) : '')}
-                                          style={{ width: 65, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
-                                        <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>posts/mês</span>
-                                      </>}
-                                      {s.volumeType === 'design' && <>
-                                        <input type="number" min="0" placeholder="Estáticos" value={sel?.estaticos ?? ''}
-                                          onChange={e => setEditServicoField(s.key, 'estaticos', e.target.value ? Number(e.target.value) : '')}
-                                          style={{ width: 70, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
-                                        <span style={{ fontSize: 11, color: GRAY3 }}>est</span>
-                                        <input type="number" min="0" placeholder="Vídeos" value={sel?.videos ?? ''}
-                                          onChange={e => setEditServicoField(s.key, 'videos', e.target.value ? Number(e.target.value) : '')}
-                                          style={{ width: 70, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
-                                        <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>vid/mês</span>
-                                      </>}
-                                      {s.volumeType === 'generic' && <>
-                                        <input type="text" placeholder="Volume" value={sel?.volume ?? ''}
-                                          onChange={e => setEditServicoField(s.key, 'volume', e.target.value)}
-                                          style={{ width: 80, padding: '4px 8px', borderRadius: 5, border: `1px solid #A7F3D0`, background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
-                                        <span style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap' }}>/mês</span>
-                                      </>}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      <div style={{ gridColumn: '1/-1' }}>
-                        <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Escopo / Descrição</label>
-                        <textarea value={editForm.escopo} onChange={e => setEditForm(f => ({ ...f, escopo: e.target.value }))} rows={2} style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                      <button onClick={updateProj} disabled={!editForm.nome.trim() || saving} style={btnPrimary(!editForm.nome.trim() || saving)}>{saving ? 'Salvando...' : 'Salvar'}</button>
-                      <button onClick={() => setEditId(null)} style={btnGhost}>Cancelar</button>
-                    </div>
-                  </div>
-                ) : (
-                  /* ── View mode ── */
+                {(
                   <>
                     {/* Header */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
@@ -1188,6 +1078,175 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
           </div>
         )
       })()}
+
+      {editId && (() => {
+        const p = projetos.find(x => x.id === editId)
+        if (!p) return null
+        const t = TIPO[editForm.tipo]
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,15,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(2px)' }}
+            onClick={() => setEditId(null)}>
+            <div style={{ background: WHITE, borderRadius: 20, width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 32px 80px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column' }}
+              onClick={e => e.stopPropagation()}>
+
+              {/* Color bar */}
+              <div style={{ height: 5, background: `linear-gradient(90deg, ${t.color}, ${t.color}99)`, borderRadius: '20px 20px 0 0', flexShrink: 0 }} />
+
+              {/* Header */}
+              <div style={{ padding: '22px 26px 0', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: t.bg, border: `1.5px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Edit2 size={15} color={t.color} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: GRAY1, letterSpacing: '-0.01em' }}>Editar Projeto</div>
+                      <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>{p.nome}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => setEditId(null)} style={{ border: 'none', background: GRAY4, cursor: 'pointer', color: GRAY3, padding: 6, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = GRAY5 }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = GRAY4 }}>
+                    <X size={15} />
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 22, marginBottom: 0 }}>
+                  <div style={{ flex: 1, height: 1, background: GRAY5 }} />
+                  <span style={{ fontSize: 10, color: GRAY3, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0 4px' }}>Informações</span>
+                  <div style={{ flex: 1, height: 1, background: GRAY5 }} />
+                </div>
+              </div>
+
+              {/* Form body */}
+              <div style={{ padding: '16px 26px', flex: 1, overflowY: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Nome do projeto *</label>
+                    <input value={editForm.nome} onChange={e => setEditForm(f => ({ ...f, nome: e.target.value }))} style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const, fontWeight: 500 }}
+                      onFocus={e => (e.currentTarget.style.borderColor = BLUE)} onBlur={e => (e.currentTarget.style.borderColor = GRAY5)} />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Tipo</label>
+                    <select value={editForm.tipo} onChange={e => setEditForm(f => ({ ...f, tipo: e.target.value as Projeto['tipo'], servico: '' }))} style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', cursor: 'pointer' }}>
+                      <option value="saber">Saber</option>
+                      <option value="ter">Ter</option>
+                      <option value="executar">Executar</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Cobrança</label>
+                    <select value={editForm.valor_tipo} onChange={e => setEditForm(f => ({ ...f, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', cursor: 'pointer' }}>
+                      <option value="mensalidade">Mensalidade</option>
+                      <option value="pontual">Pontual</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Valor (R$)</label>
+                    <input type="text" inputMode="numeric" value={fmtCents(editForm.valor)} onChange={e => setEditForm(f => ({ ...f, valor: e.target.value.replace(/\D/g, '') }))} placeholder="0,00"
+                      style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const }}
+                      onFocus={e => (e.currentTarget.style.borderColor = BLUE)} onBlur={e => (e.currentTarget.style.borderColor = GRAY5)} />
+                  </div>
+
+                  {editForm.tipo === 'executar' && (
+                    <div>
+                      <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Verba Ads (R$/mês)</label>
+                      <input type="text" inputMode="numeric" value={fmtCents(editForm.investimento_midia)} onChange={e => setEditForm(f => ({ ...f, investimento_midia: e.target.value.replace(/\D/g, '') }))} placeholder="0,00"
+                        style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const }}
+                        onFocus={e => (e.currentTarget.style.borderColor = BLUE)} onBlur={e => (e.currentTarget.style.borderColor = GRAY5)} />
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Data de início</label>
+                    <input type="date" value={editForm.data_inicio} onChange={e => setEditForm(f => ({ ...f, data_inicio: e.target.value }))} style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const }} />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Data de fim</label>
+                    <input type="date" value={editForm.data_fim} onChange={e => setEditForm(f => ({ ...f, data_fim: e.target.value }))} style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const }} />
+                  </div>
+
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Escopo / Descrição</label>
+                    <textarea value={editForm.escopo} onChange={e => setEditForm(f => ({ ...f, escopo: e.target.value }))} rows={3}
+                      style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const, resize: 'vertical', fontFamily: 'inherit' }}
+                      onFocus={e => (e.currentTarget.style.borderColor = BLUE)} onBlur={e => (e.currentTarget.style.borderColor = GRAY5)} />
+                  </div>
+                </div>
+
+                {editForm.tipo === 'executar' && (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 22, marginBottom: 14 }}>
+                      <div style={{ flex: 1, height: 1, background: GRAY5 }} />
+                      <span style={{ fontSize: 10, color: GRAY3, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0 4px' }}>
+                        Serviços contratados{editServicosSel.length > 0 && <span style={{ marginLeft: 7, color: '#15803D', background: '#D1FAE5', padding: '2px 8px', borderRadius: 10 }}>{editServicosSel.length}</span>}
+                      </span>
+                      <div style={{ flex: 1, height: 1, background: GRAY5 }} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      {SERVICOS_EXECUTAR.map(s => {
+                        const sel = editServicosSel.find(x => x.key === s.key)
+                        const checked = !!sel
+                        const isDesign = s.key === 'design_grafico'
+                        return (
+                          <div key={s.key}
+                            style={{ padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${checked ? '#86EFAC' : GRAY5}`, background: checked ? '#F0FDF4' : GRAY4, transition: 'all .2s', gridColumn: checked && isDesign ? '1/-1' : undefined, cursor: 'pointer' }}
+                            onClick={() => toggleEditServico(s.key)}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${checked ? '#22C55E' : GRAY3}`, background: checked ? '#22C55E' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
+                                {checked && <Check size={11} color={WHITE} strokeWidth={3} />}
+                              </div>
+                              <span style={{ fontSize: 12, color: checked ? '#15803D' : GRAY2, fontWeight: checked ? 700 : 500, flex: 1 }}>
+                                {s.label}{s.volumeType && s.volumeType !== 'generic' && <span style={{ fontWeight: 400, color: checked ? '#16A34A' : GRAY3 }}> *</span>}
+                              </span>
+                            </div>
+                            {checked && s.temVolume && (
+                              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                                {s.volumeType === 'campanhas' && <>
+                                  <input type="number" min="0" placeholder="0" value={sel?.campanhas ?? ''} onChange={e => setEditServicoField(s.key, 'campanhas', e.target.value ? Number(e.target.value) : '')} style={{ flex: 1, minWidth: 60, padding: '6px 10px', borderRadius: 7, border: '1.5px solid #86EFAC', background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                  <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600, whiteSpace: 'nowrap' }}>campanhas/mês</span>
+                                </>}
+                                {s.volumeType === 'posts' && <>
+                                  <input type="number" min="0" placeholder="0" value={sel?.posts ?? ''} onChange={e => setEditServicoField(s.key, 'posts', e.target.value ? Number(e.target.value) : '')} style={{ flex: 1, minWidth: 60, padding: '6px 10px', borderRadius: 7, border: '1.5px solid #86EFAC', background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                  <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600, whiteSpace: 'nowrap' }}>posts/mês</span>
+                                </>}
+                                {s.volumeType === 'design' && <>
+                                  <input type="number" min="0" placeholder="Estáticos" value={sel?.estaticos ?? ''} onChange={e => setEditServicoField(s.key, 'estaticos', e.target.value ? Number(e.target.value) : '')} style={{ flex: 1, minWidth: 70, padding: '6px 10px', borderRadius: 7, border: '1.5px solid #86EFAC', background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                  <input type="number" min="0" placeholder="Vídeos" value={sel?.videos ?? ''} onChange={e => setEditServicoField(s.key, 'videos', e.target.value ? Number(e.target.value) : '')} style={{ flex: 1, minWidth: 60, padding: '6px 10px', borderRadius: 7, border: '1.5px solid #86EFAC', background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                  <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600, whiteSpace: 'nowrap' }}>est / vid/mês</span>
+                                </>}
+                                {s.volumeType === 'generic' && <>
+                                  <input type="text" placeholder="Volume" value={sel?.volume ?? ''} onChange={e => setEditServicoField(s.key, 'volume', e.target.value)} style={{ flex: 1, padding: '6px 10px', borderRadius: 7, border: '1.5px solid #86EFAC', background: WHITE, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                                  <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600, whiteSpace: 'nowrap' }}>/mês</span>
+                                </>}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div style={{ fontSize: 10, color: GRAY3, marginTop: 8 }}>* Volume obrigatório para Mídia Paga, Design Gráfico e Social Media</div>
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: '14px 26px 22px', borderTop: `1px solid ${GRAY5}`, display: 'flex', gap: 10, justifyContent: 'flex-end', flexShrink: 0, background: GRAY4, borderRadius: '0 0 20px 20px' }}>
+                <button onClick={() => setEditId(null)} style={{ padding: '9px 20px', borderRadius: 9, border: `1.5px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={updateProj} disabled={!editForm.nome.trim() || saving}
+                  style={{ padding: '9px 22px', borderRadius: 9, border: 'none', background: !editForm.nome.trim() || saving ? GRAY3 : R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: !editForm.nome.trim() || saving ? 'not-allowed' : 'pointer', boxShadow: !editForm.nome.trim() || saving ? 'none' : `0 2px 10px ${R}40`, display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s' }}>
+                  {saving ? 'Salvando...' : <><Check size={13} /> Salvar alterações</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
 
       {showNew && canEdit && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
