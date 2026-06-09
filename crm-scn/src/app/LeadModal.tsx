@@ -167,10 +167,13 @@ const LeadModal = React.memo(function LeadModal({
       if (!form.closer) errs.closer = 'Obrigatório para Reunião Agendada'
       if (bantScore < 3) errs.bant = 'BANT mínimo 3 para Reunião Agendada'
     }
+    if (form.origem === 'Lead Broker' && !form.faturamento) {
+      errs.faturamento = 'Obrigatório para Lead Broker'
+    }
     if (form.data_ra) {
       if (!form.email?.trim()) errs.email = 'Obrigatório quando há data de RA'
       if (!form.segmento) errs.segmento = 'Obrigatório quando há data de RA'
-      if (!form.faturamento) errs.faturamento = 'Obrigatório quando há data de RA'
+      if (!form.faturamento && !errs.faturamento) errs.faturamento = 'Obrigatório quando há data de RA'
       if (!form.cargo) errs.cargo = 'Obrigatório quando há data de RA'
     }
     if (Object.keys(errs).length > 0) {
@@ -323,7 +326,7 @@ Apresentaremos como a V4 Company poderá contribuir com a operação da ${empres
               </select>
             </InfoField>
 
-            <InfoField label="Faturamento" error={errors.faturamento}>
+            <InfoField label="Faturamento" required={form.origem === 'Lead Broker'} error={errors.faturamento}>
               <select style={{ ...inputStyle, borderColor: errors.faturamento ? R : BORDER }} value={form.faturamento || ''} onChange={e => set('faturamento', e.target.value)}>
                 <option value="">Selecione</option>
                 {FATURAMENTOS.map(o => <option key={o}>{o}</option>)}
