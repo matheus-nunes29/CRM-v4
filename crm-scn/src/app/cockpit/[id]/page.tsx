@@ -680,9 +680,9 @@ function servicoChipLabel(s: ServicoSel, def: typeof SERVICOS_EXECUTAR[number]):
 function isMissingVolume(s: ServicoSel): boolean {
   const def = SERVICOS_EXECUTAR.find(x => x.key === s.key)
   if (!def?.temVolume) return false
-  if (def.volumeType === 'campanhas') return !s.campanhas
-  if (def.volumeType === 'posts')     return !s.posts
-  if (def.volumeType === 'design')    return !s.estaticos || !s.videos
+  if (def.volumeType === 'campanhas') return s.campanhas == null
+  if (def.volumeType === 'posts')     return s.posts == null
+  if (def.volumeType === 'design')    return s.estaticos == null || s.videos == null
   return false
 }
 
