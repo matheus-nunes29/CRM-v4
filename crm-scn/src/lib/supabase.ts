@@ -167,6 +167,30 @@ export type MetaSemanal = {
   updated_at: string
 }
 
+export type ObjetivoMensal = {
+  id: string
+  cliente_id: string
+  projeto_id: string | null
+  mes: string           // YYYY-MM
+  descricao: string
+  valor_meta: number
+  unidade: string
+  observacoes: string
+  created_at: string
+  updated_at: string
+}
+
+export type ResultadoSemanal = {
+  id: string
+  objetivo_id: string
+  cliente_id: string
+  semana: string        // YYYY-MM-DD (Monday)
+  valor_realizado: number | null
+  observacoes: string
+  created_at: string
+  updated_at: string
+}
+
 export type Oportunidade = {
   id: string
   cliente_id: string

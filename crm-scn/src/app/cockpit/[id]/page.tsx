@@ -1,12 +1,12 @@
 'use client'
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao } from '@/lib/supabase'
+import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao, ObjetivoMensal, ResultadoSemanal } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE, SEGMENTOS } from '@/lib/crm-constants'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine,
 } from 'recharts'
 import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown,
@@ -40,6 +40,39 @@ function calcLT(projetos: Projeto[]): string {
   return m > 0 ? `${y}a ${m}m` : `${y} ${y === 1 ? 'ano' : 'anos'}`
 }
 function healthColor(s: number) { return s >= 7 ? GREEN : s >= 5 ? YELLOW : R }
+function getMondaysInMonth(mes: string): string[] {
+  const [y, m] = mes.split('-').map(Number)
+  const d = new Date(y, m - 1, 1)
+  while (d.getDay() !== 1) d.setDate(d.getDate() + 1)
+  const mondays: string[] = []
+  while (d.getMonth() === m - 1) {
+    mondays.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+    d.setDate(d.getDate() + 7)
+  }
+  return mondays
+}
+function getFirstMondayOfMonth(mes: string): string { return getMondaysInMonth(mes)[0] }
+// Retorna quantos dias o slot de resultado cobre dentro do mês
+function getSlotDays(semana: string, mes: string): number {
+  const mondays = getMondaysInMonth(mes)
+  const [y, m] = mes.split('-').map(Number)
+  const daysInMonth = new Date(y, m, 0).getDate()
+  const lastMonday = mondays[mondays.length - 1]
+  // closing slot: 1ª segunda do mês seguinte
+  const nextM = m === 12 ? 1 : m + 1
+  const nextY = m === 12 ? y + 1 : y
+  const closingSemana = getFirstMondayOfMonth(`${nextY}-${String(nextM).padStart(2, '0')}`)
+  if (semana === closingSemana) return daysInMonth - parseInt(lastMonday.split('-')[2]) + 1
+  // 1º slot de resultado: 2ª segunda do mês, cobre do dia 1 até o domingo anterior
+  if (mondays.length >= 2 && semana === mondays[1]) return parseInt(mondays[1].split('-')[2]) - 1
+  // slots regulares: sempre 7 dias
+  return 7
+}
+function fmtMes(mes: string): string {
+  const [y, m] = mes.split('-')
+  const MN = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+  return `${MN[parseInt(m) - 1]} ${y}`
+}
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 const card = { background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,.04)' } as const
@@ -211,6 +244,8 @@ export default function ClienteCockpitPage() {
   const [projetos, setProjetos]       = useState<Projeto[]>([])
   const [healthEntries, setHealth]    = useState<HealthScoreEntry[]>([])
   const [metas, setMetas]             = useState<MetaSemanal[]>([])
+  const [objetivos, setObjetivos]     = useState<ObjetivoMensal[]>([])
+  const [resultados, setResultados]   = useState<ResultadoSemanal[]>([])
   const [oportunidades, setOps]       = useState<Oportunidade[]>([])
   const [fcaEntries, setFCA]          = useState<FcaEntry[]>([])
   const [reunioes, setReunioes]       = useState<Reuniao[]>([])
@@ -241,7 +276,7 @@ export default function ClienteCockpitPage() {
       setLeadContrato(null)
     }
 
-    const [ct, pr, hs, mt, op, fc, re] = await Promise.all([
+    const [ct, pr, hs, mt, op, fc, re, obj, res] = await Promise.all([
       supabase.from('contatos').select('*').eq('cliente_id', actualId).order('is_primary', { ascending: false }),
       supabase.from('projetos').select('*').eq('cliente_id', actualId).order('created_at'),
       supabase.from('health_score_entries').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }).limit(20),
@@ -249,6 +284,8 @@ export default function ClienteCockpitPage() {
       supabase.from('oportunidades').select('*').eq('cliente_id', actualId).order('created_at', { ascending: false }),
       supabase.from('fca_entries').select('*').eq('cliente_id', actualId).order('data', { ascending: false }),
       supabase.from('reunioes').select('*').eq('cliente_id', actualId).order('data', { ascending: false }),
+      supabase.from('objetivos_mensais').select('*').eq('cliente_id', actualId).order('mes', { ascending: false }),
+      supabase.from('resultados_semanais').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }),
     ])
     setContatos(ct.data || [])
     setProjetos(pr.data || [])
@@ -257,6 +294,8 @@ export default function ClienteCockpitPage() {
     setOps(op.data || [])
     setFCA(fc.data || [])
     setReunioes(re.data || [])
+    setObjetivos(obj.data || [])
+    setResultados(res.data || [])
     setLoading(false)
   }, [slugOrId])
 
@@ -345,8 +384,8 @@ export default function ClienteCockpitPage() {
       <div>
         {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteRealId} canEdit={canEditCockpit} leadContrato={leadContrato} />}
         {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
+        {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
@@ -1460,17 +1499,45 @@ function ChecklistSection({ title, weight, items, checks, onToggle, expanded, on
   )
 }
 
-function TabHealthScore({ entries, metas, clienteId, onReload, canEdit }: { entries: HealthScoreEntry[]; metas: MetaSemanal[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
+function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivos, resultados }: { entries: HealthScoreEntry[]; metas: MetaSemanal[]; clienteId: string; onReload: () => void; canEdit: boolean; objetivos: ObjetivoMensal[]; resultados: ResultadoSemanal[] }) {
   const semanaAtual = startOfWeek()
+  const mesAtual = semanaAtual.slice(0, 7)
   const jaTemSemana = entries.some(e => e.semana === semanaAtual)
 
-  // Resultado calculado automaticamente a partir das metas da semana atual
+  // New system: objetivos_mensais + resultados_semanais
+  const objetivosMes = objetivos.filter(o => o.mes === mesAtual)
+  const resultadosSemana = resultados.filter(r => r.semana === semanaAtual)
+  // Gate: all objectives must have weekly results before saving Health Score
+  // Exceção: 1ª segunda do mês não tem slot de resultado (cobrindo mês anterior)
+  const isPrimeiraSegunda = semanaAtual === getFirstMondayOfMonth(mesAtual)
+  const objetivosSemFalta = isPrimeiraSegunda ? [] : objetivosMes.filter(o =>
+    !resultadosSemana.some(r => r.objetivo_id === o.id && r.valor_realizado !== null)
+  )
+  const gateOk = objetivosMes.length === 0 || isPrimeiraSegunda || objetivosSemFalta.length === 0
+
   const metasSemana = metas.filter(m => m.semana === semanaAtual && m.valor_meta && m.valor_realizado !== null)
   const resultado = useMemo(() => {
-    if (!metasSemana.length) return 0
-    const avg = metasSemana.reduce((acc, m) => acc + (m.valor_realizado! / m.valor_meta!) * 100, 0) / metasSemana.length
+    const objMes = objetivos.filter(o => o.mes === mesAtual)
+    if (objMes.length > 0) {
+      const [y, m] = mesAtual.split('-').map(Number)
+      const daysInMonth = new Date(y, m, 0).getDate()
+      const slotDays = getSlotDays(semanaAtual, mesAtual)
+      const resSem = resultados.filter(r => r.semana === semanaAtual)
+      const pcts = objMes.map(o => {
+        const r = resSem.find(r => r.objetivo_id === o.id)
+        if (!r || r.valor_realizado === null) return null
+        const metaPeriodo = o.valor_meta * slotDays / daysInMonth
+        if (!metaPeriodo) return null
+        return (r.valor_realizado / metaPeriodo) * 100
+      }).filter((v): v is number => v !== null)
+      if (!pcts.length) return 0
+      return Math.min(10, parseFloat((pcts.reduce((a, b) => a + b, 0) / pcts.length / 10).toFixed(2)))
+    }
+    const legacy = metas.filter(m => m.semana === semanaAtual && m.valor_meta && m.valor_realizado !== null)
+    if (!legacy.length) return 0
+    const avg = legacy.reduce((acc, m) => acc + (m.valor_realizado! / m.valor_meta!) * 100, 0) / legacy.length
     return Math.min(10, parseFloat((avg / 10).toFixed(2)))
-  }, [metasSemana])
+  }, [objetivos, resultados, metas, semanaAtual, mesAtual])
 
   const initChecks = (n: number) => Array(n).fill(false)
   const [trafegoChecks,      setTrafegoChecks]      = useState<boolean[]>(initChecks(HS_TRAFEGO_ITEMS.length))
@@ -1493,6 +1560,10 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit }: { entr
   }
 
   async function saveHealth() {
+    if (!gateOk) {
+      alert('Preencha o resultado semanal de todos os objetivos antes de salvar o Health Score.')
+      return
+    }
     setSaving(true)
     const payload = {
       cliente_id: clienteId,
@@ -1544,7 +1615,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit }: { entr
             <div style={{ fontSize: 12, color: GRAY3, marginTop: 4 }}>de 10.0</div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <RadarChart data={radarData}>
+            <RadarChart data={radarData} outerRadius={70} margin={{ top: 10, right: 20, bottom: 10, left: 30 }}>
               <PolarGrid stroke={GRAY5} />
               <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: GRAY3 }} />
               <Radar name="Score" dataKey="value" stroke={sc} fill={sc} fillOpacity={0.14} strokeWidth={2} />
@@ -1615,14 +1686,50 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit }: { entr
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: GRAY4 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1, flex: 1 }}>Resultados</span>
                   <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, background: GRAY5, padding: '2px 7px', borderRadius: 20 }}>Peso 10 pts</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: metasSemana.length ? healthColor(resultado) : GRAY3, minWidth: 32, textAlign: 'right' }}>
-                    {metasSemana.length ? resultado.toFixed(1) : '—'}
+                  <span style={{ fontSize: 14, fontWeight: 800, color: resultado > 0 ? healthColor(resultado) : GRAY3, minWidth: 32, textAlign: 'right' }}>
+                    {resultado > 0 ? resultado.toFixed(1) : '—'}
                   </span>
                 </div>
                 <div style={{ padding: '14px 16px' }}>
-                  {metasSemana.length === 0 ? (
+                  {objetivosMes.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {(() => {
+                        const [hy, hm] = mesAtual.split('-').map(Number)
+                        const hDaysInMonth = new Date(hy, hm, 0).getDate()
+                        const hSlotDays = getSlotDays(semanaAtual, mesAtual)
+                        return objetivosMes.map(o => {
+                        const r = resultadosSemana.find(r => r.objetivo_id === o.id)
+                        const metaPeriodo = o.valor_meta * hSlotDays / hDaysInMonth
+                        const pct = r?.valor_realizado != null ? (r.valor_realizado / metaPeriodo) * 100 : null
+                        const c = pct != null ? (pct >= 100 ? GREEN : pct >= 50 ? YELLOW : R) : GRAY3
+                        return (
+                          <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 12, color: pct == null ? R : GRAY2, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {o.descricao}
+                              {pct == null && <span style={{ color: R, fontWeight: 700, marginLeft: 4 }}>⚠</span>}
+                            </span>
+                            {pct != null ? (
+                              <>
+                                <div style={{ width: 80, height: 5, background: GRAY5, borderRadius: 3, flexShrink: 0 }}>
+                                  <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: c, borderRadius: 3 }} />
+                                </div>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: c, width: 38, textAlign: 'right', flexShrink: 0 }}>{pct.toFixed(0)}%</span>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 11, color: R, width: 80, textAlign: 'right', flexShrink: 0 }}>sem resultado</span>
+                            )}
+                          </div>
+                        )
+                      })})()}
+                      {resultado > 0 && (
+                        <div style={{ fontSize: 11, color: GRAY3, marginTop: 4 }}>
+                          Média: {(resultado * 10).toFixed(1)}% → score {resultado.toFixed(1)}/10
+                        </div>
+                      )}
+                    </div>
+                  ) : metasSemana.length === 0 ? (
                     <div style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic' }}>
-                      Nenhuma meta com resultado registrado para esta semana. Preencha os resultados na aba <strong>Metas</strong> para calcular automaticamente.
+                      Nenhum objetivo registrado para este mês. Cadastre objetivos na aba <strong>Metas</strong>.
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1693,7 +1800,13 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit }: { entr
               <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)}
                 placeholder="Observações da semana (opcional)..." rows={2}
                 style={{ ...input14, resize: 'none', fontFamily: 'inherit' }} />
-              <button onClick={saveHealth} disabled={saving} style={btnPrimary(saving)}>
+              {!gateOk && (
+                <div style={{ padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>Preencha o resultado semanal {objetivosSemFalta.length === 1 ? 'do objetivo' : `dos ${objetivosSemFalta.length} objetivos`}: <strong>{objetivosSemFalta.map(o => o.descricao).join(', ')}</strong></span>
+                </div>
+              )}
+              <button onClick={saveHealth} disabled={saving || !gateOk} style={btnPrimary(saving || !gateOk)}>
                 {saving ? 'Salvando...' : 'Salvar Registro'}
               </button>
             </div>
@@ -1705,241 +1818,400 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit }: { entr
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TAB: METAS SEMANAIS
+// TAB: METAS MENSAIS (Burnup)
 // ══════════════════════════════════════════════════════════════════════════════
-function TabMetas({ metas, projetos, clienteId, onReload, canEdit }: { metas: MetaSemanal[]; projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
-  const semanaAtual = startOfWeek()
-  const [selectedWeek, setWeek] = useState(semanaAtual)
-  const [showNew, setShowNew]   = useState(false)
-  const [form, setForm]         = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
-  const [saving, setSaving]     = useState(false)
-  const [realizadoLocal, setRealizadoLocal] = useState<Record<string, string>>({})
-  const [editingMeta, setEditingMeta] = useState<string | null>(null)
+function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, resultados }: { metas: MetaSemanal[]; projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean; objetivos: ObjetivoMensal[]; resultados: ResultadoSemanal[] }) {
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+  const mesAtual = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+
+  const meses = useMemo(() => {
+    const all = [mesAtual, ...objetivos.map(o => o.mes)]
+    return Array.from(new Set(all)).sort().reverse()
+  }, [objetivos, mesAtual])
+
+  const [selectedMes, setSelectedMes] = useState(mesAtual)
+  const [showNewObjetivo, setShowNewObjetivo] = useState(false)
+  const [formObjetivo, setFormObjetivo] = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
+  const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
-  const [editSaving, setEditSaving] = useState(false)
+  const [resultadosLocal, setResultadosLocal] = useState<Record<string, string>>({})
 
-  const semanas = useMemo(() => {
-    const all = [semanaAtual, ...metas.map(m => m.semana)]
-    return all.filter((s, i) => all.indexOf(s) === i).sort().reverse()
-  }, [metas, semanaAtual])
+  const objetivosMes = objetivos.filter(o => o.mes === selectedMes)
+  const mondays = useMemo(() => getMondaysInMonth(selectedMes), [selectedMes])
+  const firstMonday = getFirstMondayOfMonth(selectedMes)
+  const objetivosLocked = false // sem bloqueio — pode editar a qualquer momento
 
-  const metasSemana = metas.filter(m => m.semana === selectedWeek)
+  function getResultado(objetivoId: string, semana: string) {
+    return resultados.find(r => r.objetivo_id === objetivoId && r.semana === semana)
+  }
+  function localKey(objetivoId: string, semana: string) { return `${objetivoId}_${semana}` }
 
-  const STATUS_MAP: Record<MetaSemanal['status'], { label: string; color: string; bg: string; border: string }> = {
-    pendente:      { label: 'Pendente',      color: GRAY2,     bg: GRAY4,     border: GRAY5 },
-    atingida:      { label: 'Atingida',      color: '#065F46', bg: '#D1FAE5', border: '#A7F3D0' },
-    parcial:       { label: 'Parcial',       color: '#92400E', bg: '#FEF3C7', border: '#FDE68A' },
-    nao_atingida:  { label: 'Não atingida',  color: '#991B1B', bg: '#FEE2E2', border: '#FECACA' },
+  function getBurnupData(objetivo: ObjetivoMensal) {
+    const weeks = getMondaysInMonth(objetivo.mes)
+    const [y, m] = objetivo.mes.split('-').map(Number)
+    const daysInMonth = new Date(y, m, 0).getDate()
+    const nextM = m === 12 ? 1 : m + 1
+    const nextY = m === 12 ? y + 1 : y
+    const closingSemana = getFirstMondayOfMonth(`${nextY}-${String(nextM).padStart(2,'0')}`)
+    let cumulative = 0
+    const data = weeks.map((semana, i) => {
+      const r = getResultado(objetivo.id, semana)
+      const hasValue = r?.valor_realizado != null
+      if (hasValue) cumulative += r!.valor_realizado!
+      const dayOfMonth = parseInt(semana.split('-')[2])
+      return {
+        semana: semana.slice(5).replace('-', '/'),
+        planejado: parseFloat(((objetivo.valor_meta / daysInMonth) * dayOfMonth).toFixed(2)),
+        // primeiro ponto sempre ancorado em 0 para a linha partir da origem
+        realizado: i === 0 ? 0 : (hasValue ? cumulative : null),
+      }
+    })
+    // closing slot: 1ª segunda do mês seguinte, cobre dias finais do mês atual
+    const closingR = getResultado(objetivo.id, closingSemana)
+    const hasClosing = closingR?.valor_realizado != null
+    if (hasClosing) cumulative += closingR!.valor_realizado!
+    data.push({
+      semana: `${String(daysInMonth).padStart(2,'0')}/${String(m).padStart(2,'0')}`,
+      planejado: objetivo.valor_meta,
+      realizado: hasClosing ? cumulative : null,
+    })
+    return data
   }
 
-  function calcAutoStatus(realizado: number | null, meta: number | null): MetaSemanal['status'] {
-    if (realizado === null || realizado === undefined || meta === null || !meta) return 'pendente'
-    const pct = (realizado / meta) * 100
-    if (pct >= 100) return 'atingida'
-    if (pct >= 50)  return 'parcial'
-    return 'nao_atingida'
+  async function saveObjetivo() {
+    if (!formObjetivo.descricao.trim() || !formObjetivo.valor_meta) return
+    setSaving(true)
+    await supabase.from('objetivos_mensais').insert({
+      cliente_id: clienteId, mes: selectedMes,
+      descricao: formObjetivo.descricao,
+      valor_meta: parseFloat(formObjetivo.valor_meta),
+      unidade: formObjetivo.unidade,
+      projeto_id: formObjetivo.projeto_id || null,
+      observacoes: '',
+    })
+    setShowNewObjetivo(false)
+    setFormObjetivo({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
+    await onReload(); setSaving(false)
   }
 
-  async function addMeta() {
-    if (!form.descricao.trim()) return; setSaving(true)
-    await supabase.from('metas_semanais').insert({ cliente_id: clienteId, semana: selectedWeek, descricao: form.descricao, valor_meta: form.valor_meta ? parseFloat(form.valor_meta) : null, unidade: form.unidade, projeto_id: form.projeto_id || null })
-    setShowNew(false); setForm({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' }); await onReload(); setSaving(false)
-  }
-  async function updateMeta(id: string, fields: Partial<MetaSemanal>) { await supabase.from('metas_semanais').update(fields).eq('id', id); await onReload() }
-  async function deleteMeta(id: string) { await supabase.from('metas_semanais').delete().eq('id', id); await onReload() }
-  async function saveEditMeta() {
-    if (!editingMeta || !editForm.descricao.trim()) return
-    setEditSaving(true)
-    await updateMeta(editingMeta, {
+  async function saveEditObjetivo() {
+    if (!editingId || !editForm.descricao.trim() || !editForm.valor_meta) return
+    setSaving(true)
+    await supabase.from('objetivos_mensais').update({
       descricao: editForm.descricao,
-      valor_meta: editForm.valor_meta ? parseFloat(editForm.valor_meta) : null,
+      valor_meta: parseFloat(editForm.valor_meta),
       unidade: editForm.unidade,
       projeto_id: editForm.projeto_id || null,
-    })
-    setEditingMeta(null)
-    setEditSaving(false)
+    }).eq('id', editingId)
+    setEditingId(null); await onReload(); setSaving(false)
   }
 
-  // Chart: one line per meta name (% alcance semana a semana)
-  const LINE_COLORS = [BLUE, GREEN, PURPLE, '#F97316', '#06B6D4', '#8B5CF6', R, YELLOW]
-  const metaNames = useMemo(() => {
-    const names = metas.filter(m => m.valor_meta && m.valor_realizado !== null).map(m => m.descricao)
-    return Array.from(new Set(names)).slice(0, 8)
-  }, [metas])
+  async function deleteObjetivo(id: string) {
+    if (!confirm('Excluir este objetivo? Todos os resultados semanais serão perdidos.')) return
+    await supabase.from('resultados_semanais').delete().eq('objetivo_id', id)
+    await supabase.from('objetivos_mensais').delete().eq('id', id)
+    await onReload()
+  }
 
-  const chartData = useMemo(() => {
-    const todasSemanas = Array.from(new Set(metas.map(m => m.semana))).sort()
-    return todasSemanas.map(s => {
-      const row: Record<string, any> = { semana: s.slice(5).replace('-', '/') }
-      metaNames.forEach(name => {
-        const m = metas.find(x => x.semana === s && x.descricao === name && x.valor_meta && x.valor_realizado !== null)
-        if (m) row[name] = parseFloat(((m.valor_realizado! / m.valor_meta!) * 100).toFixed(1))
-      })
-      return row
-    }).filter(r => metaNames.some(n => r[n] !== undefined))
-  }, [metas, metaNames])
+  async function saveResultado(objetivoId: string, semana: string, valorStr: string) {
+    const valor = valorStr !== '' ? parseFloat(valorStr) : null
+    await supabase.from('resultados_semanais').upsert({
+      objetivo_id: objetivoId, cliente_id: clienteId,
+      semana, valor_realizado: valor, observacoes: '',
+    }, { onConflict: 'objetivo_id,semana' })
+    setResultadosLocal(prev => { const n = { ...prev }; delete n[localKey(objetivoId, semana)]; return n })
+    await onReload()
+  }
 
   return (
     <div>
-      {/* Gráfico de evolução por meta */}
-      {metaNames.length > 0 && (
-        <div style={{ ...card, padding: 22, marginBottom: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 4 }}>Evolução por meta — % de alcance semanal</div>
-          <div style={{ fontSize: 11, color: GRAY3, marginBottom: 16 }}>Linha de 100% = meta atingida</div>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke={GRAY5} strokeDasharray="3 3" />
-              <XAxis dataKey="semana" tick={{ fontSize: 10, fill: GRAY3 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 'auto']} unit="%" tick={{ fontSize: 10, fill: GRAY3 }} axisLine={false} tickLine={false} />
-              {/* linha de referência 100% */}
-              <CartesianGrid horizontal={false} stroke="transparent" />
-              <Tooltip
-                formatter={(v: any, name: string) => [`${v}%`, name]}
-                contentStyle={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.1)' }}
-                labelStyle={{ color: GRAY2 }} />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
-              {metaNames.map((name, i) => (
-                <Line key={name} type="monotone" dataKey={name} stroke={LINE_COLORS[i % LINE_COLORS.length]}
-                  strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} connectNulls={false} />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-          {/* linha 100% visual hint */}
-          <div style={{ fontSize: 10, color: GRAY3, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 20, height: 1, borderTop: `2px dashed ${GRAY3}` }} />
-            100% = meta atingida · ≥50% = parcial · &lt;50% = não atingida
-          </div>
-        </div>
-      )}
-
-      {/* Week selector */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {semanas.slice(0, 10).map(s => (
-          <button key={s} onClick={() => setWeek(s)} style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${selectedWeek === s ? R : GRAY5}`, background: selectedWeek === s ? R : WHITE, color: selectedWeek === s ? WHITE : GRAY2, fontSize: 12, fontWeight: selectedWeek === s ? 700 : 400, cursor: 'pointer', transition: 'all .15s' }}>
-            {s === semanaAtual ? 'Esta semana' : fmtDate(s)}
+      {/* Month selector */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: GRAY3, fontWeight: 600, marginRight: 4 }}>Mês:</span>
+        {meses.map(mes => (
+          <button key={mes} onClick={() => setSelectedMes(mes)} style={{
+            padding: '6px 14px', borderRadius: 7,
+            border: `1px solid ${selectedMes === mes ? PURPLE : GRAY5}`,
+            background: selectedMes === mes ? PURPLE : WHITE,
+            color: selectedMes === mes ? WHITE : GRAY2,
+            fontSize: 12, fontWeight: selectedMes === mes ? 700 : 400, cursor: 'pointer',
+          }}>
+            {fmtMes(mes)}{mes === mesAtual ? ' ·' : ''}
           </button>
         ))}
       </div>
 
-      {/* Metas da semana selecionada */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-        {metasSemana.length === 0 && !showNew && (
-          <div style={{ ...card, padding: '40px 0', textAlign: 'center' }}>
-            <Target size={28} color={GRAY3} style={{ marginBottom: 10, opacity: 0.5 }} />
-            <div style={{ fontSize: 14, color: GRAY2 }}>Nenhuma meta para esta semana</div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: GRAY1 }}>Objetivos de {fmtMes(selectedMes)}</div>
+          <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>
+            1ª segunda-feira: {fmtDate(firstMonday)}
           </div>
+        </div>
+        {canEdit && !objetivosLocked && (
+          <button onClick={() => setShowNewObjetivo(o => !o)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '8px 16px', borderRadius: 8, border: `1px solid ${GRAY5}`,
+            background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          }}>
+            <Plus size={13} /> Novo objetivo
+          </button>
         )}
-        {metasSemana.map(m => {
-          const st  = STATUS_MAP[m.status]
-          const pct = m.valor_meta && m.valor_realizado !== null ? Math.min(100, ((m.valor_realizado ?? 0) / m.valor_meta) * 100) : null
-          const isEditing = editingMeta === m.id
-          return (
-            <div key={m.id} style={{ ...card, padding: '14px 18px' }}>
-              {isEditing ? (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, marginBottom: 8 }}>
-                    <input autoFocus value={editForm.descricao} onChange={e => setEditForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição *" style={{ ...input14 }} />
-                    <input type="number" value={editForm.valor_meta} onChange={e => setEditForm(p => ({ ...p, valor_meta: e.target.value }))} placeholder="Meta" style={{ ...input14, width: 90 }} />
-                    <input value={editForm.unidade} onChange={e => setEditForm(p => ({ ...p, unidade: e.target.value }))} placeholder="Unidade" style={{ ...input14, width: 90 }} />
-                  </div>
-                  {projetos.length > 0 && (
-                    <select value={editForm.projeto_id} onChange={e => setEditForm(p => ({ ...p, projeto_id: e.target.value }))} style={{ ...input14, marginBottom: 8 }}>
-                      <option value="">Projeto (opcional)</option>
-                      {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                    </select>
-                  )}
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={saveEditMeta} disabled={!editForm.descricao.trim() || editSaving} style={btnPrimary(!editForm.descricao.trim() || editSaving)}>{editSaving ? 'Salvando...' : 'Salvar'}</button>
-                    <button onClick={() => setEditingMeta(null)} style={btnGhost}>Cancelar</button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: GRAY1, marginBottom: 8 }}>{m.descricao}</div>
-                      {m.valor_meta !== null && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                          <div style={{ flex: 1, height: 6, background: GRAY5, borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ width: `${pct ?? 0}%`, height: '100%', background: st.color, borderRadius: 3, transition: 'width .3s' }} />
-                          </div>
-                          <span style={{ fontSize: 12, color: GRAY3, whiteSpace: 'nowrap' }}>{m.valor_realizado ?? '—'} / {m.valor_meta} {m.unidade}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ padding: '5px 9px', background: st.bg, border: `1px solid ${st.border}`, borderRadius: 6, color: st.color, fontSize: 11, fontWeight: 700 }}>{st.label}</span>
-                      {canEdit && (
-                        <>
-                          <button onClick={() => { setEditingMeta(m.id); setEditForm({ descricao: m.descricao, valor_meta: m.valor_meta !== null ? String(m.valor_meta) : '', unidade: m.unidade || '', projeto_id: m.projeto_id || '' }) }}
-                            style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
-                            onMouseEnter={e => (e.currentTarget.style.color = BLUE)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                            <Edit2 size={13} />
-                          </button>
-                          <button onClick={() => deleteMeta(m.id)} style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
-                            onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                            <Trash2 size={13} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  {canEdit && m.valor_meta && (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-                      <input
-                        type="number"
-                        value={realizadoLocal[m.id] !== undefined ? realizadoLocal[m.id] : (m.valor_realizado ?? '')}
-                        onChange={e => setRealizadoLocal(prev => ({ ...prev, [m.id]: e.target.value }))}
-                        onBlur={() => {
-                          const raw = realizadoLocal[m.id]
-                          if (raw === undefined) return
-                          const realizado = raw !== '' ? parseFloat(raw) : null
-                          const status = calcAutoStatus(realizado, m.valor_meta)
-                          updateMeta(m.id, { valor_realizado: realizado, status })
-                          setRealizadoLocal(prev => { const n = { ...prev }; delete n[m.id]; return n })
-                        }}
-                        placeholder="Resultado realizado"
-                        style={{ width: 150, padding: '6px 10px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 6, color: GRAY1, fontSize: 12, outline: 'none' }} />
-                      <span style={{ fontSize: 12, color: GRAY3 }}>{m.unidade}</span>
-                      <span style={{ fontSize: 11, color: GRAY3 }}>de {m.valor_meta} {m.unidade}</span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )
-        })}
       </div>
 
-      {canEdit && (
-        <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid ${GRAY5}`, background: showNew ? GRAY4 : WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          <Plus size={13} /> Adicionar meta
-        </button>
-      )}
-
-      {showNew && canEdit && (
-        <div style={{ ...card, padding: 18, marginTop: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, marginBottom: 10 }}>
-            <input value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Descrição da meta *" style={{ ...input14 }} />
-            <input type="number" value={form.valor_meta} onChange={e => setForm(p => ({ ...p, valor_meta: e.target.value }))} placeholder="Meta" style={{ ...input14, width: 90 }} />
-            <input value={form.unidade} onChange={e => setForm(p => ({ ...p, unidade: e.target.value }))} placeholder="Unidade" style={{ ...input14, width: 90 }} />
+      {/* New objective form */}
+      {showNewObjetivo && canEdit && (
+        <div style={{ ...card, padding: 18, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 12 }}>Novo objetivo mensal</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px', gap: 10, marginBottom: 10 }}>
+            <input value={formObjetivo.descricao} onChange={e => setFormObjetivo(p => ({ ...p, descricao: e.target.value }))}
+              placeholder="Descrição do objetivo *" style={{ ...input14 }} />
+            <input type="number" value={formObjetivo.valor_meta} onChange={e => setFormObjetivo(p => ({ ...p, valor_meta: e.target.value }))}
+              placeholder="Meta *" style={{ ...input14 }} />
+            <input value={formObjetivo.unidade} onChange={e => setFormObjetivo(p => ({ ...p, unidade: e.target.value }))}
+              placeholder="Unidade" style={{ ...input14 }} />
           </div>
           {projetos.length > 0 && (
-            <select value={form.projeto_id} onChange={e => setForm(p => ({ ...p, projeto_id: e.target.value }))} style={{ ...input14, marginBottom: 10 }}>
+            <select value={formObjetivo.projeto_id} onChange={e => setFormObjetivo(p => ({ ...p, projeto_id: e.target.value }))}
+              style={{ ...input14, marginBottom: 10 }}>
               <option value="">Projeto (opcional)</option>
               {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={addMeta} disabled={!form.descricao.trim() || saving} style={btnPrimary(!form.descricao.trim() || saving)}>{saving ? 'Salvando...' : 'Adicionar'}</button>
-            <button onClick={() => setShowNew(false)} style={btnGhost}>Cancelar</button>
+            <button onClick={saveObjetivo} disabled={!formObjetivo.descricao.trim() || !formObjetivo.valor_meta || saving}
+              style={btnPrimary(!formObjetivo.descricao.trim() || !formObjetivo.valor_meta || saving)}>
+              {saving ? 'Salvando...' : 'Adicionar objetivo'}
+            </button>
+            <button onClick={() => setShowNewObjetivo(false)} style={btnGhost}>Cancelar</button>
           </div>
         </div>
       )}
+
+      {/* Empty state */}
+      {objetivosMes.length === 0 && (
+        <div style={{ ...card, padding: '40px 0', textAlign: 'center', marginBottom: 24 }}>
+          <Target size={28} color={GRAY3} style={{ marginBottom: 10, opacity: 0.5 }} />
+          <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum objetivo para {fmtMes(selectedMes)}</div>
+          {!objetivosLocked && canEdit && (
+            <div style={{ fontSize: 12, color: GRAY3, marginTop: 4 }}>Adicione objetivos mensais acima</div>
+          )}
+        </div>
+      )}
+
+      {/* Objectives with burnup charts + weekly inputs */}
+      {objetivosMes.map(objetivo => {
+        const burnupData = getBurnupData(objetivo)
+        const isEditingThis = editingId === objetivo.id
+        const cumulativo = resultados
+          .filter(r => r.objetivo_id === objetivo.id)
+          .reduce((sum, r) => sum + (r.valor_realizado ?? 0), 0)
+        const pct = objetivo.valor_meta ? (cumulativo / objetivo.valor_meta) * 100 : 0
+        const statusColor = pct >= 100 ? GREEN : pct >= 50 ? YELLOW : R
+
+        return (
+          <div key={objetivo.id} style={{ ...card, padding: 20, marginBottom: 16 }}>
+            {/* Objective header */}
+            {isEditingThis ? (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px', gap: 10, marginBottom: 10 }}>
+                  <input autoFocus value={editForm.descricao} onChange={e => setEditForm(p => ({ ...p, descricao: e.target.value }))}
+                    placeholder="Descrição *" style={{ ...input14 }} />
+                  <input type="number" value={editForm.valor_meta} onChange={e => setEditForm(p => ({ ...p, valor_meta: e.target.value }))}
+                    placeholder="Meta *" style={{ ...input14 }} />
+                  <input value={editForm.unidade} onChange={e => setEditForm(p => ({ ...p, unidade: e.target.value }))}
+                    placeholder="Unidade" style={{ ...input14 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={saveEditObjetivo} disabled={!editForm.descricao.trim() || !editForm.valor_meta || saving}
+                    style={btnPrimary(!editForm.descricao.trim() || !editForm.valor_meta || saving)}>
+                    {saving ? 'Salvando...' : 'Salvar'}
+                  </button>
+                  <button onClick={() => setEditingId(null)} style={btnGhost}>Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>{objetivo.descricao}</div>
+                  <div style={{ fontSize: 12, color: GRAY3, marginTop: 3, display: 'flex', gap: 10 }}>
+                    <span>Meta: <strong style={{ color: GRAY2 }}>{objetivo.valor_meta} {objetivo.unidade}</strong></span>
+                    <span>Realizado: <strong style={{ color: statusColor }}>{cumulativo > 0 ? `${cumulativo.toFixed(1)} ${objetivo.unidade}` : '—'}</strong></span>
+                    {cumulativo > 0 && <span style={{ color: statusColor, fontWeight: 700 }}>{pct.toFixed(1)}%</span>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{
+                    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                    background: pct >= 100 ? '#D1FAE5' : pct >= 50 ? '#FEF3C7' : '#FEE2E2',
+                    color: pct >= 100 ? '#065F46' : pct >= 50 ? '#92400E' : '#991B1B',
+                    border: `1px solid ${pct >= 100 ? '#A7F3D0' : pct >= 50 ? '#FDE68A' : '#FECACA'}`,
+                  }}>
+                    {pct >= 100 ? 'Atingida' : pct >= 50 ? 'Parcial' : cumulativo > 0 ? 'Abaixo' : 'Pendente'}
+                  </span>
+                  {canEdit && !objetivosLocked && (
+                    <>
+                      <button onClick={() => { setEditingId(objetivo.id); setEditForm({ descricao: objetivo.descricao, valor_meta: String(objetivo.valor_meta), unidade: objetivo.unidade || '', projeto_id: objetivo.projeto_id || '' }) }}
+                        style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = BLUE)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                        <Edit2 size={13} />
+                      </button>
+                      <button onClick={() => deleteObjetivo(objetivo.id)}
+                        style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                        <Trash2 size={13} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Burnup chart */}
+            <div style={{ marginBottom: 16 }}>
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={burnupData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id={`gp-${objetivo.id}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={BLUE} stopOpacity={0.15} />
+                      <stop offset="95%" stopColor={BLUE} stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id={`gr-${objetivo.id}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={GREEN} stopOpacity={0.22} />
+                      <stop offset="95%" stopColor={GREEN} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke={GRAY5} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="semana" tick={{ fontSize: 10, fill: GRAY3 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: GRAY3 }} axisLine={false} tickLine={false} domain={[0, objetivo.valor_meta * 1.15]} />
+                  <Tooltip
+                    contentStyle={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,.08)' }}
+                    formatter={(v: any, name: string) => [`${Number(v).toFixed(1)} ${objetivo.unidade}`, name]}
+                    labelStyle={{ color: GRAY2 }} />
+                  <ReferenceLine y={objetivo.valor_meta} stroke={R} strokeDasharray="4 2" strokeWidth={1.5} />
+                  <Area type="monotone" dataKey="planejado" name="Planejado" stroke={BLUE} strokeWidth={1.5} fill={`url(#gp-${objetivo.id})`} strokeDasharray="5 3" dot={false} connectNulls />
+                  <Area type="monotone" dataKey="realizado" name="Realizado" stroke={GREEN} strokeWidth={2.5} fill={`url(#gr-${objetivo.id})`} dot={(p: any) => p.value > 0 ? <circle key={p.key} cx={p.cx} cy={p.cy} r={4} fill={GREEN} /> : <g key={p.key} />} connectNulls={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, fontSize: 10, color: GRAY3, marginTop: 4, paddingLeft: 4 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 20, height: 0, borderTop: `2px dashed ${BLUE}`, display: 'inline-block' }} /> Planejado (linear)
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 20, height: 2, background: GREEN, display: 'inline-block', borderRadius: 2 }} /> Realizado (acumulado)
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 20, height: 0, borderTop: `2px dashed ${R}`, display: 'inline-block' }} /> Meta
+                </span>
+              </div>
+            </div>
+
+            {/* Weekly results grid */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: GRAY3, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
+                Resultados semanais
+              </div>
+              {(() => {
+                const fmtShort = (s: string) => `${s.slice(8)}/${s.slice(5,7)}`
+                const [mesY, mesM] = selectedMes.split('-').map(Number)
+                const daysInMonth = new Date(mesY, mesM, 0).getDate()
+                const lastDayOfMonth = `${selectedMes}-${String(daysInMonth).padStart(2,'0')}`
+                const lastMondayOfMonth = mondays[mondays.length - 1]
+
+                // slot de fechamento: 1ª segunda do mês seguinte cobre dias finais do mês
+                const nextM = mesM === 12 ? 1 : mesM + 1
+                const nextY = mesM === 12 ? mesY + 1 : mesY
+                const nextMes = `${nextY}-${String(nextM).padStart(2,'0')}`
+                const closingSemana = getFirstMondayOfMonth(nextMes)
+
+                // slots regulares: 2ª segunda em diante (cada um cobre segunda anterior – domingo)
+                const resultSlots = mondays.slice(1).map((semana, idx, arr) => {
+                  const prevD = new Date(semana + 'T12:00:00'); prevD.setDate(prevD.getDate() - 7)
+                  const prevFmt = `${prevD.getFullYear()}-${String(prevD.getMonth()+1).padStart(2,'0')}-${String(prevD.getDate()).padStart(2,'0')}`
+                  const sunD = new Date(semana + 'T12:00:00'); sunD.setDate(sunD.getDate() - 1)
+                  const sunFmt = `${sunD.getFullYear()}-${String(sunD.getMonth()+1).padStart(2,'0')}-${String(sunD.getDate()).padStart(2,'0')}`
+                  return {
+                    semana,
+                    periodoStart: idx === 0 ? `${selectedMes}-01` : prevFmt,
+                    periodoEnd: sunFmt,
+                    isClosing: false,
+                  }
+                })
+
+                // closing slot: 1ª segunda do mês seguinte, cobre do último Monday até fim do mês
+                resultSlots.push({
+                  semana: closingSemana,
+                  periodoStart: lastMondayOfMonth,
+                  periodoEnd: lastDayOfMonth,
+                  isClosing: true,
+                })
+
+                const allSlots = resultSlots
+                const cols = Math.min(allSlots.length, 4)
+
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8 }}>
+                    {allSlots.map(({ semana, periodoStart, periodoEnd, isClosing }) => {
+                      const existing = getResultado(objetivo.id, semana)
+                      const lk = localKey(objetivo.id, semana)
+                      const localVal = resultadosLocal[lk]
+                      const displayVal = localVal !== undefined ? localVal : (existing?.valor_realizado != null ? String(existing.valor_realizado) : '')
+                      // fechamento: disponível a partir do dia seguinte ao último dia do mês
+                      const isFuture = isClosing ? todayStr <= lastDayOfMonth : semana > todayStr
+                      const isCurrentWeek = !isClosing && semana === startOfWeek()
+                      const hasSaved = existing?.valor_realizado != null
+                      const periodoLabel = `${fmtShort(periodoStart)} – ${fmtShort(periodoEnd)}`
+                      const disponivelApos = isClosing ? fmtDate(lastDayOfMonth) : fmtDate(semana)
+
+                      return (
+                        <div key={semana} style={{
+                          padding: '10px 12px',
+                          background: isClosing ? '#FFF7ED' : isCurrentWeek ? '#F5F3FF' : GRAY4,
+                          border: `1px solid ${isClosing ? '#FED7AA' : isCurrentWeek ? PURPLE : hasSaved ? GREEN + '80' : GRAY5}`,
+                          borderRadius: 8,
+                        }}>
+                          <div style={{ fontSize: 10, color: isClosing ? '#C2410C' : isCurrentWeek ? PURPLE : GRAY3, fontWeight: 600, marginBottom: 1 }}>
+                            {isClosing ? 'Fechamento' : fmtDate(semana)}{isCurrentWeek ? ' ★' : ''}
+                          </div>
+                          <div style={{ fontSize: 9, color: isClosing ? '#EA580C' : isCurrentWeek ? PURPLE : GRAY3, marginBottom: 6, opacity: 0.75 }}>
+                            {periodoLabel}
+                          </div>
+                          {canEdit && !isFuture ? (
+                            <input
+                              type="number"
+                              value={displayVal}
+                              onChange={e => setResultadosLocal(prev => ({ ...prev, [lk]: e.target.value }))}
+                              onBlur={e => saveResultado(objetivo.id, semana, e.currentTarget.value)}
+                              placeholder={`Acumulado ${periodoLabel}`}
+                              style={{
+                                width: '100%', padding: '5px 7px', background: WHITE,
+                                border: `1px solid ${GRAY5}`, borderRadius: 5,
+                                color: GRAY1, fontSize: 12, outline: 'none', boxSizing: 'border-box' as const,
+                              }} />
+                          ) : (
+                            <div style={{ fontSize: 14, fontWeight: 700, color: hasSaved ? GRAY1 : isFuture ? GRAY3 : GRAY2 }}>
+                              {hasSaved ? existing!.valor_realizado : isFuture ? 'Após ' + disponivelApos : '—'}
+                            </div>
+                          )}
+                          {hasSaved && (
+                            <div style={{ fontSize: 10, color: GRAY3, marginTop: 2 }}>{objetivo.unidade}</div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
-
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: OPORTUNIDADES (Kanban)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2191,15 +2463,58 @@ function TabFCA({ entries, clienteId, onReload, canEdit }: { entries: FcaEntry[]
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: REUNIÕES
 // ══════════════════════════════════════════════════════════════════════════════
+type ReuniaoFormData = { data: string; titulo: string; link_apresentacao: string; link_transcricao: string; observacoes: string }
+
+function ReuniaoFormFields({ f, setF }: { f: ReuniaoFormData; setF: (v: ReuniaoFormData) => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Data *</label>
+          <input type="date" value={f.data} onChange={e => setF({ ...f, data: e.target.value })} style={input14} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Título / Pauta</label>
+          <input type="text" value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} placeholder="Ex: Revisão mensal de resultados" style={input14} />
+        </div>
+      </div>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Link da Apresentação</label>
+        <input type="url" value={f.link_apresentacao} onChange={e => setF({ ...f, link_apresentacao: e.target.value })} placeholder="https://docs.google.com/presentation/..." style={input14} />
+      </div>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Link da Transcrição</label>
+        <input type="url" value={f.link_transcricao} onChange={e => setF({ ...f, link_transcricao: e.target.value })} placeholder="https://docs.google.com/document/..." style={input14} />
+      </div>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Observações</label>
+        <textarea value={f.observacoes} onChange={e => setF({ ...f, observacoes: e.target.value })} placeholder="Pontos discutidos, decisões tomadas..." rows={3} style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
+      </div>
+    </div>
+  )
+}
+
+function ReuniaoLinkButton({ href, label, icon: Icon, color }: { href: string; label: string; icon: React.ComponentType<any>; color: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: `1px solid ${color}30`, background: `${color}08`, color, fontSize: 12, fontWeight: 600, textDecoration: 'none', transition: 'all .15s' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${color}18` }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = `${color}08` }}
+    >
+      <Icon size={13} /> {label}
+    </a>
+  )
+}
+
 function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
   reunioes: Reuniao[]; clienteId: string; onReload: () => void; canEdit: boolean
 }) {
-  const emptyForm = { data: new Date().toISOString().split('T')[0], titulo: '', link_apresentacao: '', link_transcricao: '', observacoes: '' }
+  const emptyForm: ReuniaoFormData = { data: new Date().toISOString().split('T')[0], titulo: '', link_apresentacao: '', link_transcricao: '', observacoes: '' }
   const [showNew, setShowNew]   = useState(false)
   const [form, setForm]         = useState(emptyForm)
   const [saving, setSaving]     = useState(false)
   const [editId, setEditId]     = useState<string | null>(null)
-  const [editForm, setEditForm] = useState(emptyForm)
+  const [editForm, setEditForm] = useState<ReuniaoFormData>(emptyForm)
 
   const valid = !!form.data
 
@@ -2240,43 +2555,6 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
     setEditId(r.id)
   }
 
-  const LinkButton = ({ href, label, icon: Icon, color }: { href: string; label: string; icon: React.ComponentType<any>; color: string }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: `1px solid ${color}30`, background: `${color}08`, color, fontSize: 12, fontWeight: 600, textDecoration: 'none', transition: 'all .15s' }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${color}18` }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = `${color}08` }}
-    >
-      <Icon size={13} /> {label}
-    </a>
-  )
-
-  const FormFields = ({ f, setF }: { f: typeof emptyForm; setF: (v: typeof emptyForm) => void }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Data *</label>
-          <input type="date" value={f.data} onChange={e => setF({ ...f, data: e.target.value })} style={input14} />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Título / Pauta</label>
-          <input type="text" value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} placeholder="Ex: Revisão mensal de resultados" style={input14} />
-        </div>
-      </div>
-      <div>
-        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Link da Apresentação</label>
-        <input type="url" value={f.link_apresentacao} onChange={e => setF({ ...f, link_apresentacao: e.target.value })} placeholder="https://docs.google.com/presentation/..." style={input14} />
-      </div>
-      <div>
-        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Link da Transcrição</label>
-        <input type="url" value={f.link_transcricao} onChange={e => setF({ ...f, link_transcricao: e.target.value })} placeholder="https://docs.google.com/document/..." style={input14} />
-      </div>
-      <div>
-        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Observações</label>
-        <textarea value={f.observacoes} onChange={e => setF({ ...f, observacoes: e.target.value })} placeholder="Pontos discutidos, decisões tomadas..." rows={3} style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
-      </div>
-    </div>
-  )
-
   return (
     <div>
       {/* Header */}
@@ -2298,7 +2576,7 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
           <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Video size={14} color={BLUE} /> Nova Reunião
           </div>
-          <FormFields f={form} setF={setForm} />
+          <ReuniaoFormFields f={form} setF={setForm} />
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <button onClick={save} disabled={!valid || saving} style={btnPrimary(!valid || saving)}>{saving ? 'Salvando...' : 'Registrar Reunião'}</button>
             <button onClick={() => { setShowNew(false); setForm(emptyForm) }} style={btnGhost}>Cancelar</button>
@@ -2327,7 +2605,7 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
             <div key={r.id} style={{ ...card, padding: 20 }}>
               {editId === r.id ? (
                 <div>
-                  <FormFields f={editForm} setF={setEditForm} />
+                  <ReuniaoFormFields f={editForm} setF={setEditForm} />
                   <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                     <button onClick={() => update(r.id)} style={btnPrimary(false)}>Salvar</button>
                     <button onClick={() => setEditId(null)} style={btnGhost}>Cancelar</button>
@@ -2363,11 +2641,11 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
                   {/* Links */}
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: r.observacoes ? 14 : 0 }}>
                     {r.link_apresentacao
-                      ? <LinkButton href={r.link_apresentacao} label="Apresentação" icon={ExternalLink} color={BLUE} />
+                      ? <ReuniaoLinkButton href={r.link_apresentacao} label="Apresentação" icon={ExternalLink} color={BLUE} />
                       : <span style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 5 }}><ExternalLink size={12} /> Sem link de apresentação</span>
                     }
                     {r.link_transcricao
-                      ? <LinkButton href={r.link_transcricao} label="Transcrição" icon={Globe} color={GREEN} />
+                      ? <ReuniaoLinkButton href={r.link_transcricao} label="Transcrição" icon={Globe} color={GREEN} />
                       : <span style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 5 }}><Globe size={12} /> Sem transcrição</span>
                     }
                   </div>
