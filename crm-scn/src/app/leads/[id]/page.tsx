@@ -338,7 +338,7 @@ function LeadPageInner() {
       const f = formRef.current
       const hasTcv = (f.tcv_saber || 0) + (f.tcv_ter || 0) + (f.tcv_executar || 0) > 0
       if (!hasTcv) {
-        alert('Preencha o TCV (Saber, Ter ou Executar) antes de registrar a Reunião Realizada.')
+        toast.warning('Preencha o TCV (Saber, Ter ou Executar) antes de registrar a Reunião Realizada.')
         return
       }
     }

@@ -6,6 +6,7 @@ import CRMLayout from '../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, SEGMENTOS } from '@/lib/crm-constants'
 import { Plus, Search, Building2, TrendingUp, Layers, Users, ArrowUp, ArrowDown, Minus, AlertTriangle, BarChart2, X } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
+import { toast } from '@/lib/toast'
 
 type ClienteEnriquecido = Cliente & {
   projetos: Projeto[]
@@ -110,7 +111,7 @@ export default function CockpitPage() {
     setSaving(true)
     const slug = await generateUniqueSlug(toSlug(newEmpresa.trim()))
     const { data, error } = await supabase.from('clientes').insert({ empresa: newEmpresa.trim(), segmento: newSegmento.trim() || null, slug }).select().single()
-    if (error) { console.error(error); alert('Erro: ' + error.message); setSaving(false); return }
+    if (error) { console.error(error); toast.error('Erro: ' + error.message); setSaving(false); return }
     if (data) router.push(`/cockpit/${data.slug}`)
     setSaving(false)
   }

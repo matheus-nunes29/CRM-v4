@@ -15,6 +15,7 @@ import {
   Building2, Phone, Mail, ExternalLink, Video, FileText, Upload,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
+import { toast } from '@/lib/toast'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(v: number) { return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` }
@@ -820,7 +821,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
     if (servicos.includes('social_media'))   vals.social_posts     = entregaForm.posts      ? parseInt(entregaForm.posts, 10)      : null
     const { error } = await supabase.from('entregas_mensais').upsert(vals, { onConflict: 'projeto_id,mes' })
     setSavingEntrega(false)
-    if (error) { alert('Erro ao salvar: ' + error.message); return }
+    if (error) { toast.error('Erro ao salvar: ' + error.message); return }
     setEntregaProjetoId(null)
   }
 
@@ -850,7 +851,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
     if (!form.nome.trim()) return
     if (form.tipo === 'executar') {
       const missing = servicosSel.filter(isMissingVolume).map(s => SERVICOS_EXECUTAR.find(x => x.key === s.key)?.label)
-      if (missing.length) { alert(`Preencha os volumes obrigatórios: ${missing.join(', ')}`) ; return }
+      if (missing.length) { toast.warning(`Preencha os volumes obrigatórios: ${missing.join(', ')}`); return }
     }
     setSaving(true)
     const etapas = getEtapas(form.tipo, form.servico || null)
@@ -873,7 +874,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
     if (!editForm.nome.trim() || !editId) return
     if (editForm.tipo === 'executar') {
       const missing = editServicosSel.filter(isMissingVolume).map(s => SERVICOS_EXECUTAR.find(x => x.key === s.key)?.label)
-      if (missing.length) { alert(`Preencha os volumes obrigatórios: ${missing.join(', ')}`) ; return }
+      if (missing.length) { toast.warning(`Preencha os volumes obrigatórios: ${missing.join(', ')}`); return }
     }
     setSaving(true)
     await supabase.from('projetos').update({
@@ -1561,7 +1562,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
 
   async function saveHealth() {
     if (!gateOk) {
-      alert('Preencha o resultado semanal de todos os objetivos antes de salvar o Health Score.')
+      toast.warning('Preencha o resultado semanal de todos os objetivos antes de salvar o Health Score.')
       return
     }
     setSaving(true)
@@ -1583,7 +1584,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
     }
     const { error } = await supabase.from('health_score_entries').upsert(payload, { onConflict: 'cliente_id,semana' })
     if (error) {
-      alert('Erro ao salvar health score: ' + error.message)
+      toast.error('Erro ao salvar health score: ' + error.message)
       setSaving(false)
       return
     }
