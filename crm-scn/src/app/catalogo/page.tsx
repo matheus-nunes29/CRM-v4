@@ -27,7 +27,7 @@ const VOLUME_LABELS: Record<string, string> = {
   generic:   'Volume genérico/mês',
 }
 
-type EditState = {
+export type EditState = {
   nome: string
   etapas: string[]
   tem_volume: boolean
@@ -38,6 +38,99 @@ const emptyEdit = (isExecutar = false): EditState => ({
   nome: '', etapas: isExecutar ? [] : [''],
   tem_volume: false, volume_type: '',
 })
+
+// ── Helpers de etapas (nível de módulo — evita remount por redefinição) ────────
+function addEtapa(f: EditState, set: (v: EditState) => void) {
+  set({ ...f, etapas: [...f.etapas, ''] })
+}
+function setEtapaVal(f: EditState, set: (v: EditState) => void, i: number, v: string) {
+  set({ ...f, etapas: f.etapas.map((e, j) => j === i ? v : e) })
+}
+function removeEtapa(f: EditState, set: (v: EditState) => void, i: number) {
+  set({ ...f, etapas: f.etapas.filter((_, j) => j !== i) })
+}
+function moveEtapa(f: EditState, set: (v: EditState) => void, i: number, dir: -1 | 1) {
+  const arr = [...f.etapas]; const j = i + dir
+  if (j < 0 || j >= arr.length) return
+  ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  set({ ...f, etapas: arr })
+}
+
+// ── EtapasEditor (nível de módulo — sem remount ao digitar) ───────────────────
+function EtapasEditor({ f, set }: { f: EditState; set: (v: EditState) => void }) {
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: GRAY3, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 8 }}>
+        Etapas ({f.etapas.filter(Boolean).length})
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {f.etapas.map((etapa, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <button onClick={() => moveEtapa(f, set, i, -1)} disabled={i === 0}
+                style={{ border: 'none', background: 'transparent', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? GRAY5 : GRAY3, padding: '1px 3px', fontSize: 10, lineHeight: 1 }}>▲</button>
+              <button onClick={() => moveEtapa(f, set, i, 1)} disabled={i === f.etapas.length - 1}
+                style={{ border: 'none', background: 'transparent', cursor: i === f.etapas.length - 1 ? 'default' : 'pointer', color: i === f.etapas.length - 1 ? GRAY5 : GRAY3, padding: '1px 3px', fontSize: 10, lineHeight: 1 }}>▼</button>
+            </div>
+            <span style={{ fontSize: 11, color: GRAY3, width: 18, textAlign: 'right' as const, flexShrink: 0 }}>{i + 1}.</span>
+            <input
+              type="text"
+              value={etapa}
+              onChange={e => setEtapaVal(f, set, i, e.target.value)}
+              placeholder={`Etapa ${i + 1}`}
+              style={{ flex: 1, padding: '7px 10px', border: `1.5px solid ${GRAY5}`, borderRadius: 7, fontSize: 13, color: GRAY1, outline: 'none', background: WHITE }}
+            />
+            <button onClick={() => removeEtapa(f, set, i)}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 4, display: 'flex' }}>
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+        <button onClick={() => addEtapa(f, set)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 7, border: `1.5px dashed ${GRAY5}`, background: GRAY4, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginTop: 2 }}>
+          <Plus size={13} /> Adicionar etapa
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── VolumeEditor (nível de módulo) ────────────────────────────────────────────
+function VolumeEditor({ f, set }: { f: EditState; set: (v: EditState) => void }) {
+  return (
+    <div style={{ marginTop: 14, padding: '14px 16px', background: GRAY4, borderRadius: 10, border: `1px solid ${GRAY5}` }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input type="checkbox" checked={f.tem_volume} onChange={e => set({ ...f, tem_volume: e.target.checked, volume_type: '' })}
+          style={{ width: 16, height: 16, accentColor: GREEN, cursor: 'pointer' }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: GRAY1 }}>Tem volume (quantidade mensal prevista)</span>
+      </label>
+      {f.tem_volume && (
+        <div style={{ marginTop: 10 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.07em', display: 'block', marginBottom: 6 }}>Tipo de volume *</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {(['campanhas', 'posts', 'design', 'generic'] as const).map(vt => (
+              <label key={vt} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${f.volume_type === vt ? GREEN : GRAY5}`, background: f.volume_type === vt ? '#ECFDF5' : WHITE, cursor: 'pointer' }}>
+                <input type="radio" name="volume_type" value={vt} checked={f.volume_type === vt} onChange={() => set({ ...f, volume_type: vt })} style={{ accentColor: GREEN }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: f.volume_type === vt ? GREEN : GRAY2 }}>
+                    {vt === 'campanhas' ? 'Campanhas' : vt === 'posts' ? 'Posts' : vt === 'design' ? 'Design' : 'Genérico'}
+                  </div>
+                  <div style={{ fontSize: 10, color: GRAY3 }}>{VOLUME_LABELS[vt]}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── CatalogoPage ──────────────────────────────────────────────────────────────
+function slugify(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+}
 
 export default function CatalogoPage() {
   const [servicos, setServicos]   = useState<CatalogoServico[]>([])
@@ -61,29 +154,6 @@ export default function CatalogoPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
-
-  // ── Etapas helpers ────────────────────────────────────────────────────────────
-  function addEtapa(f: EditState, set: (v: EditState) => void) {
-    set({ ...f, etapas: [...f.etapas, ''] })
-  }
-  function setEtapa(f: EditState, set: (v: EditState) => void, i: number, v: string) {
-    set({ ...f, etapas: f.etapas.map((e, j) => j === i ? v : e) })
-  }
-  function removeEtapa(f: EditState, set: (v: EditState) => void, i: number) {
-    set({ ...f, etapas: f.etapas.filter((_, j) => j !== i) })
-  }
-  function moveEtapa(f: EditState, set: (v: EditState) => void, i: number, dir: -1 | 1) {
-    const arr = [...f.etapas]; const j = i + dir
-    if (j < 0 || j >= arr.length) return
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-    set({ ...f, etapas: arr })
-  }
-
-  // ── CRUD ─────────────────────────────────────────────────────────────────────
-  function slugify(s: string) {
-    return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
-  }
 
   async function createServico() {
     if (!newForm.nome.trim()) return
@@ -139,70 +209,6 @@ export default function CatalogoPage() {
     })
   }
 
-  // ── Sub-components ────────────────────────────────────────────────────────────
-  function EtapasEditor({ f, set }: { f: EditState; set: (v: EditState) => void }) {
-    return (
-      <div style={{ marginTop: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: GRAY3, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-          Etapas ({f.etapas.filter(Boolean).length})
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {f.etapas.map((etapa, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <button onClick={() => moveEtapa(f, set, i, -1)} disabled={i === 0}
-                  style={{ border: 'none', background: 'transparent', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? GRAY5 : GRAY3, padding: '1px 3px', fontSize: 10, lineHeight: 1 }}>▲</button>
-                <button onClick={() => moveEtapa(f, set, i, 1)} disabled={i === f.etapas.length - 1}
-                  style={{ border: 'none', background: 'transparent', cursor: i === f.etapas.length - 1 ? 'default' : 'pointer', color: i === f.etapas.length - 1 ? GRAY5 : GRAY3, padding: '1px 3px', fontSize: 10, lineHeight: 1 }}>▼</button>
-              </div>
-              <span style={{ fontSize: 11, color: GRAY3, width: 18, textAlign: 'right', flexShrink: 0 }}>{i + 1}.</span>
-              <input type="text" value={etapa} onChange={e => setEtapa(f, set, i, e.target.value)}
-                placeholder={`Etapa ${i + 1}`}
-                style={{ flex: 1, padding: '7px 10px', border: `1.5px solid ${GRAY5}`, borderRadius: 7, fontSize: 13, color: GRAY1, outline: 'none', background: WHITE }} />
-              <button onClick={() => removeEtapa(f, set, i)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 4, display: 'flex' }}>
-                <X size={14} />
-              </button>
-            </div>
-          ))}
-          <button onClick={() => addEtapa(f, set)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 7, border: `1.5px dashed ${GRAY5}`, background: GRAY4, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginTop: 2 }}>
-            <Plus size={13} /> Adicionar etapa
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  function VolumeEditor({ f, set }: { f: EditState; set: (v: EditState) => void }) {
-    return (
-      <div style={{ marginTop: 14, padding: '14px 16px', background: GRAY4, borderRadius: 10, border: `1px solid ${GRAY5}` }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-          <input type="checkbox" checked={f.tem_volume} onChange={e => set({ ...f, tem_volume: e.target.checked, volume_type: '' })}
-            style={{ width: 16, height: 16, accentColor: GREEN, cursor: 'pointer' }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: GRAY1 }}>Tem volume (quantidade mensal prevista)</span>
-        </label>
-        {f.tem_volume && (
-          <div style={{ marginTop: 10 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 6 }}>Tipo de volume *</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {(['campanhas', 'posts', 'design', 'generic'] as const).map(vt => (
-                <label key={vt} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${f.volume_type === vt ? GREEN : GRAY5}`, background: f.volume_type === vt ? '#ECFDF5' : WHITE, cursor: 'pointer' }}>
-                  <input type="radio" name="volume_type" value={vt} checked={f.volume_type === vt} onChange={() => set({ ...f, volume_type: vt })} style={{ accentColor: GREEN }} />
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: f.volume_type === vt ? GREEN : GRAY2 }}>{vt === 'campanhas' ? 'Campanhas' : vt === 'posts' ? 'Posts' : vt === 'design' ? 'Design' : 'Genérico'}</div>
-                    <div style={{ fontSize: 10, color: GRAY3 }}>{VOLUME_LABELS[vt]}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // ── render ────────────────────────────────────────────────────────────────────
   const tc = TIPO_CONFIG[tipoAtivo]
   const lista = servicos.filter(s => s.tipo === tipoAtivo)
 
@@ -249,9 +255,11 @@ export default function CatalogoPage() {
                         <div style={{ marginBottom: 12 }}>
                           <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 5 }}>Nome *</label>
                           <input type="text" value={editForm.nome} onChange={e => setEditForm(f => ({ ...f, nome: e.target.value }))} autoFocus
-                            style={{ width: '100%', padding: '10px 13px', border: `1.5px solid ${tc.color}`, borderRadius: 9, fontSize: 14, fontWeight: 600, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                            style={{ width: '100%', padding: '10px 13px', border: `1.5px solid ${tc.color}`, borderRadius: 9, fontSize: 14, fontWeight: 600, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
                         </div>
-                        {isExecutar ? <VolumeEditor f={editForm} set={setEditForm} /> : <EtapasEditor f={editForm} set={setEditForm} />}
+                        {isExecutar
+                          ? <VolumeEditor f={editForm} set={setEditForm} />
+                          : <EtapasEditor f={editForm} set={setEditForm} />}
                         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
                           <button onClick={() => setEditId(null)} style={{ padding: '8px 16px', borderRadius: 8, border: `1.5px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                           <button onClick={updateServico} disabled={saving || !editForm.nome.trim()}
@@ -264,22 +272,19 @@ export default function CatalogoPage() {
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: s.ativo ? GRAY1 : GRAY3, marginBottom: 6 }}>{s.nome}</div>
-                          {/* Executar: volume badge */}
-                          {s.tipo === 'executar' && (
+                          {s.tipo === 'executar' ? (
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {s.tem_volume && s.volume_type ? (
                                 <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 20, background: tc.bg, border: `1px solid ${tc.border}`, color: tc.color, fontWeight: 600 }}>
                                   📊 {VOLUME_LABELS[s.volume_type]}
                                 </span>
-                              ) : !s.tem_volume ? (
+                              ) : (
                                 <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 20, background: GRAY4, border: `1px solid ${GRAY5}`, color: GRAY3, fontWeight: 500 }}>
                                   Sem volume
                                 </span>
-                              ) : null}
+                              )}
                             </div>
-                          )}
-                          {/* Saber/Ter: etapas */}
-                          {s.tipo !== 'executar' && s.etapas.length > 0 && (
+                          ) : s.etapas.length > 0 ? (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 6px' }}>
                               {s.etapas.map((etapa, i) => (
                                 <React.Fragment key={i}>
@@ -290,8 +295,7 @@ export default function CatalogoPage() {
                                 </React.Fragment>
                               ))}
                             </div>
-                          )}
-                          {s.tipo !== 'executar' && s.etapas.length === 0 && (
+                          ) : (
                             <div style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic' }}>Sem etapas definidas</div>
                           )}
                         </div>
@@ -329,9 +333,11 @@ export default function CatalogoPage() {
                     <input type="text" value={newForm.nome} onChange={e => setNewForm(f => ({ ...f, nome: e.target.value }))}
                       placeholder={isExecutar ? 'Ex: Inbound Marketing' : 'Ex: Estratégia de Conteúdo'}
                       autoFocus
-                      style={{ width: '100%', padding: '10px 13px', border: `1.5px solid ${tc.color}`, borderRadius: 9, fontSize: 14, fontWeight: 600, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '10px 13px', border: `1.5px solid ${tc.color}`, borderRadius: 9, fontSize: 14, fontWeight: 600, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
                   </div>
-                  {isExecutar ? <VolumeEditor f={newForm} set={setNewForm} /> : <EtapasEditor f={newForm} set={setNewForm} />}
+                  {isExecutar
+                    ? <VolumeEditor f={newForm} set={setNewForm} />
+                    : <EtapasEditor f={newForm} set={setNewForm} />}
                   <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
                     <button onClick={() => { setShowNew(false); setNewForm(emptyEdit(isExecutar)) }}
                       style={{ padding: '8px 16px', borderRadius: 8, border: `1.5px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
