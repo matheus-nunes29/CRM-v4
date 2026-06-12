@@ -444,7 +444,7 @@ export default function ClienteCockpitPage() {
         {tab === 'entregas'      && <TabEntregas      registros={registrosEntrega} projetos={projetos} servicosProjeto={servicosProjeto} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} npsCsat={npsCsat} onReloadNps={loadAll} />}
         {tab === 'estrategia'    && <TabEstrategia    estrategias={estrategias} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} proximosPassos={proximosPassos} />}
         {tab === 'timeline'      && <TabTimeline      reunioes={reunioes} registrosEntrega={registrosEntrega} healthEntries={healthEntries} fcaEntries={fcaEntries} oportunidades={oportunidades} npsCsat={npsCsat} proximosPassos={proximosPassos} projetos={projetos} />}
         {tab === 'acoes'         && <TabAcoes         proximosPassos={proximosPassos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} projetos={projetos} />}
       </div>
@@ -2667,19 +2667,89 @@ function TabOportunidades({ oportunidades, clienteId, onReload, canEdit }: { opo
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: FCA
 // ══════════════════════════════════════════════════════════════════════════════
-function TabFCA({ entries, clienteId, onReload, canEdit }: { entries: FcaEntry[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
+function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
+  entries: FcaEntry[]; clienteId: string; onReload: () => void; canEdit: boolean; proximosPassos: ProximoPasso[]
+}) {
+  type AcaoRascunho = { uid: string; descricao: string; responsavel: string; data_vencimento: string }
+  const emptyAcao = (): AcaoRascunho => ({ uid: Math.random().toString(36).slice(2), descricao: '', responsavel: '', data_vencimento: '' })
+
   const [showNew, setShowNew] = useState(false)
-  const [form, setForm]       = useState({ data: new Date().toISOString().split('T')[0], fato: '', causa: '', acao: '' })
+  const [form, setForm]       = useState({ data: new Date().toISOString().split('T')[0], fato: '', causa: '' })
+  const [acoes, setAcoes]     = useState<AcaoRascunho[]>([emptyAcao()])
   const [saving, setSaving]   = useState(false)
+  const hoje = new Date().toISOString().slice(0, 10)
+
+  function addAcaoRascunho() { setAcoes(a => [...a, emptyAcao()]) }
+  function removeAcaoRascunho(uid: string) { setAcoes(a => a.filter(x => x.uid !== uid)) }
+  function updateAcaoRascunho(uid: string, field: keyof AcaoRascunho, value: string) {
+    setAcoes(a => a.map(x => x.uid === uid ? { ...x, [field]: value } : x))
+  }
+
+  function resetForm() {
+    setForm({ data: new Date().toISOString().split('T')[0], fato: '', causa: '' })
+    setAcoes([emptyAcao()])
+    setShowNew(false)
+  }
 
   async function save() {
-    if (!form.fato.trim() || !form.causa.trim() || !form.acao.trim()) return; setSaving(true)
-    await supabase.from('fca_entries').insert({ ...form, cliente_id: clienteId })
-    setShowNew(false); setForm({ data: new Date().toISOString().split('T')[0], fato: '', causa: '', acao: '' }); await onReload(); setSaving(false)
-  }
-  async function deleteEntry(id: string) { await supabase.from('fca_entries').delete().eq('id', id); await onReload() }
+    if (!form.fato.trim() || !form.causa.trim()) return
+    const acoesValidas = acoes.filter(a => a.descricao.trim())
+    setSaving(true)
+    const { data: { session } } = await supabase.auth.getSession()
 
-  const valid = form.fato.trim() && form.causa.trim() && form.acao.trim()
+    // Resumo das ações para o campo legado
+    const acaoTexto = acoesValidas.map(a => a.descricao).join(' | ') || '—'
+
+    const { data: fca, error } = await supabase.from('fca_entries')
+      .insert({ ...form, acao: acaoTexto, cliente_id: clienteId, created_by: session?.user?.email || null })
+      .select().single()
+
+    if (!error && fca && acoesValidas.length > 0) {
+      await supabase.from('proximos_passos').insert(
+        acoesValidas.map(a => ({
+          cliente_id: clienteId,
+          descricao: a.descricao.trim(),
+          responsavel: a.responsavel.trim() || null,
+          data_vencimento: a.data_vencimento || null,
+          origem_tipo: 'fca',
+          origem_id: fca.id,
+          created_by: session?.user?.email || null,
+        }))
+      )
+    }
+
+    resetForm()
+    await onReload()
+    setSaving(false)
+  }
+
+  async function toggleAcao(pp: ProximoPasso) {
+    const now = new Date().toISOString()
+    await supabase.from('proximos_passos').update({
+      concluido: !pp.concluido,
+      concluido_at: !pp.concluido ? now : null,
+    }).eq('id', pp.id)
+    await onReload()
+  }
+
+  async function deleteAcaoPP(id: string) {
+    await supabase.from('proximos_passos').delete().eq('id', id)
+    await onReload()
+  }
+
+  async function deleteEntry(id: string) {
+    await supabase.from('proximos_passos').delete().eq('origem_tipo', 'fca').eq('origem_id', id)
+    await supabase.from('fca_entries').delete().eq('id', id)
+    await onReload()
+  }
+
+  const valid = form.fato.trim() && form.causa.trim()
+
+  function fmtDateBr(s: string | null) {
+    if (!s) return ''
+    const [y, m, d] = s.split('-')
+    return `${d}/${m}/${y}`
+  }
 
   return (
     <div>
@@ -2700,25 +2770,62 @@ function TabFCA({ entries, clienteId, onReload, canEdit }: { entries: FcaEntry[]
           <div style={{ fontSize: 14, fontWeight: 700, color: R, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 7 }}>
             <AlertTriangle size={16} /> Novo Registro FCA
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data</label>
               <input type="date" value={form.data} onChange={e => setForm(p => ({ ...p, data: e.target.value }))} style={{ ...input14, width: 'auto' }} />
             </div>
-            {[
-              { key: 'fato', label: 'Fato', placeholder: 'O que aconteceu?', accent: R },
-              { key: 'causa', label: 'Causa', placeholder: 'Qual a causa raiz?', accent: YELLOW },
-              { key: 'acao', label: 'Ação', placeholder: 'O que foi / será feito?', accent: GREEN },
-            ].map(f => (
-              <div key={f.key}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: f.accent, display: 'block', marginBottom: 4, letterSpacing: '0.05em' }}>{f.label.toUpperCase()}</label>
-                <textarea value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} rows={3} style={{ ...input14, resize: 'vertical', fontFamily: 'inherit', borderColor: (form as any)[f.key] ? GRAY5 : GRAY5 }} />
+            {([
+              { key: 'fato',  label: 'Fato',  placeholder: 'O que aconteceu?',    accent: R,      bg: '#FEF2F2' },
+              { key: 'causa', label: 'Causa', placeholder: 'Qual a causa raiz?',  accent: '#92400E', bg: '#FFFBEB' },
+            ] as const).map(f => (
+              <div key={f.key} style={{ borderLeft: `3px solid ${f.accent}`, paddingLeft: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: f.accent, display: 'block', marginBottom: 6, letterSpacing: '0.06em' }}>{f.label.toUpperCase()}</label>
+                <textarea value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} rows={2}
+                  style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
               </div>
             ))}
+
+            {/* Ações estruturadas */}
+            <div style={{ borderLeft: `3px solid ${GREEN}`, paddingLeft: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.06em' }}>AÇÕES</label>
+                <button onClick={addAcaoRascunho} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, border: `1px solid ${GREEN}`, background: '#ECFDF5', color: '#065F46', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                  <Plus size={11} /> Adicionar ação
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {acoes.map((a, idx) => (
+                  <div key={a.uid} style={{ padding: 12, background: GRAY4, borderRadius: 8, border: `1px solid ${GRAY5}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: GRAY3, fontWeight: 600 }}>#{idx + 1}</span>
+                      {acoes.length > 1 && (
+                        <button onClick={() => removeAcaoRascunho(a.uid)} style={{ marginLeft: 'auto', padding: 2, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3 }}>
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                      <div style={{ gridColumn: '1/-1' }}>
+                        <input value={a.descricao} onChange={e => updateAcaoRascunho(a.uid, 'descricao', e.target.value)} placeholder="O que precisa ser feito? *"
+                          style={{ ...input14 }} />
+                      </div>
+                      <input value={a.responsavel} onChange={e => updateAcaoRascunho(a.uid, 'responsavel', e.target.value)} placeholder="Responsável"
+                        style={{ ...input14 }} />
+                      <input type="date" value={a.data_vencimento} onChange={e => updateAcaoRascunho(a.uid, 'data_vencimento', e.target.value)}
+                        style={{ ...input14 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button onClick={save} disabled={!valid || saving} style={{ ...btnPrimary(!valid || saving), background: valid ? R : GRAY3 }}>{saving ? 'Salvando...' : 'Registrar FCA'}</button>
-            <button onClick={() => setShowNew(false)} style={btnGhost}>Cancelar</button>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+            <button onClick={save} disabled={!valid || saving} style={{ ...btnPrimary(!valid || saving), background: valid ? R : GRAY3 }}>
+              {saving ? 'Salvando...' : 'Registrar FCA'}
+            </button>
+            <button onClick={resetForm} style={btnGhost}>Cancelar</button>
           </div>
         </div>
       )}
@@ -2730,37 +2837,118 @@ function TabFCA({ entries, clienteId, onReload, canEdit }: { entries: FcaEntry[]
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {entries.map((e, i) => (
-            <div key={e.id} style={{ display: 'flex', gap: 16 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#FEE2E2', border: '2px solid #FECACA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <AlertTriangle size={14} color={R} />
-                </div>
-                {i < entries.length - 1 && <div style={{ width: 2, flex: 1, background: GRAY5, marginTop: 6 }} />}
-              </div>
-              <div style={{ ...card, flex: 1, padding: '14px 18px', marginBottom: i < entries.length - 1 ? 16 : 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <span style={{ fontSize: 12, color: GRAY3, fontWeight: 500 }}>{fmtDate(e.data)}</span>
-                  {canEdit && (
-                    <button onClick={() => deleteEntry(e.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
-                      onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </div>
-                {[
-                  { label: 'FATO',  value: e.fato,  color: R },
-                  { label: 'CAUSA', value: e.causa, color: '#92400E' },
-                  { label: 'AÇÃO',  value: e.acao,  color: '#065F46' },
-                ].map(item => (
-                  <div key={item.label} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: item.color, letterSpacing: '0.08em', marginBottom: 4 }}>{item.label}</div>
-                    <div style={{ fontSize: 13, color: GRAY1, lineHeight: 1.6 }}>{item.value}</div>
+          {entries.map((e, i) => {
+            const linkedAcoes = proximosPassos.filter(pp => pp.origem_tipo === 'fca' && pp.origem_id === e.id)
+            const pendentes   = linkedAcoes.filter(pp => !pp.concluido)
+            const concluidas  = linkedAcoes.filter(pp => pp.concluido)
+            const hasLinked   = linkedAcoes.length > 0
+
+            return (
+              <div key={e.id} style={{ display: 'flex', gap: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#FEE2E2', border: '2px solid #FECACA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <AlertTriangle size={14} color={R} />
                   </div>
-                ))}
+                  {i < entries.length - 1 && <div style={{ width: 2, flex: 1, background: GRAY5, marginTop: 6 }} />}
+                </div>
+
+                <div style={{ ...card, flex: 1, padding: '16px 18px', marginBottom: i < entries.length - 1 ? 16 : 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <span style={{ fontSize: 12, color: GRAY3, fontWeight: 500 }}>{fmtDate(e.data)}</span>
+                    {canEdit && (
+                      <button onClick={() => deleteEntry(e.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                        onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Fato + Causa */}
+                  {[
+                    { label: 'FATO',  value: e.fato,  accent: R,         bg: '#FEF2F2' },
+                    { label: 'CAUSA', value: e.causa, accent: '#92400E', bg: '#FFFBEB' },
+                  ].map(item => (
+                    <div key={item.label} style={{ borderLeft: `3px solid ${item.accent}`, paddingLeft: 10, marginBottom: 12 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: item.accent, letterSpacing: '0.08em', marginBottom: 3 }}>{item.label}</div>
+                      <div style={{ fontSize: 13, color: GRAY1, lineHeight: 1.6 }}>{item.value}</div>
+                    </div>
+                  ))}
+
+                  {/* Ações estruturadas */}
+                  <div style={{ borderLeft: `3px solid ${GREEN}`, paddingLeft: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#065F46', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        AÇÕES
+                        {linkedAcoes.length > 0 && (
+                          <span style={{ fontSize: 10, fontWeight: 600, color: GRAY3 }}>
+                            ({concluidas.length}/{linkedAcoes.length} concluídas)
+                          </span>
+                        )}
+                      </div>
+                      {canEdit && (
+                        <button onClick={() => {
+                          const desc = prompt('Nova ação:')
+                          if (!desc?.trim()) return
+                          const resp = prompt('Responsável (opcional):') || ''
+                          const data = prompt('Vencimento YYYY-MM-DD (opcional):') || ''
+                          supabase.auth.getSession().then(({ data: { session } }) => {
+                            supabase.from('proximos_passos').insert({
+                              cliente_id: clienteId, descricao: desc.trim(),
+                              responsavel: resp.trim() || null, data_vencimento: data || null,
+                              origem_tipo: 'fca', origem_id: e.id,
+                              created_by: session?.user?.email || null,
+                            }).then(() => onReload())
+                          })
+                        }} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 5, border: `1px solid ${GREEN}30`, background: '#ECFDF5', color: '#065F46', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                          <Plus size={9} /> ação
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Lista de ações */}
+                    {hasLinked ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {[...pendentes, ...concluidas].map(pp => {
+                          const overdue = !pp.concluido && pp.data_vencimento && pp.data_vencimento < hoje
+                          return (
+                            <div key={pp.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '7px 10px', borderRadius: 7, background: pp.concluido ? GRAY4 : overdue ? '#FFF5F5' : WHITE, border: `1px solid ${pp.concluido ? GRAY5 : overdue ? '#FECACA' : GRAY5}`, opacity: pp.concluido ? 0.65 : 1 }}>
+                              <button onClick={() => toggleAcao(pp)} style={{ marginTop: 1, flexShrink: 0, width: 16, height: 16, borderRadius: 4, border: pp.concluido ? 'none' : `2px solid ${overdue ? R : GRAY3}`, background: pp.concluido ? GREEN : WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                                {pp.concluido && <Check size={10} color={WHITE} />}
+                              </button>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 12, color: pp.concluido ? GRAY3 : GRAY1, textDecoration: pp.concluido ? 'line-through' : 'none', lineHeight: 1.4 }}>{pp.descricao}</div>
+                                <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
+                                  {pp.responsavel && (
+                                    <span style={{ fontSize: 10, color: GRAY3, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                      <Users size={9} /> {pp.responsavel}
+                                    </span>
+                                  )}
+                                  {pp.data_vencimento && (
+                                    <span style={{ fontSize: 10, color: overdue ? R : GRAY3, fontWeight: overdue ? 700 : 400, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                      <Calendar size={9} /> {overdue ? '⚠ ' : ''}{fmtDateBr(pp.data_vencimento)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {canEdit && !pp.concluido && (
+                                <button onClick={() => deleteAcaoPP(pp.id)} style={{ padding: 2, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, flexShrink: 0 }}
+                                  onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
+                                  <X size={11} />
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      // FCA legado sem ações estruturadas — mostra o texto original
+                      <div style={{ fontSize: 13, color: GRAY2, lineHeight: 1.6, fontStyle: 'italic' }}>{e.acao}</div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
