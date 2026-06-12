@@ -2673,11 +2673,32 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
   type AcaoRascunho = { uid: string; descricao: string; responsavel: string; data_vencimento: string }
   const emptyAcao = (): AcaoRascunho => ({ uid: Math.random().toString(36).slice(2), descricao: '', responsavel: '', data_vencimento: '' })
 
-  const [showNew, setShowNew] = useState(false)
-  const [form, setForm]       = useState({ data: new Date().toISOString().split('T')[0], fato: '', causa: '' })
-  const [acoes, setAcoes]     = useState<AcaoRascunho[]>([emptyAcao()])
-  const [saving, setSaving]   = useState(false)
+  const [showNew, setShowNew]         = useState(false)
+  const [form, setForm]               = useState({ data: new Date().toISOString().split('T')[0], fato: '', causa: '' })
+  const [acoes, setAcoes]             = useState<AcaoRascunho[]>([emptyAcao()])
+  const [saving, setSaving]           = useState(false)
+  const [addingFcaId, setAddingFcaId] = useState<string | null>(null)
+  const [inlineForm, setInlineForm]   = useState({ descricao: '', responsavel: '', data_vencimento: '' })
+  const [inlineSaving, setInlineSaving] = useState(false)
   const hoje = new Date().toISOString().slice(0, 10)
+
+  async function saveInlineAcao(fcaId: string) {
+    if (!inlineForm.descricao.trim()) return
+    setInlineSaving(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    await supabase.from('proximos_passos').insert({
+      cliente_id: clienteId,
+      descricao: inlineForm.descricao.trim(),
+      responsavel: inlineForm.responsavel.trim() || null,
+      data_vencimento: inlineForm.data_vencimento || null,
+      origem_tipo: 'fca', origem_id: fcaId,
+      created_by: session?.user?.email || null,
+    })
+    setAddingFcaId(null)
+    setInlineForm({ descricao: '', responsavel: '', data_vencimento: '' })
+    setInlineSaving(false)
+    await onReload()
+  }
 
   function addAcaoRascunho() { setAcoes(a => [...a, emptyAcao()]) }
   function removeAcaoRascunho(uid: string) { setAcoes(a => a.filter(x => x.uid !== uid)) }
@@ -2885,25 +2906,40 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
                           </span>
                         )}
                       </div>
-                      {canEdit && (
-                        <button onClick={() => {
-                          const desc = prompt('Nova ação:')
-                          if (!desc?.trim()) return
-                          const resp = prompt('Responsável (opcional):') || ''
-                          const data = prompt('Vencimento YYYY-MM-DD (opcional):') || ''
-                          supabase.auth.getSession().then(({ data: { session } }) => {
-                            supabase.from('proximos_passos').insert({
-                              cliente_id: clienteId, descricao: desc.trim(),
-                              responsavel: resp.trim() || null, data_vencimento: data || null,
-                              origem_tipo: 'fca', origem_id: e.id,
-                              created_by: session?.user?.email || null,
-                            }).then(() => onReload())
-                          })
-                        }} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 5, border: `1px solid ${GREEN}30`, background: '#ECFDF5', color: '#065F46', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                      {canEdit && addingFcaId !== e.id && (
+                        <button onClick={() => { setAddingFcaId(e.id); setInlineForm({ descricao: '', responsavel: '', data_vencimento: '' }) }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 5, border: `1px solid ${GREEN}30`, background: '#ECFDF5', color: '#065F46', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                           <Plus size={9} /> ação
                         </button>
                       )}
                     </div>
+
+                    {/* Form inline para nova ação */}
+                    {addingFcaId === e.id && (
+                      <div style={{ padding: 10, background: GRAY4, borderRadius: 8, border: `1px solid ${GRAY5}`, marginBottom: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+                          <div style={{ gridColumn: '1/-1' }}>
+                            <input autoFocus value={inlineForm.descricao} onChange={e2 => setInlineForm(f => ({ ...f, descricao: e2.target.value }))}
+                              onKeyDown={e2 => { if (e2.key === 'Enter') saveInlineAcao(e.id); if (e2.key === 'Escape') setAddingFcaId(null) }}
+                              placeholder="O que precisa ser feito? *"
+                              style={{ width: '100%', padding: '7px 10px', border: `1px solid ${GRAY5}`, borderRadius: 7, fontSize: 12, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                          </div>
+                          <input value={inlineForm.responsavel} onChange={e2 => setInlineForm(f => ({ ...f, responsavel: e2.target.value }))} placeholder="Responsável"
+                            style={{ padding: '6px 10px', border: `1px solid ${GRAY5}`, borderRadius: 7, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                          <input type="date" value={inlineForm.data_vencimento} onChange={e2 => setInlineForm(f => ({ ...f, data_vencimento: e2.target.value }))}
+                            style={{ padding: '6px 10px', border: `1px solid ${GRAY5}`, borderRadius: 7, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => saveInlineAcao(e.id)} disabled={!inlineForm.descricao.trim() || inlineSaving}
+                            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: inlineForm.descricao.trim() ? GREEN : GRAY3, color: WHITE, fontSize: 11, fontWeight: 700, cursor: inlineForm.descricao.trim() ? 'pointer' : 'not-allowed' }}>
+                            {inlineSaving ? 'Salvando...' : 'Salvar'}
+                          </button>
+                          <button onClick={() => setAddingFcaId(null)} style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 11, cursor: 'pointer' }}>
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Lista de ações */}
                     {hasLinked ? (
