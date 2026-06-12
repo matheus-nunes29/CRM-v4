@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase, CatalogoServico } from '@/lib/supabase'
 import CRMLayout from '../_components/CRMLayout'
-import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, BLUE, PURPLE } from '@/lib/crm-constants'
+import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5 } from '@/lib/crm-constants'
 import { Plus, Trash2, Check, X, Edit2, BookOpen } from 'lucide-react'
 import { toast } from '@/lib/toast'
 
@@ -15,9 +15,9 @@ const card: React.CSSProperties = {
 type Tipo = 'saber' | 'ter' | 'executar'
 
 const TIPO_CONFIG: Record<Tipo, { label: string; color: string; bg: string; border: string }> = {
-  saber:    { label: 'Saber',    color: BLUE,    bg: '#EDE9FE', border: '#DDD6FE' },
-  ter:      { label: 'Ter',      color: PURPLE,  bg: '#F5F3FF', border: '#DDD6FE' },
-  executar: { label: 'Executar', color: GREEN,   bg: '#ECFDF5', border: '#A7F3D0' },
+  saber:    { label: 'Saber',    color: R,     bg: '#FEE2E2', border: '#FECACA' },
+  ter:      { label: 'Ter',      color: R,     bg: '#FFF1F1', border: '#FED7D7' },
+  executar: { label: 'Executar', color: GREEN, bg: '#ECFDF5', border: '#A7F3D0' },
 }
 
 const VOLUME_LABELS: Record<string, string> = {
