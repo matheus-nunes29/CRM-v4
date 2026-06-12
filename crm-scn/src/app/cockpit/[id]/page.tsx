@@ -3219,9 +3219,13 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
     orcamento: '', num_campanhas: '', num_criativos: '', observacao: '',
   })
 
-  const estr      = estrategias.filter(e => e.projeto_id === projetoSel && e.mes === mesSel)
-  const totalOrc  = estr.reduce((s, e) => s + (e.orcamento || 0), 0)
-  const mesesDisp = Array.from(new Set([mesAtual, ...estrategias.filter(e => e.projeto_id === projetoSel).map(e => e.mes)])).sort((a, b) => b.localeCompare(a))
+  const projetoAtual   = projetosExec.find(p => p.id === projetoSel)
+  const orcTotal       = projetoAtual?.investimento_midia || 0   // verba cadastrada no projeto
+  const estr           = estrategias.filter(e => e.projeto_id === projetoSel && e.mes === mesSel)
+  const totalOrc       = estr.reduce((s, e) => s + (e.orcamento || 0), 0)
+  const orcRestante    = Math.max(0, orcTotal - totalOrc)
+  const pctGeral       = orcTotal > 0 ? Math.min(100, Math.round((totalOrc / orcTotal) * 100)) : 0
+  const mesesDisp      = Array.from(new Set([mesAtual, ...estrategias.filter(e => e.projeto_id === projetoSel).map(e => e.mes)])).sort((a, b) => b.localeCompare(a))
 
   function fmtMesLabel(m: string) {
     const [y, mo] = m.split('-')
@@ -3241,6 +3245,12 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
 
   async function saveEstrategia() {
     if (!modalEtapa || !form.objetivo.trim() || !form.orcamento) return
+    const novoOrc      = parseFloat(form.orcamento.replace(',', '.')) || 0
+    const orcJaAlocado = editItem ? totalOrc - editItem.orcamento : totalOrc
+    if (orcTotal > 0 && orcJaAlocado + novoOrc > orcTotal) {
+      toast.warning(`Orçamento excedido. Disponível: ${fmt(orcTotal - orcJaAlocado)}`)
+      return
+    }
     setSaving(true)
     const payload = {
       projeto_id: projetoSel, cliente_id: clienteId, mes: mesSel, etapa: modalEtapa,
@@ -3303,11 +3313,26 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
               {mesesDisp.map(m => <option key={m} value={m}>{fmtMesLabel(m)}</option>)}
             </select>
           </div>
-          {totalOrc > 0 && (
-            <div style={{ padding: '7px 14px', background: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#065F46' }}>
-              {fmt(totalOrc)} total
+          {orcTotal > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, minWidth: 200 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                <span style={{ fontSize: 11, color: GRAY3, fontWeight: 600 }}>Verba alocada</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: pctGeral >= 100 ? R : pctGeral >= 80 ? '#92400E' : '#065F46' }}>
+                  {fmt(totalOrc)} / {fmt(orcTotal)} ({pctGeral}%)
+                </span>
+              </div>
+              <div style={{ width: '100%', height: 6, background: GRAY5, borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pctGeral}%`, borderRadius: 4, background: pctGeral >= 100 ? R : pctGeral >= 80 ? '#F59E0B' : '#10B981', transition: 'width .3s' }} />
+              </div>
+              <span style={{ fontSize: 11, color: pctGeral >= 100 ? R : GRAY3 }}>
+                {pctGeral >= 100 ? 'Orçamento esgotado' : `${fmt(orcRestante)} disponível`}
+              </span>
             </div>
-          )}
+          ) : totalOrc > 0 ? (
+            <div style={{ padding: '7px 14px', background: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#065F46' }}>
+              {fmt(totalOrc)} alocado
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -3316,7 +3341,7 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
         {ETAPAS_FUNIL.map((etapa, idx) => {
           const itens    = estr.filter(e => e.etapa === etapa.key)
           const etapaOrc = itens.reduce((s, e) => s + (e.orcamento || 0), 0)
-          const pct      = totalOrc > 0 ? Math.round((etapaOrc / totalOrc) * 100) : 0
+          const pct      = orcTotal > 0 ? Math.round((etapaOrc / orcTotal) * 100) : 0
 
           return (
             <React.Fragment key={etapa.key}>
@@ -3401,9 +3426,13 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
 
       {/* Modal */}
       {modalEtapa && (() => {
-        const ec      = ETAPAS_FUNIL.find(e => e.key === modalEtapa)!
-        const sugs    = OBJETIVOS_ETAPA[modalEtapa]
-        const canSave = !!(form.objetivo.trim() && form.orcamento && !saving)
+        const ec           = ETAPAS_FUNIL.find(e => e.key === modalEtapa)!
+        const sugs         = OBJETIVOS_ETAPA[modalEtapa]
+        const novoOrc      = parseFloat(form.orcamento.replace(',', '.')) || 0
+        const orcJaAlocado = editItem ? totalOrc - editItem.orcamento : totalOrc
+        const disponivel   = orcTotal > 0 ? orcTotal - orcJaAlocado : null
+        const excede       = disponivel !== null && novoOrc > disponivel
+        const canSave      = !!(form.objetivo.trim() && form.orcamento && !saving && !excede)
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
             onClick={closeModal}>
@@ -3458,11 +3487,23 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
                 {/* Números */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div style={{ gridColumn: '1/-1' }}>
-                    <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Orçamento (R$) *</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Orçamento (R$) *</label>
+                      {disponivel !== null && (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: excede ? R : '#065F46' }}>
+                          {excede ? `Excede em ${fmt(novoOrc - disponivel)}` : `Disponível: ${fmt(disponivel)}`}
+                        </span>
+                      )}
+                    </div>
                     <input type="text" inputMode="decimal" value={form.orcamento}
                       onChange={e => setForm(f => ({ ...f, orcamento: e.target.value.replace(/[^0-9,.]/g, '') }))}
                       placeholder="0,00"
-                      style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 15, fontWeight: 700, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                      style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${excede ? R : GRAY5}`, borderRadius: 8, fontSize: 15, fontWeight: 700, color: excede ? R : GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                    {excede && (
+                      <div style={{ fontSize: 11, color: R, marginTop: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <AlertTriangle size={11} /> Valor ultrapassa a verba disponível para este mês.
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Campanhas</label>
