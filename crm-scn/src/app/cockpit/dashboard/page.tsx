@@ -98,7 +98,7 @@ export default function CSDashboard() {
       supabase.from('nps_csat').select('*').order('created_at', { ascending: false }),
       supabase.from('proximos_passos').select('*').eq('concluido', false),
       supabase.from('oportunidades').select('*').order('created_at', { ascending: false }),
-      supabase.from('registro_entregas').select('*').eq('mes', curMes),
+      supabase.from('registros_entrega').select('*').eq('mes', curMes),
       supabase.from('servicos_projeto').select('*'),
     ])
 
