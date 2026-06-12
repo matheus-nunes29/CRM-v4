@@ -98,9 +98,10 @@ const TABS = [
 type EtapaKey = 'inconsciente' | 'consciente_problema' | 'consciente_solucao' | 'consciente_produto' | 'totalmente_consciente' | 'retencao'
 type EstrategiaItem = {
   id: string; projeto_id: string; cliente_id: string; mes: string
-  etapa: EtapaKey; objetivo: string; plataforma: string; tipo: string
+  nome: string | null; etapa: EtapaKey; objetivo: string; plataforma: string; tipo: string
   orcamento: number; num_campanhas: number | null; num_criativos: number | null
-  observacao: string | null; created_at: string
+  observacao: string | null; data_inicio: string | null; data_fim: string | null
+  created_at: string
 }
 const NIVEIS_CONSCIENCIA: { key: EtapaKey; label: string; desc: string; color: string; bg: string; border: string }[] = [
   { key: 'inconsciente',          label: 'Inconsciente',           desc: 'Não sabe que tem um problema',                     color: '#374151', bg: '#F3F4F6', border: '#D1D5DB' },
@@ -3229,8 +3230,9 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
   const [saving, setSaving]         = useState(false)
   const [form, setForm] = useState({
     etapa: 'inconsciente' as EtapaKey,
-    objetivo: '', plataforma: 'Meta', tipo: 'Prospecção',
+    nome: '', objetivo: '', plataforma: 'Meta', tipo: 'Prospecção',
     orcamento: '', num_campanhas: '', num_criativos: '', observacao: '',
+    data_inicio: '', data_fim: '',
   })
 
   const projetoAtual = projetosExec.find(p => p.id === projetoSel)
@@ -3248,16 +3250,17 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
 
   function openNew() {
     setEditItem(null)
-    setForm({ etapa: 'inconsciente', objetivo: '', plataforma: 'Meta', tipo: 'Prospecção', orcamento: '', num_campanhas: '', num_criativos: '', observacao: '' })
+    setForm({ etapa: 'inconsciente', nome: '', objetivo: '', plataforma: 'Meta', tipo: 'Prospecção', orcamento: '', num_campanhas: '', num_criativos: '', observacao: '', data_inicio: '', data_fim: '' })
     setModalOpen(true)
   }
 
   function openEdit(item: EstrategiaItem) {
     setEditItem(item)
     setForm({
-      etapa: item.etapa, objetivo: item.objetivo, plataforma: item.plataforma, tipo: item.tipo,
+      etapa: item.etapa, nome: item.nome || '', objetivo: item.objetivo, plataforma: item.plataforma, tipo: item.tipo,
       orcamento: String(item.orcamento), num_campanhas: String(item.num_campanhas ?? ''),
       num_criativos: String(item.num_criativos ?? ''), observacao: item.observacao || '',
+      data_inicio: item.data_inicio || '', data_fim: item.data_fim || '',
     })
     setModalOpen(true)
   }
@@ -3275,11 +3278,14 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
     setSaving(true)
     const payload = {
       projeto_id: projetoSel, cliente_id: clienteId, mes: mesSel, etapa: form.etapa,
+      nome: form.nome.trim() || null,
       objetivo: form.objetivo.trim(), plataforma: form.plataforma, tipo: form.tipo,
       orcamento: novoOrc,
       num_campanhas: form.num_campanhas ? parseInt(form.num_campanhas) : null,
       num_criativos: form.num_criativos ? parseInt(form.num_criativos) : null,
       observacao: form.observacao || null,
+      data_inicio: form.data_inicio || null,
+      data_fim: form.data_fim || null,
     }
     if (editItem) {
       await supabase.from('estrategias_projeto').update(payload).eq('id', editItem.id)
@@ -3396,7 +3402,8 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
                     <div>
                       <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: n.bg, border: `1px solid ${n.border}`, color: n.color, letterSpacing: '0.04em', display: 'inline-block', marginBottom: 6 }}>{n.label}</span>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{item.objetivo}</div>
+                      {item.nome && <div style={{ fontSize: 13, fontWeight: 800, color: GRAY1, marginBottom: 2 }}>{item.nome}</div>}
+                      <div style={{ fontSize: 13, fontWeight: item.nome ? 500 : 700, color: item.nome ? GRAY2 : GRAY1 }}>{item.objetivo}</div>
                     </div>
                     {canEdit && (
                       <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
@@ -3421,6 +3428,14 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
                   {(item.num_campanhas || item.num_criativos) && (
                     <div style={{ fontSize: 11, color: GRAY3, marginTop: 4 }}>
                       {[item.num_campanhas && `${item.num_campanhas} campanha${item.num_campanhas !== 1 ? 's' : ''}`, item.num_criativos && `${item.num_criativos} criativo${item.num_criativos !== 1 ? 's' : ''}`].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                  {(item.data_inicio || item.data_fim) && (
+                    <div style={{ fontSize: 11, color: GRAY3, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Calendar size={10} />
+                      {item.data_inicio && fmtDate(item.data_inicio)}
+                      {item.data_inicio && item.data_fim && ' → '}
+                      {item.data_fim && fmtDate(item.data_fim)}
                     </div>
                   )}
                   {item.observacao && <div style={{ fontSize: 11, color: GRAY3, marginTop: 4, fontStyle: 'italic' }}>{item.observacao}</div>}
@@ -3453,6 +3468,28 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Nome da estratégia */}
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Nome da estratégia</label>
+                <input type="text" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+                  placeholder="Ex: Campanha de Captação Q2, Black Friday..."
+                  style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+              </div>
+
+              {/* Datas */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Data de início</label>
+                  <input type="date" value={form.data_inicio} onChange={e => setForm(f => ({ ...f, data_inicio: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Data de fim</label>
+                  <input type="date" value={form.data_fim} onChange={e => setForm(f => ({ ...f, data_fim: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                </div>
+              </div>
+
               {/* Nível de consciência */}
               <div>
                 <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Nível de consciência *</label>
