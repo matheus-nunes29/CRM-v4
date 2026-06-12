@@ -1088,11 +1088,6 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
                     )}
 
                     {p.escopo && <div style={{ fontSize: 12, color: GRAY2, lineHeight: 1.55, padding: '10px 0', borderTop: `1px solid ${GRAY5}`, marginTop: etapas.length > 0 ? 12 : 0 }}>{p.escopo}</div>}
-                    {p.tipo === 'executar' && (
-                      <button onClick={() => openEntrega(p)} style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 7, border: `1px solid ${BLUE}40`, background: `${BLUE}08`, color: BLUE, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                        <Package size={11} /> Lançar Entrega do Mês
-                      </button>
-                    )}
                     {canEdit && (
                       <button onClick={() => deleteProj(p.id)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', border: 'none', background: 'transparent', color: GRAY3, fontSize: 11, cursor: 'pointer' }}
                         onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
