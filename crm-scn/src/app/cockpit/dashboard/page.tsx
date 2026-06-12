@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase, Cliente, Projeto, HealthScoreEntry, Reuniao, FcaEntry, NpsCsat, ProximoPasso, Oportunidade } from '@/lib/supabase'
+import { supabase, Cliente, Projeto, HealthScoreEntry, Reuniao, FcaEntry, NpsCsat, ProximoPasso, Oportunidade, RegistroEntrega, ServicoProjeto } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW } from '@/lib/crm-constants'
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
@@ -72,10 +72,12 @@ const ETAPA_COLOR: Record<string, string> = {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CSDashboard() {
   const router = useRouter()
-  const [clientes, setClientes]         = useState<ClienteData[]>([])
-  const [allHs, setAllHs]               = useState<HealthScoreEntry[]>([])
-  const [oportunidades, setOportunidades] = useState<Oportunidade[]>([])
-  const [loading, setLoading]           = useState(true)
+  const [clientes, setClientes]           = useState<ClienteData[]>([])
+  const [allHs, setAllHs]                 = useState<HealthScoreEntry[]>([])
+  const [oportunidades, setOportunidades]  = useState<Oportunidade[]>([])
+  const [registros, setRegistros]          = useState<RegistroEntrega[]>([])
+  const [servicosProjeto, setServicosProjeto] = useState<ServicoProjeto[]>([])
+  const [loading, setLoading]             = useState(true)
 
   const hoje    = useMemo(() => new Date().toISOString().slice(0, 10), [])
   const mesAtual = useMemo(() => hoje.slice(0, 7), [hoje])
@@ -86,7 +88,8 @@ export default function CSDashboard() {
 
   async function loadData() {
     setLoading(true)
-    const [{ data: cl }, { data: pr }, { data: hs }, { data: re }, { data: fc }, { data: nps }, { data: pp }, { data: op }] = await Promise.all([
+    const curMes = new Date().toISOString().slice(0, 7)
+    const [{ data: cl }, { data: pr }, { data: hs }, { data: re }, { data: fc }, { data: nps }, { data: pp }, { data: op }, { data: reg }, { data: svc }] = await Promise.all([
       supabase.from('clientes').select('*'),
       supabase.from('projetos').select('*'),
       supabase.from('health_score_entries').select('*').order('semana', { ascending: false }),
@@ -95,10 +98,14 @@ export default function CSDashboard() {
       supabase.from('nps_csat').select('*').order('created_at', { ascending: false }),
       supabase.from('proximos_passos').select('*').eq('concluido', false),
       supabase.from('oportunidades').select('*').order('created_at', { ascending: false }),
+      supabase.from('registro_entregas').select('*').eq('mes', curMes),
+      supabase.from('servicos_projeto').select('*'),
     ])
 
     setAllHs(hs || [])
     setOportunidades(op || [])
+    setRegistros(reg || [])
+    setServicosProjeto(svc || [])
 
     const enriched: ClienteData[] = (cl || []).map(c => {
       const cPr  = (pr  || []).filter(p => p.cliente_id === c.id)
@@ -134,6 +141,54 @@ export default function CSDashboard() {
     const churned90  = clientes.filter(c => c.status === 'churned').length
     return { mrrTotal, mrrRisco, hsMedio, npsMedio, acoesVenc, fcaAbertos, churned90 }
   }, [ativos, clientes, hoje, cutoff90])
+
+  // ── Projetos por tipo ─────────────────────────────────────────────────────
+  const projetosPorTipo = useMemo(() => {
+    const all = ativos.flatMap(c => c.projetos.filter(p => p.status === 'ativo'))
+    const byTipo = (tipo: string) => all.filter(p => p.tipo === tipo)
+    const mrr = (list: Projeto[]) => list.filter(p => p.valor_tipo === 'mensalidade').reduce((s, p) => s + p.valor, 0)
+    const executar = byTipo('executar')
+    const saber    = byTipo('saber')
+    const ter      = byTipo('ter')
+    return {
+      executar: { count: executar.length, mrr: mrr(executar) },
+      saber:    { count: saber.length,    mrr: mrr(saber) },
+      ter:      { count: ter.length,      mrr: mrr(ter) },
+      total:    all.length,
+    }
+  }, [ativos])
+
+  // ── Volume de entregas por serviço ────────────────────────────────────────
+  const entregasPorServico = useMemo(() => {
+    const executarIds = new Set(
+      ativos.flatMap(c => c.projetos.filter(p => p.tipo === 'executar' && p.status === 'ativo').map(p => p.id))
+    )
+    const regs = registros.filter(r => executarIds.has(r.projeto_id))
+
+    // Named services (via servico_id + quantidade)
+    const byNamed: Record<string, { nome: string; total: number; unidade: string }> = {}
+    regs.forEach(r => {
+      if (r.servico_id && r.quantidade != null && r.quantidade > 0) {
+        const svc = servicosProjeto.find(s => s.id === r.servico_id)
+        const nome = svc?.nome ?? 'Serviço'
+        const unidade = svc?.unidade ?? 'un'
+        if (!byNamed[nome]) byNamed[nome] = { nome, total: 0, unidade }
+        byNamed[nome].total += r.quantidade
+      }
+    })
+
+    // Legacy columns
+    const legacy: { nome: string; total: number; unidade: string }[] = [
+      { nome: 'Campanhas', total: regs.reduce((s, r) => s + (r.campanhas ?? 0), 0), unidade: 'camp.' },
+      { nome: 'Estáticos', total: regs.reduce((s, r) => s + (r.estaticos ?? 0), 0), unidade: 'peças' },
+      { nome: 'Vídeos',    total: regs.reduce((s, r) => s + (r.videos ?? 0), 0),    unidade: 'vídeos' },
+      { nome: 'Posts',     total: regs.reduce((s, r) => s + (r.posts ?? 0), 0),     unidade: 'posts' },
+    ].filter(l => l.total > 0)
+
+    const items = [...Object.values(byNamed), ...legacy].sort((a, b) => b.total - a.total)
+    const max = Math.max(...items.map(i => i.total), 1)
+    return { items, max, regsCount: regs.length }
+  }, [registros, servicosProjeto, ativos])
 
   // ── Distribuição de risco ─────────────────────────────────────────────────
   const riskDist = useMemo(() => ({
@@ -292,6 +347,67 @@ export default function CSDashboard() {
             <div style={{ fontSize: 11, color: GRAY3 }}>{sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* ── Portfólio por tipo + Volume de Entregas ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+
+        {/* Projetos por tipo */}
+        <div style={{ ...card, padding: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 2 }}>Portfólio de Projetos</div>
+          <div style={{ fontSize: 11, color: GRAY3, marginBottom: 18 }}>Projetos ativos por tipo de produto</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
+            {([
+              { label: 'Executar', data: projetosPorTipo.executar, color: BLUE,   bg: '#EFF6FF', border: '#BFDBFE' },
+              { label: 'Saber',    data: projetosPorTipo.saber,    color: GREEN,  bg: '#ECFDF5', border: '#A7F3D0' },
+              { label: 'Ter',      data: projetosPorTipo.ter,      color: YELLOW, bg: '#FFFBEB', border: '#FDE68A' },
+            ] as const).map(({ label, data, color, bg, border }) => (
+              <div key={label} style={{ padding: '14px 16px', background: bg, borderRadius: 10, border: `1px solid ${border}`, textAlign: 'center' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</div>
+                <div style={{ fontSize: 34, fontWeight: 900, color, lineHeight: 1, marginBottom: 3 }}>{data.count}</div>
+                <div style={{ fontSize: 10, color: GRAY3, marginBottom: data.mrr > 0 ? 4 : 0 }}>
+                  {data.count === 1 ? 'projeto ativo' : 'projetos ativos'}
+                </div>
+                {data.mrr > 0 && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color }}>{fmtMRR(data.mrr)}/mês</div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: '10px 14px', background: GRAY4, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: GRAY2, fontWeight: 600 }}>Total de projetos ativos</span>
+            <span style={{ fontSize: 16, fontWeight: 900, color: GRAY1 }}>{projetosPorTipo.total}</span>
+          </div>
+        </div>
+
+        {/* Volume de Entregas */}
+        <div style={{ ...card, padding: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 2 }}>Volume de Entregas — {mesLabel}</div>
+          <div style={{ fontSize: 11, color: GRAY3, marginBottom: 18 }}>
+            Registros em projetos Executar ativos · {entregasPorServico.regsCount} registro{entregasPorServico.regsCount !== 1 ? 's' : ''} no mês
+          </div>
+          {entregasPorServico.items.length === 0 ? (
+            <div style={{ padding: '28px 0', textAlign: 'center', color: GRAY3, fontSize: 13, fontStyle: 'italic' }}>
+              Nenhuma entrega registrada este mês
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {entregasPorServico.items.map(({ nome, total, unidade }) => {
+                const pct = Math.round((total / entregasPorServico.max) * 100)
+                return (
+                  <div key={nome} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 12, color: GRAY2, width: 110, flexShrink: 0, fontWeight: 500 }}>{nome}</span>
+                    <div style={{ flex: 1, height: 8, background: GRAY5, borderRadius: 4 }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: BLUE, borderRadius: 4, opacity: 0.75, transition: 'width .4s' }} />
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: GRAY1, flexShrink: 0, minWidth: 36, textAlign: 'right' }}>{total}</span>
+                    <span style={{ fontSize: 10, color: GRAY3, flexShrink: 0, width: 38 }}>{unidade}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Risco + HS Trend ── */}
