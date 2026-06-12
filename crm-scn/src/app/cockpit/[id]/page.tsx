@@ -2640,6 +2640,15 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
   const [modalServicoId, setModalServicoId] = useState('')
   const [modalQuantidade, setModalQuantidade] = useState('1')
   const [saving, setSaving]             = useState(false)
+  const [currentUserNome, setCurrentUserNome] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user?.email) return
+      const { data } = await supabase.from('usuarios_permitidos').select('nome').eq('email', session.user.email).maybeSingle()
+      setCurrentUserNome(data?.nome || session.user.user_metadata?.full_name || session.user.email)
+    })
+  }, [])
 
   const projetosAtivos = projetos.filter(p => p.status === 'ativo' && (p.tipo === 'executar' || p.tipo === 'saber' || p.tipo === 'ter'))
   const registrosMes   = registros.filter(r => r.mes === mesSel)
@@ -2668,6 +2677,7 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
       mes: modalMes,
       data: modalForm.data || new Date().toISOString().slice(0, 10),
       observacao: modalForm.observacao || null,
+      created_by: currentUserNome || null,
     }
     if (modalProjeto.tipo === 'executar') {
       const servicos = (modalProjeto.servicos_executar || []).map(s => s.key)
@@ -2793,7 +2803,10 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
                           <Calendar size={14} color={BLUE} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: GRAY1, marginBottom: 3 }}>{fmtDate(r.data)}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: GRAY1 }}>{fmtDate(r.data)}</span>
+                            {r.created_by && <span style={{ fontSize: 11, color: GRAY3, fontWeight: 500 }}>por {r.created_by}</span>}
+                          </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
                             {svcNome && r.quantidade != null && <span style={{ fontSize: 11, color: GRAY2 }}>✔ {r.quantidade}x {svcNome}</span>}
                             {r.campanhas != null && <span style={{ fontSize: 11, color: GRAY2 }}>📢 {r.campanhas} campanha{r.campanhas !== 1 ? 's' : ''}</span>}
