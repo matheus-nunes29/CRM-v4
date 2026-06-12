@@ -2640,13 +2640,22 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
   const [modalServicoId, setModalServicoId] = useState('')
   const [modalQuantidade, setModalQuantidade] = useState('1')
   const [saving, setSaving]             = useState(false)
-  const [currentUserNome, setCurrentUserNome] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [userNomeMap, setUserNomeMap]   = useState<Record<string, string>>({})
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.user?.email) return
-      const { data } = await supabase.from('usuarios_permitidos').select('nome').eq('email', session.user.email).maybeSingle()
-      setCurrentUserNome(data?.nome || session.user.user_metadata?.full_name || session.user.email)
+      if (!session?.user) return
+      setCurrentUserId(session.user.id)
+      const { data } = await supabase.from('usuarios_permitidos').select('id, nome, email')
+      if (data) {
+        const map: Record<string, string> = {}
+        data.forEach(u => { map[u.id] = u.nome || u.email })
+        // também mapeia pelo email do session como fallback
+        const me = data.find(u => u.email === session.user.email)
+        if (me) map[session.user.id] = me.nome || me.email
+        setUserNomeMap(map)
+      }
     })
   }, [])
 
@@ -2677,7 +2686,7 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
       mes: modalMes,
       data: modalForm.data || new Date().toISOString().slice(0, 10),
       observacao: modalForm.observacao || null,
-      created_by: currentUserNome || null,
+      created_by: currentUserId || null,
     }
     if (modalProjeto.tipo === 'executar') {
       const servicos = (modalProjeto.servicos_executar || []).map(s => s.key)
@@ -2805,7 +2814,7 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                             <span style={{ fontSize: 12, fontWeight: 700, color: GRAY1 }}>{fmtDate(r.data)}</span>
-                            {r.created_by && <span style={{ fontSize: 11, color: GRAY3, fontWeight: 500 }}>por {r.created_by}</span>}
+                            {r.created_by && userNomeMap[r.created_by] && <span style={{ fontSize: 11, color: GRAY3, fontWeight: 500 }}>por {userNomeMap[r.created_by]}</span>}
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
                             {svcNome && r.quantidade != null && <span style={{ fontSize: 11, color: GRAY2 }}>✔ {r.quantidade}x {svcNome}</span>}
