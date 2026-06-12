@@ -774,6 +774,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   const [entregaForm, setEntregaForm] = useState({ campanhas: '', estaticos: '', videos: '', posts: '', data: new Date().toISOString().slice(0, 10), observacao: '' })
   const [savingEntrega, setSavingEntrega] = useState(false)
   const [editServicos, setEditServicos] = useState<{ id?: string; nome: string; quantidade_prevista: number; unidade: string }[]>([])
+  const [newServicos, setNewServicos] = useState<{ nome: string; quantidade_prevista: number; unidade: string }[]>([])
 
   function toggleServico(key: string) {
     setServicosSel(prev =>
@@ -876,7 +877,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
     }
     setSaving(true)
     const etapas = getEtapas(form.tipo, form.servico || null)
-    await supabase.from('projetos').insert({
+    const { data: newProj } = await supabase.from('projetos').insert({
       nome: form.nome, tipo: form.tipo, valor_tipo: form.valor_tipo,
       valor: fromCents(form.valor), cliente_id: clienteId,
       data_inicio: form.data_inicio || null, data_fim: form.data_fim || null,
@@ -885,10 +886,15 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
       etapa_atual: etapas[0] ?? null,
       servicos_executar: form.tipo === 'executar' && servicosSel.length > 0 ? servicosSel : null,
       investimento_midia: form.tipo === 'executar' && form.investimento_midia ? fromCents(form.investimento_midia) : null,
-    })
+    }).select().single()
+    if (newProj && (form.tipo === 'saber' || form.tipo === 'ter')) {
+      const toInsert = newServicos.filter(s => s.nome.trim()).map(s => ({ projeto_id: newProj.id, cliente_id: clienteId, nome: s.nome, quantidade_prevista: s.quantidade_prevista, unidade: s.unidade }))
+      if (toInsert.length) await supabase.from('servicos_projeto').insert(toInsert)
+    }
     setShowNew(false)
     setForm({ nome: '', tipo: 'saber', servico: '', valor_tipo: 'mensalidade', valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' })
     setServicosSel([])
+    setNewServicos([])
     await onReload(); setSaving(false)
   }
   async function updateProj() {
@@ -1381,7 +1387,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
             </div>
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Tipo</label>
-              <select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value as Projeto['tipo'], servico: '' }))} style={{ ...input14 }}>
+              <select value={form.tipo} onChange={e => { setForm(p => ({ ...p, tipo: e.target.value as Projeto['tipo'], servico: '' })); setNewServicos([]) }} style={{ ...input14 }}>
                 <option value="saber">Saber</option><option value="ter">Ter</option><option value="executar">Executar</option>
               </select>
             </div>
@@ -1485,6 +1491,37 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
               <textarea value={form.escopo} onChange={e => setForm(p => ({ ...p, escopo: e.target.value }))} rows={3} placeholder="Descreva o escopo..." style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
             </div>
           </div>
+          {(form.tipo === 'saber' || form.tipo === 'ter') && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ flex: 1, height: 1, background: GRAY5 }} />
+                <span style={{ fontSize: 10, color: GRAY3, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0 4px' }}>
+                  Serviços contratados{newServicos.length > 0 && <span style={{ marginLeft: 7, color: BLUE, background: '#EDE9FE', padding: '2px 8px', borderRadius: 10 }}>{newServicos.length}</span>}
+                </span>
+                <div style={{ flex: 1, height: 1, background: GRAY5 }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {newServicos.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input type="text" value={s.nome} onChange={e => setNewServicos(prev => prev.map((x, j) => j === i ? { ...x, nome: e.target.value } : x))} placeholder="Nome do serviço"
+                      style={{ flex: 1, padding: '8px 10px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', background: WHITE }} />
+                    <input type="number" min="1" value={s.quantidade_prevista} onChange={e => setNewServicos(prev => prev.map((x, j) => j === i ? { ...x, quantidade_prevista: parseInt(e.target.value) || 1 } : x))}
+                      style={{ width: 60, padding: '8px 10px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', background: WHITE, textAlign: 'center' }} />
+                    <input type="text" value={s.unidade} onChange={e => setNewServicos(prev => prev.map((x, j) => j === i ? { ...x, unidade: e.target.value } : x))} placeholder="entrega"
+                      style={{ width: 90, padding: '8px 10px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', background: WHITE }} />
+                    <button onClick={() => setNewServicos(prev => prev.filter((_, j) => j !== i))} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex', padding: 4, borderRadius: 6 }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                {newServicos.length > 0 && <div style={{ fontSize: 10, color: GRAY3, marginBottom: 2 }}>Nome · Qtd prevista · Unidade (ex: entrega, hora, apresentação)</div>}
+                <button onClick={() => setNewServicos(prev => [...prev, { nome: '', quantidade_prevista: 1, unidade: 'entrega' }])}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 8, border: `1.5px dashed ${GRAY5}`, background: GRAY4, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <Plus size={13} /> Adicionar serviço
+                </button>
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
             <button onClick={save} disabled={!form.nome.trim() || saving} style={btnPrimary(!form.nome.trim() || saving)}>{saving ? 'Salvando...' : 'Salvar Projeto'}</button>
             <button onClick={() => setShowNew(false)} style={btnGhost}>Cancelar</button>
