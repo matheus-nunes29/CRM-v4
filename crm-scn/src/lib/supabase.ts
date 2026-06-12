@@ -234,11 +234,14 @@ export type ServicoProjeto = {
 
 export type CatalogoServico = {
   id: string
-  tipo: 'saber' | 'ter'
+  tipo: 'saber' | 'ter' | 'executar'
   nome: string
   etapas: string[]
   ativo: boolean
   ordem: number
+  tem_volume: boolean
+  volume_type: 'campanhas' | 'posts' | 'design' | 'generic' | null
+  chave: string | null
   created_at: string
 }
 

@@ -728,8 +728,8 @@ function servicoChipLabel(s: ServicoSel, def: typeof SERVICOS_EXECUTAR[number]):
   return def.label
 }
 
-function isMissingVolume(s: ServicoSel): boolean {
-  const def = SERVICOS_EXECUTAR.find(x => x.key === s.key)
+function isMissingVolume(s: ServicoSel, list: typeof SERVICOS_EXECUTAR = SERVICOS_EXECUTAR): boolean {
+  const def = list.find(x => x.key === s.key)
   if (!def?.temVolume) return false
   if (def.volumeType === 'campanhas') return s.campanhas == null
   if (def.volumeType === 'posts')     return s.posts == null
@@ -765,6 +765,12 @@ function fmtCents(cents: string): string {
 
 function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean; catalogoServicos: CatalogoServico[] }) {
   const emptyForm = { nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' }
+
+  // Serviços Executar dinâmicos (catálogo) com fallback para lista hardcoded
+  const catExec = catalogoServicos.filter(s => s.tipo === 'executar' && s.ativo)
+  const servicosExec: typeof SERVICOS_EXECUTAR = catExec.length > 0
+    ? catExec.map(s => ({ key: s.chave || s.id, label: s.nome, temVolume: s.tem_volume, volumeType: (s.volume_type ?? undefined) as any }))
+    : SERVICOS_EXECUTAR
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [servicosSel, setServicosSel] = useState<ServicoSel[]>([])
@@ -888,7 +894,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
   async function save() {
     if (!form.nome.trim()) return
     if (form.tipo === 'executar') {
-      const missing = servicosSel.filter(isMissingVolume).map(s => SERVICOS_EXECUTAR.find(x => x.key === s.key)?.label)
+      const missing = servicosSel.filter(s => isMissingVolume(s, servicosExec)).map(s => servicosExec.find(x => x.key === s.key)?.label)
       if (missing.length) { toast.warning(`Preencha os volumes obrigatórios: ${missing.join(', ')}`); return }
     }
     setSaving(true)
@@ -916,7 +922,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
   async function updateProj() {
     if (!editForm.nome.trim() || !editId) return
     if (editForm.tipo === 'executar') {
-      const missing = editServicosSel.filter(isMissingVolume).map(s => SERVICOS_EXECUTAR.find(x => x.key === s.key)?.label)
+      const missing = editServicosSel.filter(s => isMissingVolume(s, servicosExec)).map(s => servicosExec.find(x => x.key === s.key)?.label)
       if (missing.length) { toast.warning(`Preencha os volumes obrigatórios: ${missing.join(', ')}`); return }
     }
     setSaving(true)
@@ -1007,7 +1013,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
                         {p.tipo === 'executar' && p.servicos_executar && p.servicos_executar.length > 0 && (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
                             {p.servicos_executar.map(s => {
-                              const def = SERVICOS_EXECUTAR.find(x => x.key === s.key)
+                              const def = servicosExec.find(x => x.key === s.key)
                               if (!def) return null
                               return (
                                 <span key={s.key} style={{ fontSize: 10, fontWeight: 600, color: '#065F46', background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 5, padding: '2px 7px', whiteSpace: 'nowrap' }}>
@@ -1337,7 +1343,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
                       <div style={{ flex: 1, height: 1, background: GRAY5 }} />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      {SERVICOS_EXECUTAR.map(s => {
+                      {servicosExec.map(s => {
                         const sel = editServicosSel.find(x => x.key === s.key)
                         const checked = !!sel
                         const isDesign = s.key === 'design_grafico'
@@ -1435,7 +1441,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
                   Serviços contratados {servicosSel.length > 0 && <span style={{ color: '#065F46', background: '#D1FAE5', padding: '1px 7px', borderRadius: 10, marginLeft: 6 }}>{servicosSel.length} selecionado{servicosSel.length !== 1 ? 's' : ''}</span>}
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                  {SERVICOS_EXECUTAR.map(s => {
+                  {servicosExec.map(s => {
                     const sel = servicosSel.find(x => x.key === s.key)
                     const checked = !!sel
                     const isDesign = s.key === 'design_grafico'
