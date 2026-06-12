@@ -216,7 +216,19 @@ export type RegistroEntrega = {
   videos: number | null
   posts: number | null
   observacao: string | null
+  servico_id: string | null
+  quantidade: number | null
   created_by: string | null
+  created_at: string
+}
+
+export type ServicoProjeto = {
+  id: string
+  projeto_id: string
+  cliente_id: string
+  nome: string
+  quantidade_prevista: number
+  unidade: string
   created_at: string
 }
 
