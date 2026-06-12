@@ -1419,7 +1419,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
             </div>
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Tipo</label>
-              <select value={form.tipo} onChange={e => { const t = e.target.value as Projeto['tipo']; setForm(p => ({ ...p, tipo: t, servico: '', valor_tipo: t === 'executar' ? 'mensalidade' : p.valor_tipo })); setNewServicos([]) }} style={{ ...input14 }}>
+              <select value={form.tipo} onChange={e => { const t = e.target.value as Projeto['tipo']; setForm(p => ({ ...p, tipo: t, servico: '', valor_tipo: t === 'executar' ? 'mensalidade' : 'pontual' })); setNewServicos([]) }} style={{ ...input14 }}>
                 <option value="saber">Saber</option><option value="ter">Ter</option><option value="executar">Executar</option>
               </select>
             </div>
@@ -1491,12 +1491,9 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
             )}
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Cobrança *</label>
-              {form.tipo === 'executar'
-                ? <div style={{ ...input14, background: GRAY4, color: GRAY2, display: 'flex', alignItems: 'center' }}>Mensalidade</div>
-                : <select value={form.valor_tipo} onChange={e => setForm(p => ({ ...p, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ ...input14 }}>
-                    <option value="mensalidade">Mensalidade</option><option value="pontual">Pontual</option>
-                  </select>
-              }
+              <div style={{ ...input14, background: GRAY4, color: GRAY2, display: 'flex', alignItems: 'center' }}>
+                {form.tipo === 'executar' ? 'Mensalidade' : 'Pontual'}
+              </div>
             </div>
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$) *</label>
