@@ -94,7 +94,6 @@ const TABS = [
   { id: 'oportunidades', label: 'Oportunidades',   icon: Package },
   { id: 'fca',           label: 'FCA',             icon: AlertTriangle },
   { id: 'timeline',      label: 'Linha do Tempo',  icon: GitBranch },
-  { id: 'acoes',         label: 'Ações',           icon: CheckSquare },
 ]
 
 // ── Estratégia: tipos e config ────────────────────────────────────────────────
@@ -446,7 +445,6 @@ export default function ClienteCockpitPage() {
         {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} proximosPassos={proximosPassos} />}
         {tab === 'timeline'      && <TabTimeline      reunioes={reunioes} registrosEntrega={registrosEntrega} healthEntries={healthEntries} fcaEntries={fcaEntries} oportunidades={oportunidades} npsCsat={npsCsat} proximosPassos={proximosPassos} projetos={projetos} />}
-        {tab === 'acoes'         && <TabAcoes         proximosPassos={proximosPassos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} projetos={projetos} />}
       </div>
 
       {/* NPS Modal */}
@@ -2680,7 +2678,6 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
   const [addingFcaId, setAddingFcaId] = useState<string | null>(null)
   const [inlineForm, setInlineForm]   = useState({ descricao: '', responsavel: '', data_vencimento: '' })
   const [inlineSaving, setInlineSaving] = useState(false)
-  const [showResolvidos, setShowResolvidos] = useState(false)
   const hoje = new Date().toISOString().slice(0, 10)
 
   async function saveInlineAcao(fcaId: string) {
@@ -2794,12 +2791,6 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {entries.some(e => e.resolvido) && (
-            <button onClick={() => setShowResolvidos(v => !v)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: `1px solid ${GRAY5}`, background: showResolvidos ? GRAY4 : WHITE, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              <Check size={12} /> {showResolvidos ? 'Ocultar resolvidos' : 'Ver resolvidos'}
-            </button>
-          )}
           {canEdit && (
             <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid #FECACA`, background: showNew ? '#FEE2E2' : '#FEF2F2', color: '#991B1B', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               <AlertTriangle size={13} /> Registrar FCA
@@ -2873,14 +2864,14 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
         </div>
       )}
 
-      {entries.filter(e => !e.resolvido).length === 0 && !showNew ? (
+      {entries.length === 0 && !showNew ? (
         <div style={{ ...card, padding: '48px 0', textAlign: 'center' }}>
           <AlertTriangle size={32} color={GRAY3} style={{ marginBottom: 12, opacity: 0.4 }} />
           <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum FCA em aberto — ótimo sinal!</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {entries.filter(e => showResolvidos ? true : !e.resolvido).map((e, i, arr) => {
+          {entries.map((e, i, arr) => {
             const linkedAcoes = proximosPassos.filter(pp => pp.origem_tipo === 'fca' && pp.origem_id === e.id)
             const pendentes   = linkedAcoes.filter(pp => !pp.concluido)
             const concluidas  = linkedAcoes.filter(pp => pp.concluido)
@@ -4429,174 +4420,3 @@ function TabTimeline({ reunioes, registrosEntrega, healthEntries, fcaEntries, op
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// TAB: AÇÕES (PRÓXIMOS PASSOS)
-// ══════════════════════════════════════════════════════════════════════════════
-function TabAcoes({ proximosPassos, clienteId, onReload, canEdit, projetos }: {
-  proximosPassos: ProximoPasso[]; clienteId: string; onReload: () => void
-  canEdit: boolean; projetos: Projeto[]
-}) {
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ descricao: '', responsavel: '', data_vencimento: '' })
-  const [saving, setSaving] = useState(false)
-  const hoje = new Date().toISOString().slice(0, 10)
-
-  async function addAcao() {
-    if (!form.descricao.trim()) return
-    setSaving(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    await supabase.from('proximos_passos').insert({
-      cliente_id: clienteId,
-      descricao: form.descricao.trim(),
-      responsavel: form.responsavel.trim() || null,
-      data_vencimento: form.data_vencimento || null,
-      created_by: session?.user?.email || null,
-    })
-    setForm({ descricao: '', responsavel: '', data_vencimento: '' })
-    setShowForm(false)
-    setSaving(false)
-    await onReload()
-  }
-
-  async function toggleConcluido(pp: ProximoPasso) {
-    const now = new Date().toISOString()
-    await supabase.from('proximos_passos').update({
-      concluido: !pp.concluido,
-      concluido_at: !pp.concluido ? now : null,
-    }).eq('id', pp.id)
-    await onReload()
-  }
-
-  async function deleteAcao(id: string) {
-    if (!await confirmDialog.show({ title: 'Excluir ação?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true })) return
-    await supabase.from('proximos_passos').delete().eq('id', id)
-    await onReload()
-  }
-
-  const pendentes  = proximosPassos.filter(p => !p.concluido)
-  const concluidas = proximosPassos.filter(p => p.concluido)
-
-  function isOverdue(pp: ProximoPasso) {
-    return !pp.concluido && pp.data_vencimento && pp.data_vencimento < hoje
-  }
-
-  function fmtDateBr(s: string | null) {
-    if (!s) return ''
-    const [y, m, d] = s.split('-')
-    return `${d}/${m}/${y}`
-  }
-
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>Próximos Passos</div>
-          <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>
-            {pendentes.length} pendente{pendentes.length !== 1 ? 's' : ''} · {concluidas.length} concluída{concluidas.length !== 1 ? 's' : ''}
-          </div>
-        </div>
-        {canEdit && (
-          <button onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
-            <Plus size={14} /> Nova ação
-          </button>
-        )}
-      </div>
-
-      {/* Formulário */}
-      {showForm && (
-        <div style={{ ...card, padding: 18, marginBottom: 20, border: `1px solid ${R}30` }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
-            <div style={{ gridColumn: '1/-1' }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: GRAY2, display: 'block', marginBottom: 5 }}>Descrição *</label>
-              <input autoFocus value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} placeholder="O que precisa ser feito?"
-                style={{ ...input14 }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: GRAY2, display: 'block', marginBottom: 5 }}>Responsável</label>
-              <input value={form.responsavel} onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))} placeholder="Nome ou cargo"
-                style={{ ...input14 }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: GRAY2, display: 'block', marginBottom: 5 }}>Vencimento</label>
-              <input type="date" value={form.data_vencimento} onChange={e => setForm(f => ({ ...f, data_vencimento: e.target.value }))}
-                style={{ ...input14 }} />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={addAcao} disabled={!form.descricao.trim() || saving} style={btnPrimary(!form.descricao.trim() || saving)}>
-              {saving ? 'Salvando...' : 'Adicionar'}
-            </button>
-            <button onClick={() => { setShowForm(false); setForm({ descricao: '', responsavel: '', data_vencimento: '' }) }} style={btnGhost}>Cancelar</button>
-          </div>
-        </div>
-      )}
-
-      {/* Pendentes */}
-      {pendentes.length === 0 && !showForm && (
-        <div style={{ ...card, padding: '40px 24px', textAlign: 'center', marginBottom: 16 }}>
-          <CheckSquare size={28} color={GRAY3} style={{ margin: '0 auto 10px' }} />
-          <div style={{ fontSize: 14, color: GRAY2 }}>Nenhuma ação pendente</div>
-          {canEdit && <div style={{ fontSize: 12, color: GRAY3, marginTop: 4 }}>Clique em "Nova ação" para adicionar</div>}
-        </div>
-      )}
-
-      {pendentes.length > 0 && (
-        <div style={{ ...card, overflow: 'hidden', marginBottom: 20 }}>
-          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${GRAY5}`, fontSize: 11, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Pendentes</div>
-          {pendentes.map((pp, i) => {
-            const overdue = isOverdue(pp)
-            return (
-              <div key={pp.id} style={{ padding: '12px 16px', borderBottom: i < pendentes.length - 1 ? `1px solid ${GRAY5}` : 'none', display: 'flex', alignItems: 'flex-start', gap: 12, background: overdue ? '#FFF5F5' : WHITE }}>
-                <button onClick={() => toggleConcluido(pp)} style={{ marginTop: 2, padding: 0, border: `2px solid ${overdue ? R : GRAY5}`, borderRadius: 5, background: WHITE, cursor: 'pointer', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Check size={11} color={GRAY3} />
-                </button>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: overdue ? R : GRAY1 }}>{pp.descricao}</div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-                    {pp.responsavel && (
-                      <span style={{ fontSize: 11, color: GRAY3, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Users size={10} /> {pp.responsavel}
-                      </span>
-                    )}
-                    {pp.data_vencimento && (
-                      <span style={{ fontSize: 11, color: overdue ? R : GRAY3, fontWeight: overdue ? 700 : 400, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Calendar size={10} /> {overdue ? '⚠ ' : ''}{fmtDateBr(pp.data_vencimento)}
-                      </span>
-                    )}
-                    {pp.origem_tipo && (
-                      <span style={{ fontSize: 11, color: GRAY3 }}>via {pp.origem_tipo}</span>
-                    )}
-                  </div>
-                </div>
-                {canEdit && (
-                  <button onClick={() => deleteAcao(pp.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, flexShrink: 0 }}
-                    onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                    <Trash2 size={13} />
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Concluídas */}
-      {concluidas.length > 0 && (
-        <div style={{ ...card, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${GRAY5}`, fontSize: 11, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Concluídas</div>
-          {concluidas.slice(0, 10).map((pp, i) => (
-            <div key={pp.id} style={{ padding: '10px 16px', borderBottom: i < Math.min(concluidas.length, 10) - 1 ? `1px solid ${GRAY5}` : 'none', display: 'flex', alignItems: 'flex-start', gap: 12, opacity: 0.7 }}>
-              <button onClick={() => toggleConcluido(pp)} style={{ marginTop: 2, padding: 0, border: 'none', background: GREEN, borderRadius: 5, cursor: 'pointer', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Check size={11} color={WHITE} />
-              </button>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, color: GRAY2, textDecoration: 'line-through' }}>{pp.descricao}</div>
-                {pp.responsavel && <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>{pp.responsavel}</div>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
