@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
+import { confirmDialog } from '@/lib/confirmDialog'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(v: number) { return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` }
@@ -959,7 +960,11 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
     const next = p.status === 'ativo' ? 'pausado' : p.status === 'pausado' ? 'encerrado' : 'ativo'
     await supabase.from('projetos').update({ status: next }).eq('id', p.id); await onReload()
   }
-  async function deleteProj(id: string) { await supabase.from('projetos').delete().eq('id', id); await onReload() }
+  async function deleteProj(id: string) {
+    const ok = await confirmDialog.show({ title: 'Excluir projeto?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true })
+    if (!ok) return
+    await supabase.from('projetos').delete().eq('id', id); await onReload()
+  }
   async function setEtapa(id: string, etapa: string) {
     await supabase.from('projetos').update({ etapa_atual: etapa }).eq('id', id); await onReload()
   }
@@ -2057,7 +2062,7 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
   }
 
   async function deleteObjetivo(id: string) {
-    if (!confirm('Excluir este objetivo? Todos os resultados semanais serão perdidos.')) return
+    if (!await confirmDialog.show({ title: 'Excluir objetivo?', message: 'Todos os resultados semanais vinculados serão perdidos.', confirmLabel: 'Excluir', danger: true })) return
     await supabase.from('resultados_semanais').delete().eq('objetivo_id', id)
     await supabase.from('objetivos_mensais').delete().eq('id', id)
     await onReload()
@@ -2706,7 +2711,7 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
   }
 
   async function deleteRegistro(id: string) {
-    if (!confirm('Excluir este lançamento?')) return
+    if (!await confirmDialog.show({ title: 'Excluir lançamento?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true })) return
     await supabase.from('registros_entrega').delete().eq('id', id)
     await onReload()
   }
@@ -3014,7 +3019,7 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
   }
 
   async function remove(id: string) {
-    if (!confirm('Excluir esta reunião?')) return
+    if (!await confirmDialog.show({ title: 'Excluir reunião?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true })) return
     await supabase.from('reunioes').delete().eq('id', id)
     await onReload()
   }

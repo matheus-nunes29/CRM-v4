@@ -5,6 +5,7 @@ import CRMLayout from '../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5 } from '@/lib/crm-constants'
 import { Plus, Trash2, Check, X, Edit2, BookOpen } from 'lucide-react'
 import { toast } from '@/lib/toast'
+import { confirmDialog } from '@/lib/confirmDialog'
 
 const GREEN = '#065F46'
 const card: React.CSSProperties = {
@@ -194,7 +195,7 @@ export default function CatalogoPage() {
   }
 
   async function deleteServico(id: string) {
-    if (!confirm('Excluir este serviço? Projetos existentes não serão afetados.')) return
+    if (!await confirmDialog.show({ title: 'Excluir serviço?', message: 'Projetos existentes não serão afetados.', confirmLabel: 'Excluir', danger: true })) return
     await supabase.from('catalogo_servicos').delete().eq('id', id)
     await load(); toast.success('Serviço removido.')
   }
