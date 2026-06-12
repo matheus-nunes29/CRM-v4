@@ -1066,21 +1066,20 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
                           {etapas.map((etapa, idx) => {
                             const isDone    = idx < etapaIdx
                             const isCurrent = idx === etapaIdx
-                            const color     = isCurrent ? t.color : isDone ? '#10B981' : GRAY3
-                            const bg        = isCurrent ? `${t.color}12` : isDone ? '#F0FDF4' : GRAY4
-                            const border    = isCurrent ? `${t.color}40` : isDone ? '#BBF7D0' : GRAY5
+                            const isGreen   = isDone || isCurrent
+                            const color     = isGreen ? '#059669' : GRAY3
+                            const bg        = isCurrent ? '#D1FAE5' : isDone ? '#F0FDF4' : GRAY4
+                            const border    = isGreen ? '#6EE7B7' : GRAY5
                             return (
                               <button key={etapa} onClick={canEdit ? () => setEtapa(p.id, etapa) : undefined}
                                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, border: `1px solid ${border}`, background: bg, cursor: canEdit ? 'pointer' : 'default', textAlign: 'left', width: '100%', transition: 'all .15s' }}
-                                onMouseEnter={canEdit ? e => { if (!isCurrent) (e.currentTarget as HTMLElement).style.borderColor = t.color } : undefined}
+                                onMouseEnter={canEdit ? e => { if (!isCurrent && !isDone) (e.currentTarget as HTMLElement).style.borderColor = '#10B981' } : undefined}
                                 onMouseLeave={canEdit ? e => { (e.currentTarget as HTMLElement).style.borderColor = border } : undefined}
                               >
-                                <div style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, background: isCurrent ? t.color : isDone ? '#10B981' : GRAY5, border: `2px solid ${isCurrent ? t.color : isDone ? '#10B981' : GRAY3}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  {isDone && <Check size={9} color={WHITE} strokeWidth={3} />}
-                                  {isCurrent && <div style={{ width: 6, height: 6, borderRadius: '50%', background: WHITE }} />}
+                                <div style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, background: isGreen ? '#10B981' : GRAY5, border: `2px solid ${isGreen ? '#10B981' : GRAY3}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {isGreen && <Check size={9} color={WHITE} strokeWidth={3} />}
                                 </div>
                                 <span style={{ fontSize: 12, fontWeight: isCurrent ? 700 : 500, color }}>{etapa}</span>
-                                {isCurrent && <span style={{ marginLeft: 'auto', fontSize: 10, color: t.color, fontWeight: 700 }}>EM ANDAMENTO</span>}
                               </button>
                             )
                           })}
