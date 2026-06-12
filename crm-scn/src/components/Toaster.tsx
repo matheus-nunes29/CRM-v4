@@ -14,9 +14,12 @@ export function Toaster() {
   useEffect(() => {
     toast._register((msg, type, options) => {
       const id = ++_nextId
-      const duration = options?.duration ?? (type === 'warning' ? 7000 : 4000)
+      // warnings não têm auto-dismiss — só fecham pelo X
+      if (type !== 'warning') {
+        const duration = options?.duration ?? 4000
+        setTimeout(() => setItems(prev => prev.filter(t => t.id !== id)), duration)
+      }
       setItems(prev => [...prev, { id, msg, type, action: options?.action }])
-      setTimeout(() => setItems(prev => prev.filter(t => t.id !== id)), duration)
     })
     return () => toast._unregister()
   }, [])
@@ -24,46 +27,54 @@ export function Toaster() {
   const warnings = items.filter(t => t.type === 'warning')
   const toasts   = items.filter(t => t.type !== 'warning')
 
+  const dismiss = (id: number) => setItems(prev => prev.filter(t => t.id !== id))
+
   return (
     <>
-      {/* Warnings — centro da tela, grande e chamativo */}
+      {/* Backdrop + Warning — bloqueia toda interação enquanto aberto */}
       {warnings.length > 0 && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 99999,
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          paddingTop: 60, pointerEvents: 'none',
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, pointerEvents: 'all', width: '100%', maxWidth: 540, padding: '0 16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 520 }}>
             {warnings.map(t => (
               <div key={t.id} style={{
-                display: 'flex', alignItems: 'flex-start', gap: 16,
-                padding: '20px 22px',
-                borderRadius: 16,
+                display: 'flex', alignItems: 'flex-start', gap: 18,
+                padding: '24px 26px',
+                borderRadius: 18,
                 background: '#FFFBEB',
                 border: '2px solid #F59E0B',
-                boxShadow: '0 8px 40px rgba(245,158,11,.35), 0 2px 12px rgba(0,0,0,.12)',
-                animation: 'warnSlideDown .25s cubic-bezier(0.34,1.56,0.64,1)',
+                boxShadow: '0 20px 60px rgba(0,0,0,.35), 0 0 0 4px rgba(245,158,11,.2)',
+                animation: 'warnPop .28s cubic-bezier(0.34,1.56,0.64,1)',
               }}>
                 <div style={{
-                  width: 44, height: 44, borderRadius: 12,
+                  width: 52, height: 52, borderRadius: 14,
                   background: '#FEF3C7', border: '2px solid #F59E0B',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <AlertTriangle size={24} color="#D97706" strokeWidth={2.5} />
+                  <AlertTriangle size={28} color="#D97706" strokeWidth={2.5} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>
-                    Atenção
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 6 }}>
+                    Atenção — ação necessária
                   </div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#78350F', lineHeight: 1.45 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#78350F', lineHeight: 1.5 }}>
                     {t.msg}
                   </div>
                 </div>
                 <button
-                  onClick={() => setItems(prev => prev.filter(x => x.id !== t.id))}
-                  style={{ background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 8, cursor: 'pointer', color: '#D97706', padding: '4px 6px', display: 'flex', flexShrink: 0, marginTop: 2 }}
+                  onClick={() => dismiss(t.id)}
+                  style={{
+                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                    background: '#FEF3C7', border: '1.5px solid #F59E0B',
+                    cursor: 'pointer', color: '#D97706',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
                 >
-                  <X size={15} />
+                  <X size={16} strokeWidth={2.5} />
                 </button>
               </div>
             ))}
@@ -98,17 +109,14 @@ export function Toaster() {
                 <span style={{ fontSize: 13, fontWeight: 600, color: colors.text, flex: 1, lineHeight: 1.4 }}>{t.msg}</span>
                 {t.action && (
                   <button
-                    onClick={() => {
-                      t.action!.onClick()
-                      setItems(prev => prev.filter(x => x.id !== t.id))
-                    }}
+                    onClick={() => { t.action!.onClick(); dismiss(t.id) }}
                     style={{ background: 'none', border: `1px solid ${colors.action}40`, borderRadius: 6, cursor: 'pointer', color: colors.action, padding: '3px 10px', fontSize: 12, fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap' }}
                   >
                     {t.action.label}
                   </button>
                 )}
                 <button
-                  onClick={() => setItems(prev => prev.filter(x => x.id !== t.id))}
+                  onClick={() => dismiss(t.id)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.icon, padding: 2, display: 'flex', flexShrink: 0 }}
                 >
                   <X size={13} />
@@ -120,8 +128,8 @@ export function Toaster() {
       )}
 
       <style>{`
-        @keyframes slideIn { from { opacity:0; transform:translateX(20px) } to { opacity:1; transform:translateX(0) } }
-        @keyframes warnSlideDown { from { opacity:0; transform:translateY(-24px) scale(.97) } to { opacity:1; transform:translateY(0) scale(1) } }
+        @keyframes slideIn  { from { opacity:0; transform:translateX(20px) }           to { opacity:1; transform:translateX(0) } }
+        @keyframes warnPop  { from { opacity:0; transform:scale(.92) }                 to { opacity:1; transform:scale(1) } }
       `}</style>
     </>
   )
