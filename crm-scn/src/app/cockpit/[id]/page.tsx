@@ -2766,6 +2766,21 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
           const metaVideos    = hasDesign ? (sv.find(s => s.key === 'design_grafico')?.videos    ?? 0) : 0
           const metaPosts     = hasSocial ? (sv.find(s => s.key === 'social_media')?.posts      ?? 0) : 0
 
+          // Itens que excederam a meta no mês selecionado
+          const overages: string[] = []
+          if (isExec) {
+            if (hasMidia  && metaCampanhas > 0 && soma(regsProj, 'campanhas') > metaCampanhas) overages.push(`Campanhas (${soma(regsProj, 'campanhas')} / meta ${metaCampanhas})`)
+            if (hasDesign && metaEstaticos > 0 && soma(regsProj, 'estaticos') > metaEstaticos) overages.push(`Estáticos (${soma(regsProj, 'estaticos')} / meta ${metaEstaticos})`)
+            if (hasDesign && metaVideos    > 0 && soma(regsProj, 'videos')    > metaVideos)    overages.push(`Vídeos (${soma(regsProj, 'videos')} / meta ${metaVideos})`)
+            if (hasSocial && metaPosts     > 0 && soma(regsProj, 'posts')     > metaPosts)     overages.push(`Posts (${soma(regsProj, 'posts')} / meta ${metaPosts})`)
+          } else {
+            projSvcs.forEach(svc => {
+              const entregues = regsProj.filter(r => r.servico_id === svc.id).reduce((s, r) => s + (r.quantidade || 0), 0)
+              if (svc.quantidade_prevista > 0 && entregues > svc.quantidade_prevista)
+                overages.push(`${svc.nome} (${entregues} / meta ${svc.quantidade_prevista})`)
+            })
+          }
+
           return (
             <div key={p.id} style={{ ...card, padding: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -2802,6 +2817,19 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
               )}
               {!isExec && projSvcs.length === 0 && (
                 <div style={{ fontSize: 12, color: GRAY3, padding: '8px 0 12px', fontStyle: 'italic' }}>Nenhum serviço cadastrado. Edite o projeto para adicionar serviços.</div>
+              )}
+
+              {/* Warning: entregas acima da meta */}
+              {overages.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 10, marginBottom: 16 }}>
+                  <AlertTriangle size={15} color="#92400E" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 3 }}>Entregas acima do previsto em {fmtMesLabel(mesSel)}</div>
+                    <div style={{ fontSize: 11, color: '#92400E', lineHeight: 1.6 }}>
+                      {overages.join(' · ')}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* Registros do mês */}
