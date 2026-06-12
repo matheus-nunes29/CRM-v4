@@ -118,7 +118,7 @@ export type Projeto = {
   cliente_id: string
   nome: string
   tipo: 'saber' | 'ter' | 'executar'
-  status: 'ativo' | 'pausado' | 'encerrado'
+  status: 'ativo' | 'pausado' | 'encerrado' | 'entregue'
   valor_tipo: 'pontual' | 'mensalidade'
   valor: number
   data_inicio: string | null

@@ -922,6 +922,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
     ativo:     { color: '#065F46', bg: '#D1FAE5', border: '#A7F3D0', label: 'Ativo' },
     pausado:   { color: '#92400E', bg: '#FEF3C7', border: '#FDE68A', label: 'Pausado' },
     encerrado: { color: '#6B7280', bg: GRAY4,     border: GRAY5,     label: 'Encerrado' },
+    entregue:  { color: '#1D4ED8', bg: '#DBEAFE', border: '#93C5FD', label: 'Entregue' },
   }
 
   async function save() {
@@ -990,15 +991,23 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
   }
   async function toggleStatus(p: Projeto) {
     const next = p.status === 'ativo' ? 'pausado' : p.status === 'pausado' ? 'encerrado' : 'ativo'
-    await supabase.from('projetos').update({ status: next }).eq('id', p.id); await onReload()
+    await supabase.from('projetos').update({ status: next }).eq('id', p.id)
+    await onReload()
   }
   async function deleteProj(id: string) {
     const ok = await confirmDialog.show({ title: 'Excluir projeto?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true })
     if (!ok) return
     await supabase.from('projetos').delete().eq('id', id); await onReload()
   }
-  async function setEtapa(id: string, etapa: string) {
-    await supabase.from('projetos').update({ etapa_atual: etapa }).eq('id', id); await onReload()
+  async function setEtapa(id: string, etapa: string, p: Projeto) {
+    const etapas = getEtapasDyn(p.tipo, p.servico)
+    const isLastEtapa = etapa === etapas[etapas.length - 1]
+    const shouldMarkEntregue = isLastEtapa && (p.tipo === 'saber' || p.tipo === 'ter')
+    await supabase.from('projetos').update({
+      etapa_atual: etapa,
+      ...(shouldMarkEntregue ? { status: 'entregue' } : {}),
+    }).eq('id', id)
+    await onReload()
   }
 
   const totalMRR     = projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
@@ -1112,7 +1121,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
                             const bg        = isCurrent ? '#D1FAE5' : isDone ? '#F0FDF4' : GRAY4
                             const border    = isGreen ? '#6EE7B7' : GRAY5
                             return (
-                              <button key={etapa} onClick={canEdit ? () => setEtapa(p.id, etapa) : undefined}
+                              <button key={etapa} onClick={canEdit ? () => setEtapa(p.id, etapa, p) : undefined}
                                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, border: `1px solid ${border}`, background: bg, cursor: canEdit ? 'pointer' : 'default', textAlign: 'left', width: '100%', transition: 'all .15s' }}
                                 onMouseEnter={canEdit ? e => { if (!isCurrent && !isDone) (e.currentTarget as HTMLElement).style.borderColor = '#10B981' } : undefined}
                                 onMouseLeave={canEdit ? e => { (e.currentTarget as HTMLElement).style.borderColor = border } : undefined}
