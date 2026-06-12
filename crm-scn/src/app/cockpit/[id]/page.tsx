@@ -3322,7 +3322,18 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
   const orcJaAlocado = editItem ? totalOrc - editItem.orcamento : totalOrc
   const disponivel   = orcTotal > 0 ? orcTotal - orcJaAlocado : null
   const excede       = disponivel !== null && novoOrcModal > disponivel
-  const canSave      = !!(form.objetivo.trim() && form.orcamento && !saving && !excede)
+
+  // data_fim máxima = último dia do mês selecionado
+  const [mesSelY, mesSelM] = mesSel.split('-').map(Number)
+  const dataFimMax = `${mesSelY}-${String(mesSelM).padStart(2, '0')}-${String(new Date(mesSelY, mesSelM, 0).getDate()).padStart(2, '0')}`
+  const dataFimInvalida = !!(form.data_fim && form.data_fim > dataFimMax)
+
+  const canSave = !!(
+    form.nome.trim() && form.objetivo.trim() && form.orcamento &&
+    form.data_inicio && form.data_fim && !dataFimInvalida &&
+    form.num_campanhas && form.num_criativos &&
+    !saving && !excede
+  )
 
   return (
     <div>
@@ -3470,23 +3481,25 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {/* Nome da estratégia */}
               <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Nome da estratégia</label>
+                <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Nome da estratégia *</label>
                 <input type="text" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
                   placeholder="Ex: Campanha de Captação Q2, Black Friday..."
-                  style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${!form.nome.trim() ? '#FECACA' : GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
               </div>
 
               {/* Datas */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Data de início</label>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Data de início *</label>
                   <input type="date" value={form.data_inicio} onChange={e => setForm(f => ({ ...f, data_inicio: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${!form.data_inicio ? '#FECACA' : GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Data de fim</label>
-                  <input type="date" value={form.data_fim} onChange={e => setForm(f => ({ ...f, data_fim: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Data de fim * <span style={{ fontSize: 9, color: GRAY3, fontWeight: 500 }}>(até {fmtDate(dataFimMax)})</span></label>
+                  <input type="date" value={form.data_fim} max={dataFimMax}
+                    onChange={e => setForm(f => ({ ...f, data_fim: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${!form.data_fim ? '#FECACA' : dataFimInvalida ? R : GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  {dataFimInvalida && <div style={{ fontSize: 11, color: R, marginTop: 4 }}>Deve ser dentro do mês {fmtMesLabel(mesSel)}</div>}
                 </div>
               </div>
 
@@ -3565,14 +3578,14 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
                   )}
                 </div>
                 <div>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Campanhas</label>
-                  <input type="number" min="1" value={form.num_campanhas} onChange={e => setForm(f => ({ ...f, num_campanhas: e.target.value }))} placeholder="—"
-                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Campanhas *</label>
+                  <input type="number" min="1" value={form.num_campanhas} onChange={e => setForm(f => ({ ...f, num_campanhas: e.target.value }))} placeholder="0"
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${!form.num_campanhas ? '#FECACA' : GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Criativos</label>
-                  <input type="number" min="1" value={form.num_criativos} onChange={e => setForm(f => ({ ...f, num_criativos: e.target.value }))} placeholder="—"
-                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Criativos *</label>
+                  <input type="number" min="1" value={form.num_criativos} onChange={e => setForm(f => ({ ...f, num_criativos: e.target.value }))} placeholder="0"
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${!form.num_criativos ? '#FECACA' : GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
                 </div>
                 <div style={{ gridColumn: '1/-1' }}>
                   <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Observação</label>
