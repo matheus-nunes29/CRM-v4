@@ -146,14 +146,14 @@ export default function CSDashboard() {
   const projetosPorTipo = useMemo(() => {
     const all = ativos.flatMap(c => c.projetos.filter(p => p.status === 'ativo'))
     const byTipo = (tipo: string) => all.filter(p => p.tipo === tipo)
-    const mrr = (list: Projeto[]) => list.filter(p => p.valor_tipo === 'mensalidade').reduce((s, p) => s + p.valor, 0)
+    const totalValor = (list: Projeto[]) => list.reduce((s, p) => s + p.valor, 0)
     const executar = byTipo('executar')
     const saber    = byTipo('saber')
     const ter      = byTipo('ter')
     return {
-      executar: { count: executar.length, mrr: mrr(executar) },
-      saber:    { count: saber.length,    mrr: mrr(saber) },
-      ter:      { count: ter.length,      mrr: mrr(ter) },
+      executar: { count: executar.length, valor: executar.filter(p => p.valor_tipo === 'mensalidade').reduce((s, p) => s + p.valor, 0), labelValor: '/mês' },
+      saber:    { count: saber.length,    valor: totalValor(saber),    labelValor: ' total' },
+      ter:      { count: ter.length,      valor: totalValor(ter),      labelValor: ' total' },
       total:    all.length,
     }
   }, [ativos])
@@ -358,18 +358,18 @@ export default function CSDashboard() {
           <div style={{ fontSize: 11, color: GRAY3, marginBottom: 18 }}>Projetos ativos por tipo de produto</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
             {([
-              { label: 'Executar', data: projetosPorTipo.executar, color: BLUE,   bg: '#EFF6FF', border: '#BFDBFE' },
-              { label: 'Saber',    data: projetosPorTipo.saber,    color: GREEN,  bg: '#ECFDF5', border: '#A7F3D0' },
-              { label: 'Ter',      data: projetosPorTipo.ter,      color: YELLOW, bg: '#FFFBEB', border: '#FDE68A' },
+              { label: 'Executar', data: projetosPorTipo.executar, color: BLUE,   bg: '#EFF6FF', border: '#BFDBFE' } as const,
+              { label: 'Saber',    data: projetosPorTipo.saber,    color: GREEN,  bg: '#ECFDF5', border: '#A7F3D0' } as const,
+              { label: 'Ter',      data: projetosPorTipo.ter,      color: YELLOW, bg: '#FFFBEB', border: '#FDE68A' } as const,
             ] as const).map(({ label, data, color, bg, border }) => (
               <div key={label} style={{ padding: '14px 16px', background: bg, borderRadius: 10, border: `1px solid ${border}`, textAlign: 'center' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</div>
                 <div style={{ fontSize: 34, fontWeight: 900, color, lineHeight: 1, marginBottom: 3 }}>{data.count}</div>
-                <div style={{ fontSize: 10, color: GRAY3, marginBottom: data.mrr > 0 ? 4 : 0 }}>
+                <div style={{ fontSize: 10, color: GRAY3, marginBottom: data.valor > 0 ? 4 : 0 }}>
                   {data.count === 1 ? 'projeto ativo' : 'projetos ativos'}
                 </div>
-                {data.mrr > 0 && (
-                  <div style={{ fontSize: 11, fontWeight: 700, color }}>{fmtMRR(data.mrr)}/mês</div>
+                {data.valor > 0 && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color }}>{fmtMRR(data.valor)}{data.labelValor}</div>
                 )}
               </div>
             ))}
