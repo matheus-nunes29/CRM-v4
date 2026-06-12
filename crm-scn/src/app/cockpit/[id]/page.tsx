@@ -1008,6 +1008,15 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
       etapa_atual: etapa,
       ...(shouldMarkEntregue ? { status: 'entregue' } : {}),
     }).eq('id', id)
+
+    if (shouldMarkEntregue) {
+      // Verifica se restam projetos ativos (excluindo o que acabou de ser entregue)
+      const outrosAtivos = projetos.filter(x => x.id !== id && x.status === 'ativo')
+      if (outrosAtivos.length === 0) {
+        await supabase.from('clientes').update({ status: 'churned' }).eq('id', clienteId)
+      }
+    }
+
     await onReload()
   }
 
