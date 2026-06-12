@@ -8,11 +8,48 @@ import { Plus, Search, Building2, TrendingUp, Layers, Users, ArrowUp, ArrowDown,
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
 
+type RiskLevel = 'baixo' | 'medio' | 'alto'
+
 type ClienteEnriquecido = Cliente & {
   projetos: Projeto[]
   latestHealth: HealthScoreEntry | null
   prevHealth: HealthScoreEntry | null
+  healthEntries: HealthScoreEntry[]
   hasFca: boolean
+  risk: { level: RiskLevel; reasons: string[] }
+}
+
+function computeChurnRisk(entries: HealthScoreEntry[], projetos: Projeto[]): { level: RiskLevel; reasons: string[] } {
+  let score = 0
+  const reasons: string[] = []
+  const scores = entries.slice(0, 4).map(e => Number(e.score_total))
+
+  if (scores.length >= 3 && scores[0] < scores[1] && scores[1] < scores[2]) {
+    score += 2; reasons.push('HS em queda por 3 semanas')
+  } else if (scores.length >= 2 && scores[0] < scores[1]) {
+    score += 1; reasons.push('HS em queda')
+  }
+
+  if (scores.length > 0 && scores[0] < 5) {
+    score += 2; reasons.push('HS crítico')
+  } else if (scores.length > 0 && scores[0] < 7) {
+    score += 1; reasons.push('HS abaixo de 7.0')
+  }
+
+  if (entries.length === 0) {
+    score += 2; reasons.push('Sem health score')
+  } else {
+    const days = Math.floor((Date.now() - new Date(entries[0].semana).getTime()) / 86400000)
+    if (days > 30) { score += 2; reasons.push(`Sem atualização há ${days}d`) }
+    else if (days > 14) { score += 1; reasons.push(`Sem atualização há ${days}d`) }
+  }
+
+  const activeProjects = projetos.filter(p => p.status === 'ativo')
+  if (projetos.length > 0 && activeProjects.length === 0) {
+    score += 1; reasons.push('Sem projetos ativos')
+  }
+
+  return { level: score >= 4 ? 'alto' : score >= 2 ? 'medio' : 'baixo', reasons }
 }
 
 function healthColor(score: number) {
@@ -74,12 +111,15 @@ export default function CockpitPage() {
 
     const enriched: ClienteEnriquecido[] = (cl || []).map(c => {
       const clienteHs = (hs || []).filter(h => h.cliente_id === c.id)
+      const clienteProj = (proj || []).filter(p => p.cliente_id === c.id)
       return {
         ...c,
-        projetos: (proj || []).filter(p => p.cliente_id === c.id),
+        projetos:     clienteProj,
         latestHealth: clienteHs[0] ?? null,
         prevHealth:   clienteHs[1] ?? null,
+        healthEntries: clienteHs.slice(0, 4),
         hasFca:       fcaClienteIds.has(c.id),
+        risk:         computeChurnRisk(clienteHs, clienteProj),
       }
     })
     setClientes(enriched)
@@ -143,6 +183,9 @@ export default function CockpitPage() {
     })(),
     mrr: filtered.filter(c => c.status === 'ativo').reduce((acc, c) =>
       acc + c.projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0), 0),
+    mrrRisco: filtered.filter(c => c.status === 'ativo' && c.risk.level === 'alto').reduce((acc, c) =>
+      acc + c.projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0), 0),
+    clientesAltoRisco: filtered.filter(c => c.status === 'ativo' && c.risk.level === 'alto').length,
   }), [filtered])
 
   const thStyle: React.CSSProperties = {
@@ -159,14 +202,15 @@ export default function CockpitPage() {
     <CRMLayout title="Cockpit de Clientes" subtitle={`${stats.ativos} cliente${stats.ativos !== 1 ? 's' : ''} ativo${stats.ativos !== 1 ? 's' : ''}`}>
 
       {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 24 }}>
         {[
-          { label: 'Total de Clientes',   value: stats.total, icon: Users,      color: BLUE },
-          { label: 'Clientes Ativos',     value: stats.ativos, icon: Building2, color: GREEN },
+          { label: 'Total de Clientes',   value: stats.total, icon: Users,          color: BLUE },
+          { label: 'Clientes Ativos',     value: stats.ativos, icon: Building2,     color: GREEN },
           { label: 'Health Score Médio',  value: stats.healthMedia !== null ? stats.healthMedia.toFixed(1) : '—', icon: TrendingUp, color: stats.healthMedia !== null ? healthColor(stats.healthMedia) : GRAY3 },
           { label: 'MRR Total',           value: stats.mrr > 0 ? fmt(stats.mrr) : '—', icon: Layers, color: GREEN },
+          { label: 'MRR em Risco',        value: stats.mrrRisco > 0 ? fmt(stats.mrrRisco) : stats.clientesAltoRisco > 0 ? `${stats.clientesAltoRisco} cli.` : '—', icon: AlertTriangle, color: stats.mrrRisco > 0 ? R : GRAY3 },
         ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} style={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
+          <div key={label} style={{ background: WHITE, border: `1px solid ${label === 'MRR em Risco' && stats.mrrRisco > 0 ? `${R}40` : GRAY5}`, borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: `${color}14`, border: `1px solid ${color}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Icon size={18} color={color} />
             </div>
@@ -296,6 +340,7 @@ export default function CockpitPage() {
               <thead>
                 <tr>
                   <th style={thStyle}>Cliente</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Risco</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Health Score</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Atualizado em</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Resultados</th>
@@ -335,6 +380,26 @@ export default function CockpitPage() {
                           </div>
                           <StatusBadge status={c.status} />
                         </a>
+                      </td>
+
+                      {/* Risco */}
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        {(() => {
+                          const { level, reasons } = c.risk
+                          const map = {
+                            baixo: { label: 'Baixo', dot: GREEN, bg: '#D1FAE5', color: '#065F46', border: '#A7F3D0' },
+                            medio: { label: 'Médio', dot: YELLOW, bg: '#FEF3C7', color: '#92400E', border: '#FDE68A' },
+                            alto:  { label: 'Alto',  dot: R,      bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
+                          }[level]
+                          return (
+                            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3 }} title={reasons.join(' · ')}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 6, background: map.bg, border: `1px solid ${map.border}`, fontSize: 11, fontWeight: 700, color: map.color }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: map.dot, flexShrink: 0 }} />
+                                {map.label}
+                              </span>
+                            </div>
+                          )
+                        })()}
                       </td>
 
                       {/* Health Score */}

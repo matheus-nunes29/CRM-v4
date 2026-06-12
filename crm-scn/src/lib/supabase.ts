@@ -284,3 +284,29 @@ export type EntregaMensal = {
   created_at: string
   updated_at: string
 }
+
+export type NpsCsat = {
+  id: string
+  cliente_id: string
+  projeto_id: string | null
+  tipo: 'nps' | 'csat'
+  pontuacao: number
+  comentario: string | null
+  mes: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export type ProximoPasso = {
+  id: string
+  cliente_id: string
+  descricao: string
+  responsavel: string | null
+  data_vencimento: string | null
+  concluido: boolean
+  concluido_at: string | null
+  origem_tipo: string | null
+  origem_id: string | null
+  created_by: string | null
+  created_at: string
+}

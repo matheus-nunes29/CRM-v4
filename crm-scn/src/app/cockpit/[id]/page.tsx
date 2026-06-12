@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao, ObjetivoMensal, ResultadoSemanal, RegistroEntrega, ServicoProjeto, CatalogoServico } from '@/lib/supabase'
+import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao, ObjetivoMensal, ResultadoSemanal, RegistroEntrega, ServicoProjeto, CatalogoServico, NpsCsat, ProximoPasso } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE, SEGMENTOS } from '@/lib/crm-constants'
 import {
@@ -13,6 +13,7 @@ import {
   Link2, Layers, TrendingUp, TrendingDown, Target, AlertTriangle, Users,
   Calendar, Package, Clock, Trash2, Globe, Info,
   Building2, Phone, Mail, ExternalLink, Video, FileText, Upload, BarChart2, Zap, Award,
+  CheckSquare, GitBranch, Star, MessageSquare, ChevronRight,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
@@ -83,15 +84,17 @@ const btnPrimary = (disabled = false) => ({ padding: '9px 18px', borderRadius: 8
 const btnGhost = { padding: '8px 16px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }
 
 const TABS = [
-  { id: 'visao-geral',   label: 'Visão Geral',   icon: Info },
-  { id: 'projetos',      label: 'Projetos',       icon: Layers },
-  { id: 'health-score',  label: 'Health Score',   icon: TrendingUp },
-  { id: 'metas',         label: 'Metas',          icon: Target },
-  { id: 'reunioes',      label: 'Reuniões',       icon: Video },
-  { id: 'entregas',      label: 'Entregas',       icon: BarChart2 },
-  { id: 'estrategia',    label: 'Estratégia',     icon: Zap },
-  { id: 'oportunidades', label: 'Oportunidades',  icon: Package },
-  { id: 'fca',           label: 'FCA',            icon: AlertTriangle },
+  { id: 'visao-geral',   label: 'Visão Geral',    icon: Info },
+  { id: 'projetos',      label: 'Projetos',        icon: Layers },
+  { id: 'health-score',  label: 'Health Score',    icon: TrendingUp },
+  { id: 'metas',         label: 'Metas',           icon: Target },
+  { id: 'reunioes',      label: 'Reuniões',        icon: Video },
+  { id: 'entregas',      label: 'Entregas',        icon: BarChart2 },
+  { id: 'estrategia',    label: 'Estratégia',      icon: Zap },
+  { id: 'oportunidades', label: 'Oportunidades',   icon: Package },
+  { id: 'fca',           label: 'FCA',             icon: AlertTriangle },
+  { id: 'timeline',      label: 'Linha do Tempo',  icon: GitBranch },
+  { id: 'acoes',         label: 'Ações',           icon: CheckSquare },
 ]
 
 // ── Estratégia: tipos e config ────────────────────────────────────────────────
@@ -285,6 +288,9 @@ export default function ClienteCockpitPage() {
   const [servicosProjeto, setServicosProjeto] = useState<ServicoProjeto[]>([])
   const [catalogoServicos, setCatalogoServicos] = useState<CatalogoServico[]>([])
   const [estrategias, setEstrategias] = useState<EstrategiaItem[]>([])
+  const [npsCsat, setNpsCsat]         = useState<NpsCsat[]>([])
+  const [proximosPassos, setProximos] = useState<ProximoPasso[]>([])
+  const [npsModal, setNpsModal]       = useState<{ projetoId: string; projetoNome: string } | null>(null)
   const [loading, setLoading]         = useState(true)
   const [leadContrato, setLeadContrato] = useState<string | null>(null)
 
@@ -312,7 +318,7 @@ export default function ClienteCockpitPage() {
       setLeadContrato(null)
     }
 
-    const [ct, pr, hs, mt, op, fc, re, obj, res, reg, svc, cat, est] = await Promise.all([
+    const [ct, pr, hs, mt, op, fc, re, obj, res, reg, svc, cat, est, nps, pp] = await Promise.all([
       supabase.from('contatos').select('*').eq('cliente_id', actualId).order('is_primary', { ascending: false }),
       supabase.from('projetos').select('*').eq('cliente_id', actualId).order('created_at'),
       supabase.from('health_score_entries').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }).limit(20),
@@ -326,6 +332,8 @@ export default function ClienteCockpitPage() {
       supabase.from('servicos_projeto').select('*').eq('cliente_id', actualId).order('created_at', { ascending: true }),
       supabase.from('catalogo_servicos').select('*').eq('ativo', true).order('tipo').order('ordem').order('nome'),
       supabase.from('estrategias_projeto').select('*').eq('cliente_id', actualId).order('created_at'),
+      supabase.from('nps_csat').select('*').eq('cliente_id', actualId).order('created_at', { ascending: false }),
+      supabase.from('proximos_passos').select('*').eq('cliente_id', actualId).order('created_at', { ascending: false }),
     ])
     setContatos(ct.data || [])
     setProjetos(pr.data || [])
@@ -340,6 +348,8 @@ export default function ClienteCockpitPage() {
     setServicosProjeto(svc.data || [])
     setCatalogoServicos(cat.data || [])
     setEstrategias(est.data || [])
+    setNpsCsat(nps.data || [])
+    setProximos(pp.data || [])
     setLoading(false)
   }, [slugOrId])
 
@@ -427,15 +437,28 @@ export default function ClienteCockpitPage() {
       {/* ── Tab content ── */}
       <div>
         {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteRealId} canEdit={canEditCockpit} leadContrato={leadContrato} />}
-        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} catalogoServicos={catalogoServicos} />}
+        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} catalogoServicos={catalogoServicos} onNpsNeeded={(id, nome) => setNpsModal({ projetoId: id, projetoNome: nome })} />}
         {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'entregas'      && <TabEntregas      registros={registrosEntrega} projetos={projetos} servicosProjeto={servicosProjeto} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'entregas'      && <TabEntregas      registros={registrosEntrega} projetos={projetos} servicosProjeto={servicosProjeto} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} npsCsat={npsCsat} onReloadNps={loadAll} />}
         {tab === 'estrategia'    && <TabEstrategia    estrategias={estrategias} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'timeline'      && <TabTimeline      reunioes={reunioes} registrosEntrega={registrosEntrega} healthEntries={healthEntries} fcaEntries={fcaEntries} oportunidades={oportunidades} npsCsat={npsCsat} proximosPassos={proximosPassos} projetos={projetos} />}
+        {tab === 'acoes'         && <TabAcoes         proximosPassos={proximosPassos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} projetos={projetos} />}
       </div>
+
+      {/* NPS Modal */}
+      {npsModal && (
+        <NpsModal
+          projetoId={npsModal.projetoId}
+          projetoNome={npsModal.projetoNome}
+          clienteId={clienteRealId}
+          onClose={() => setNpsModal(null)}
+          onSaved={() => { setNpsModal(null); loadAll() }}
+        />
+      )}
     </CRMLayout>
   )
 }
@@ -797,7 +820,7 @@ function fmtCents(cents: string): string {
   return (parseInt(cents, 10) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean; catalogoServicos: CatalogoServico[] }) {
+function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos, onNpsNeeded }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean; catalogoServicos: CatalogoServico[]; onNpsNeeded?: (projetoId: string, projetoNome: string) => void }) {
   const emptyForm = { nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' }
 
   // Serviços Executar dinâmicos (catálogo) com fallback para lista hardcoded
@@ -1029,6 +1052,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
       if (outrosAtivos.length === 0) {
         await supabase.from('clientes').update({ status: 'churned' }).eq('id', clienteId)
       }
+      onNpsNeeded?.(id, p.nome)
     }
 
     await onReload()
@@ -2762,9 +2786,10 @@ function EntregaProgressBar({ label, atual, meta }: { label: string; atual: numb
   )
 }
 
-function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload, canEdit }: {
+function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload, canEdit, npsCsat, onReloadNps }: {
   registros: RegistroEntrega[]; projetos: Projeto[]; servicosProjeto: ServicoProjeto[]
   clienteId: string; onReload: () => void; canEdit: boolean
+  npsCsat: NpsCsat[]; onReloadNps: () => void
 }) {
   const hoje = new Date()
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`
@@ -2940,11 +2965,30 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
                     <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>{regsProj.length} lançamento{regsProj.length !== 1 ? 's' : ''} em {fmtMesLabel(mesSel)}</div>
                   </div>
                 </div>
-                {canEdit && (
-                  <button onClick={() => openModal(p)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: BLUE, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                    <Plus size={13} /> Registrar
-                  </button>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {/* CSAT mensal para executar */}
+                  {p.tipo === 'executar' && (() => {
+                    const csatMes = npsCsat.find(n => n.tipo === 'csat' && n.projeto_id === p.id && n.mes === mesSel)
+                    if (csatMes) {
+                      const c = csatMes.pontuacao >= 9 ? GREEN : csatMes.pontuacao >= 7 ? YELLOW : R
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 7, background: `${c}18`, border: `1px solid ${c}50` }}>
+                          <Star size={11} color={c} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: c }}>CSAT {csatMes.pontuacao}/10</span>
+                        </div>
+                      )
+                    }
+                    if (!canEdit) return null
+                    return (
+                      <CsatButton projetoId={p.id} projetoNome={p.nome} clienteId={clienteId} mes={mesSel} onSaved={onReloadNps} />
+                    )
+                  })()}
+                  {canEdit && (
+                    <button onClick={() => openModal(p)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: BLUE, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      <Plus size={13} /> Registrar
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Progress bars */}
@@ -3823,6 +3867,466 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CSAT BUTTON (inline no TabEntregas)
+// ══════════════════════════════════════════════════════════════════════════════
+function CsatButton({ projetoId, projetoNome, clienteId, mes, onSaved }: {
+  projetoId: string; projetoNome: string; clienteId: string; mes: string; onSaved: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [score, setScore] = useState<number | null>(null)
+  const [comentario, setComentario] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (score === null) return
+    setSaving(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    await supabase.from('nps_csat').insert({
+      cliente_id: clienteId, projeto_id: projetoId, tipo: 'csat',
+      pontuacao: score, comentario: comentario || null, mes,
+      created_by: session?.user?.email || null,
+    })
+    setSaving(false)
+    setOpen(false)
+    onSaved()
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY3, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+        <Star size={11} /> CSAT
+      </button>
+    )
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={() => setOpen(false)}>
+      <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: 440, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: GRAY1, marginBottom: 4 }}>CSAT Mensal</div>
+        <div style={{ fontSize: 12, color: GRAY3, marginBottom: 20 }}>{projetoNome} · {mes}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: GRAY2, marginBottom: 10 }}>Como o cliente avalia a entrega deste mês? (0–10)</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+          {Array.from({ length: 11 }, (_, i) => {
+            const c = i >= 9 ? GREEN : i >= 7 ? YELLOW : R
+            const sel = score === i
+            return (
+              <button key={i} onClick={() => setScore(i)}
+                style={{ width: 36, height: 36, borderRadius: 8, border: `2px solid ${sel ? c : GRAY5}`, background: sel ? c : WHITE, color: sel ? WHITE : GRAY2, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all .1s' }}>
+                {i}
+              </button>
+            )
+          })}
+        </div>
+        <textarea value={comentario} onChange={e => setComentario(e.target.value)} rows={2} placeholder="Comentário opcional..."
+          style={{ width: '100%', padding: '9px 12px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, color: GRAY1, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 16 }} />
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={() => setOpen(false)} style={btnGhost}>Cancelar</button>
+          <button onClick={save} disabled={score === null || saving} style={btnPrimary(score === null || saving)}>
+            {saving ? 'Salvando...' : 'Salvar CSAT'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NPS MODAL
+// ══════════════════════════════════════════════════════════════════════════════
+function NpsModal({ projetoId, projetoNome, clienteId, onClose, onSaved }: {
+  projetoId: string; projetoNome: string; clienteId: string; onClose: () => void; onSaved: () => void
+}) {
+  const [score, setScore] = useState<number | null>(null)
+  const [comentario, setComentario] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (score === null) return
+    setSaving(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const mes = new Date().toISOString().slice(0, 7)
+    await supabase.from('nps_csat').insert({
+      cliente_id: clienteId, projeto_id: projetoId, tipo: 'nps',
+      pontuacao: score, comentario: comentario || null, mes,
+      created_by: session?.user?.email || null,
+    })
+    setSaving(false)
+    onSaved()
+  }
+
+  const getNpsLabel = (n: number | null) => {
+    if (n === null) return ''
+    if (n >= 9) return 'Promotor'
+    if (n >= 7) return 'Neutro'
+    return 'Detrator'
+  }
+  const getNpsColor = (n: number | null) => n === null ? GRAY3 : n >= 9 ? GREEN : n >= 7 ? YELLOW : R
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: WHITE, borderRadius: 20, padding: 32, width: 500, boxShadow: '0 24px 80px rgba(0,0,0,.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#FEF3C7', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Award size={20} color={YELLOW} />
+          </div>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: GRAY1 }}>Pesquisa NPS</div>
+            <div style={{ fontSize: 12, color: GRAY3 }}>Projeto entregue: {projetoNome}</div>
+          </div>
+        </div>
+        <div style={{ padding: '16px 0 20px', borderBottom: `1px solid ${GRAY5}`, marginBottom: 20, fontSize: 13, color: GRAY2 }}>
+          De 0 a 10, qual a probabilidade do cliente recomendar a V4 Company?
+        </div>
+
+        {/* Escala NPS */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+          {Array.from({ length: 11 }, (_, i) => {
+            const c = i >= 9 ? GREEN : i >= 7 ? YELLOW : R
+            const sel = score === i
+            return (
+              <button key={i} onClick={() => setScore(i)}
+                style={{ flex: 1, height: 40, borderRadius: 8, border: `2px solid ${sel ? c : GRAY5}`, background: sel ? c : WHITE, color: sel ? WHITE : GRAY2, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .12s' }}>
+                {i}
+              </button>
+            )
+          })}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: GRAY3, marginBottom: 20 }}>
+          <span>Muito improvável</span>
+          {score !== null && (
+            <span style={{ fontWeight: 700, color: getNpsColor(score) }}>{getNpsLabel(score)}</span>
+          )}
+          <span>Muito provável</span>
+        </div>
+
+        <textarea value={comentario} onChange={e => setComentario(e.target.value)} rows={2}
+          placeholder="Comentário ou feedback do cliente (opcional)..."
+          style={{ width: '100%', padding: '9px 12px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, color: GRAY1, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 20 }} />
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={btnGhost}>Pular</button>
+          <button onClick={save} disabled={score === null || saving} style={btnPrimary(score === null || saving)}>
+            {saving ? 'Salvando...' : 'Registrar NPS'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: LINHA DO TEMPO
+// ══════════════════════════════════════════════════════════════════════════════
+function TabTimeline({ reunioes, registrosEntrega, healthEntries, fcaEntries, oportunidades, npsCsat, proximosPassos, projetos }: {
+  reunioes: Reuniao[]; registrosEntrega: RegistroEntrega[]; healthEntries: HealthScoreEntry[]
+  fcaEntries: FcaEntry[]; oportunidades: Oportunidade[]; npsCsat: NpsCsat[]
+  proximosPassos: ProximoPasso[]; projetos: Projeto[]
+}) {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 90)
+
+  type TLEvent = {
+    id: string; date: string; type: string
+    title: string; subtitle: string; color: string
+    bg: string; Icon: React.ComponentType<any>
+  }
+
+  const projetoNome = (id: string) => projetos.find(p => p.id === id)?.nome || ''
+
+  const events: TLEvent[] = [
+    ...reunioes.filter(r => new Date(r.data) >= cutoff).map(r => ({
+      id: r.id, date: r.data, type: 'reuniao',
+      title: r.titulo || 'Reunião',
+      subtitle: r.tipo === 'qbr' ? 'QBR' : 'Operacional',
+      color: BLUE, bg: '#DBEAFE', Icon: Video,
+    })),
+    ...healthEntries.filter(e => new Date(e.semana) >= cutoff).map(e => ({
+      id: e.id, date: e.semana, type: 'health',
+      title: `Health Score: ${Number(e.score_total).toFixed(1)}`,
+      subtitle: e.observacoes ? e.observacoes.slice(0, 60) : '',
+      color: healthColor(Number(e.score_total)),
+      bg: Number(e.score_total) >= 7 ? '#D1FAE5' : Number(e.score_total) >= 5 ? '#FEF3C7' : '#FEE2E2',
+      Icon: TrendingUp,
+    })),
+    ...fcaEntries.filter(f => new Date(f.data) >= cutoff).map(f => ({
+      id: f.id, date: f.data, type: 'fca',
+      title: `FCA: ${f.fato.slice(0, 50)}`,
+      subtitle: f.acao ? f.acao.slice(0, 60) : '',
+      color: R, bg: '#FEE2E2', Icon: AlertTriangle,
+    })),
+    ...oportunidades.filter(o => new Date(o.created_at) >= cutoff).map(o => ({
+      id: o.id, date: o.created_at.split('T')[0], type: 'oportunidade',
+      title: `Oportunidade: ${o.titulo}`,
+      subtitle: o.valor_estimado ? `R$ ${o.valor_estimado.toLocaleString('pt-BR')}` : o.etapa,
+      color: '#065F46', bg: '#D1FAE5', Icon: Package,
+    })),
+    ...npsCsat.filter(n => new Date(n.created_at) >= cutoff).map(n => ({
+      id: n.id, date: n.created_at.split('T')[0], type: n.tipo,
+      title: `${n.tipo.toUpperCase()}: ${n.pontuacao}/10`,
+      subtitle: n.comentario?.slice(0, 60) || (n.tipo === 'nps' ? (n.pontuacao >= 9 ? 'Promotor' : n.pontuacao >= 7 ? 'Neutro' : 'Detrator') : ''),
+      color: n.pontuacao >= 9 ? GREEN : n.pontuacao >= 7 ? YELLOW : R,
+      bg: n.pontuacao >= 9 ? '#D1FAE5' : n.pontuacao >= 7 ? '#FEF3C7' : '#FEE2E2',
+      Icon: Star,
+    })),
+    ...proximosPassos.filter(pp => pp.concluido && pp.concluido_at && new Date(pp.concluido_at) >= cutoff).map(pp => ({
+      id: pp.id, date: pp.concluido_at!.split('T')[0], type: 'acao',
+      title: `Ação concluída: ${pp.descricao.slice(0, 50)}`,
+      subtitle: pp.responsavel || '',
+      color: GREEN, bg: '#D1FAE5', Icon: CheckSquare,
+    })),
+    ...registrosEntrega.filter(r => new Date(r.data) >= cutoff).reduce((acc, r) => {
+      const key = `${r.projeto_id}-${r.data}`
+      if (!acc.find(x => x.id === key)) {
+        const proj = projetoNome(r.projeto_id)
+        acc.push({
+          id: key, date: r.data, type: 'entrega',
+          title: `Entrega registrada${proj ? ` — ${proj}` : ''}`,
+          subtitle: r.observacao?.slice(0, 60) || '',
+          color: BLUE, bg: '#EDE9FE', Icon: BarChart2,
+        })
+      }
+      return acc
+    }, [] as TLEvent[]),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  function fmtDate(s: string) {
+    const [y, m, d] = s.split('-')
+    return `${d}/${m}/${y}`
+  }
+
+  const byMonth: Record<string, TLEvent[]> = {}
+  events.forEach(e => {
+    const mo = e.date.slice(0, 7)
+    if (!byMonth[mo]) byMonth[mo] = []
+    byMonth[mo].push(e)
+  })
+  const months = Object.keys(byMonth).sort((a, b) => b.localeCompare(a))
+
+  if (events.length === 0) {
+    return (
+      <div style={{ ...card, padding: '56px 24px', textAlign: 'center' }}>
+        <GitBranch size={32} color={GRAY3} style={{ margin: '0 auto 12px' }} />
+        <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum evento nos últimos 90 dias</div>
+      </div>
+    )
+  }
+
+  const MN = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {months.map(mo => {
+        const [y, m] = mo.split('-')
+        return (
+          <div key={mo}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
+              {MN[parseInt(m) - 1]} {y}
+            </div>
+            <div style={{ position: 'relative', paddingLeft: 28 }}>
+              {/* Vertical line */}
+              <div style={{ position: 'absolute', left: 9, top: 0, bottom: 0, width: 2, background: GRAY5 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {byMonth[mo].map(ev => (
+                  <div key={ev.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', position: 'relative' }}>
+                    {/* Dot */}
+                    <div style={{ position: 'absolute', left: -24, top: 10, width: 20, height: 20, borderRadius: '50%', background: ev.bg, border: `2px solid ${ev.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1 }}>
+                      <ev.Icon size={10} color={ev.color} />
+                    </div>
+                    <div style={{ ...card, padding: '10px 14px', flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: GRAY1 }}>{ev.title}</div>
+                          {ev.subtitle && <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>{ev.subtitle}</div>}
+                        </div>
+                        <div style={{ fontSize: 11, color: GRAY3, whiteSpace: 'nowrap', flexShrink: 0 }}>{fmtDate(ev.date)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: AÇÕES (PRÓXIMOS PASSOS)
+// ══════════════════════════════════════════════════════════════════════════════
+function TabAcoes({ proximosPassos, clienteId, onReload, canEdit, projetos }: {
+  proximosPassos: ProximoPasso[]; clienteId: string; onReload: () => void
+  canEdit: boolean; projetos: Projeto[]
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ descricao: '', responsavel: '', data_vencimento: '' })
+  const [saving, setSaving] = useState(false)
+  const hoje = new Date().toISOString().slice(0, 10)
+
+  async function addAcao() {
+    if (!form.descricao.trim()) return
+    setSaving(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    await supabase.from('proximos_passos').insert({
+      cliente_id: clienteId,
+      descricao: form.descricao.trim(),
+      responsavel: form.responsavel.trim() || null,
+      data_vencimento: form.data_vencimento || null,
+      created_by: session?.user?.email || null,
+    })
+    setForm({ descricao: '', responsavel: '', data_vencimento: '' })
+    setShowForm(false)
+    setSaving(false)
+    await onReload()
+  }
+
+  async function toggleConcluido(pp: ProximoPasso) {
+    const now = new Date().toISOString()
+    await supabase.from('proximos_passos').update({
+      concluido: !pp.concluido,
+      concluido_at: !pp.concluido ? now : null,
+    }).eq('id', pp.id)
+    await onReload()
+  }
+
+  async function deleteAcao(id: string) {
+    if (!await confirmDialog.show({ title: 'Excluir ação?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true })) return
+    await supabase.from('proximos_passos').delete().eq('id', id)
+    await onReload()
+  }
+
+  const pendentes  = proximosPassos.filter(p => !p.concluido)
+  const concluidas = proximosPassos.filter(p => p.concluido)
+
+  function isOverdue(pp: ProximoPasso) {
+    return !pp.concluido && pp.data_vencimento && pp.data_vencimento < hoje
+  }
+
+  function fmtDateBr(s: string | null) {
+    if (!s) return ''
+    const [y, m, d] = s.split('-')
+    return `${d}/${m}/${y}`
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>Próximos Passos</div>
+          <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>
+            {pendentes.length} pendente{pendentes.length !== 1 ? 's' : ''} · {concluidas.length} concluída{concluidas.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+        {canEdit && (
+          <button onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
+            <Plus size={14} /> Nova ação
+          </button>
+        )}
+      </div>
+
+      {/* Formulário */}
+      {showForm && (
+        <div style={{ ...card, padding: 18, marginBottom: 20, border: `1px solid ${R}30` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: GRAY2, display: 'block', marginBottom: 5 }}>Descrição *</label>
+              <input autoFocus value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} placeholder="O que precisa ser feito?"
+                style={{ ...input14 }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: GRAY2, display: 'block', marginBottom: 5 }}>Responsável</label>
+              <input value={form.responsavel} onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))} placeholder="Nome ou cargo"
+                style={{ ...input14 }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: GRAY2, display: 'block', marginBottom: 5 }}>Vencimento</label>
+              <input type="date" value={form.data_vencimento} onChange={e => setForm(f => ({ ...f, data_vencimento: e.target.value }))}
+                style={{ ...input14 }} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={addAcao} disabled={!form.descricao.trim() || saving} style={btnPrimary(!form.descricao.trim() || saving)}>
+              {saving ? 'Salvando...' : 'Adicionar'}
+            </button>
+            <button onClick={() => { setShowForm(false); setForm({ descricao: '', responsavel: '', data_vencimento: '' }) }} style={btnGhost}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Pendentes */}
+      {pendentes.length === 0 && !showForm && (
+        <div style={{ ...card, padding: '40px 24px', textAlign: 'center', marginBottom: 16 }}>
+          <CheckSquare size={28} color={GRAY3} style={{ margin: '0 auto 10px' }} />
+          <div style={{ fontSize: 14, color: GRAY2 }}>Nenhuma ação pendente</div>
+          {canEdit && <div style={{ fontSize: 12, color: GRAY3, marginTop: 4 }}>Clique em "Nova ação" para adicionar</div>}
+        </div>
+      )}
+
+      {pendentes.length > 0 && (
+        <div style={{ ...card, overflow: 'hidden', marginBottom: 20 }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${GRAY5}`, fontSize: 11, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Pendentes</div>
+          {pendentes.map((pp, i) => {
+            const overdue = isOverdue(pp)
+            return (
+              <div key={pp.id} style={{ padding: '12px 16px', borderBottom: i < pendentes.length - 1 ? `1px solid ${GRAY5}` : 'none', display: 'flex', alignItems: 'flex-start', gap: 12, background: overdue ? '#FFF5F5' : WHITE }}>
+                <button onClick={() => toggleConcluido(pp)} style={{ marginTop: 2, padding: 0, border: `2px solid ${overdue ? R : GRAY5}`, borderRadius: 5, background: WHITE, cursor: 'pointer', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Check size={11} color={GRAY3} />
+                </button>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: overdue ? R : GRAY1 }}>{pp.descricao}</div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                    {pp.responsavel && (
+                      <span style={{ fontSize: 11, color: GRAY3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Users size={10} /> {pp.responsavel}
+                      </span>
+                    )}
+                    {pp.data_vencimento && (
+                      <span style={{ fontSize: 11, color: overdue ? R : GRAY3, fontWeight: overdue ? 700 : 400, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Calendar size={10} /> {overdue ? '⚠ ' : ''}{fmtDateBr(pp.data_vencimento)}
+                      </span>
+                    )}
+                    {pp.origem_tipo && (
+                      <span style={{ fontSize: 11, color: GRAY3 }}>via {pp.origem_tipo}</span>
+                    )}
+                  </div>
+                </div>
+                {canEdit && (
+                  <button onClick={() => deleteAcao(pp.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, flexShrink: 0 }}
+                    onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Concluídas */}
+      {concluidas.length > 0 && (
+        <div style={{ ...card, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${GRAY5}`, fontSize: 11, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Concluídas</div>
+          {concluidas.slice(0, 10).map((pp, i) => (
+            <div key={pp.id} style={{ padding: '10px 16px', borderBottom: i < Math.min(concluidas.length, 10) - 1 ? `1px solid ${GRAY5}` : 'none', display: 'flex', alignItems: 'flex-start', gap: 12, opacity: 0.7 }}>
+              <button onClick={() => toggleConcluido(pp)} style={{ marginTop: 2, padding: 0, border: 'none', background: GREEN, borderRadius: 5, cursor: 'pointer', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Check size={11} color={WHITE} />
+              </button>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: GRAY2, textDecoration: 'line-through' }}>{pp.descricao}</div>
+                {pp.responsavel && <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>{pp.responsavel}</div>}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
