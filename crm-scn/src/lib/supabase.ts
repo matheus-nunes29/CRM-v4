@@ -253,6 +253,8 @@ export type FcaEntry = {
   fato: string
   causa: string
   acao: string
+  resolvido: boolean
+  resolvido_at: string | null
   created_by: string | null
   created_at: string
 }

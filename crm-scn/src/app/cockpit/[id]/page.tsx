@@ -2680,6 +2680,7 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
   const [addingFcaId, setAddingFcaId] = useState<string | null>(null)
   const [inlineForm, setInlineForm]   = useState({ descricao: '', responsavel: '', data_vencimento: '' })
   const [inlineSaving, setInlineSaving] = useState(false)
+  const [showResolvidos, setShowResolvidos] = useState(false)
   const hoje = new Date().toISOString().slice(0, 10)
 
   async function saveInlineAcao(fcaId: string) {
@@ -2758,6 +2759,16 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
     await onReload()
   }
 
+  async function resolverFca(id: string) {
+    await supabase.from('fca_entries').update({ resolvido: true, resolvido_at: new Date().toISOString() }).eq('id', id)
+    await onReload()
+  }
+
+  async function reabrirFca(id: string) {
+    await supabase.from('fca_entries').update({ resolvido: false, resolvido_at: null }).eq('id', id)
+    await onReload()
+  }
+
   async function deleteEntry(id: string) {
     await supabase.from('proximos_passos').delete().eq('origem_tipo', 'fca').eq('origem_id', id)
     await supabase.from('fca_entries').delete().eq('id', id)
@@ -2777,13 +2788,24 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: GRAY1 }}>Registro de FCA</div>
-          <div style={{ fontSize: 13, color: GRAY3, marginTop: 2 }}>Fato · Causa · Ação — documentação de momentos críticos</div>
+          <div style={{ fontSize: 13, color: GRAY3, marginTop: 2 }}>
+            {entries.filter(e => !e.resolvido).length} em aberto
+            {entries.filter(e => e.resolvido).length > 0 && ` · ${entries.filter(e => e.resolvido).length} resolvido${entries.filter(e => e.resolvido).length !== 1 ? 's' : ''}`}
+          </div>
         </div>
-        {canEdit && (
-          <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid #FECACA`, background: showNew ? '#FEE2E2' : '#FEF2F2', color: '#991B1B', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            <AlertTriangle size={13} /> Registrar FCA
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {entries.some(e => e.resolvido) && (
+            <button onClick={() => setShowResolvidos(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: `1px solid ${GRAY5}`, background: showResolvidos ? GRAY4 : WHITE, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <Check size={12} /> {showResolvidos ? 'Ocultar resolvidos' : 'Ver resolvidos'}
+            </button>
+          )}
+          {canEdit && (
+            <button onClick={() => setShowNew(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: `1px solid #FECACA`, background: showNew ? '#FEE2E2' : '#FEF2F2', color: '#991B1B', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <AlertTriangle size={13} /> Registrar FCA
+            </button>
+          )}
+        </div>
       </div>
 
       {showNew && canEdit && (
@@ -2851,37 +2873,59 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
         </div>
       )}
 
-      {entries.length === 0 && !showNew ? (
+      {entries.filter(e => !e.resolvido).length === 0 && !showNew ? (
         <div style={{ ...card, padding: '48px 0', textAlign: 'center' }}>
           <AlertTriangle size={32} color={GRAY3} style={{ marginBottom: 12, opacity: 0.4 }} />
-          <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum FCA registrado — ótimo sinal!</div>
+          <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum FCA em aberto — ótimo sinal!</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {entries.map((e, i) => {
+          {entries.filter(e => showResolvidos ? true : !e.resolvido).map((e, i, arr) => {
             const linkedAcoes = proximosPassos.filter(pp => pp.origem_tipo === 'fca' && pp.origem_id === e.id)
             const pendentes   = linkedAcoes.filter(pp => !pp.concluido)
             const concluidas  = linkedAcoes.filter(pp => pp.concluido)
             const hasLinked   = linkedAcoes.length > 0
+            const isResolvido = e.resolvido
 
             return (
-              <div key={e.id} style={{ display: 'flex', gap: 16 }}>
+              <div key={e.id} style={{ display: 'flex', gap: 16, opacity: isResolvido ? 0.6 : 1 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#FEE2E2', border: '2px solid #FECACA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <AlertTriangle size={14} color={R} />
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: isResolvido ? '#D1FAE5' : '#FEE2E2', border: `2px solid ${isResolvido ? '#A7F3D0' : '#FECACA'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {isResolvido ? <Check size={14} color={GREEN} /> : <AlertTriangle size={14} color={R} />}
                   </div>
-                  {i < entries.length - 1 && <div style={{ width: 2, flex: 1, background: GRAY5, marginTop: 6 }} />}
+                  {i < arr.length - 1 && <div style={{ width: 2, flex: 1, background: GRAY5, marginTop: 6 }} />}
                 </div>
 
-                <div style={{ ...card, flex: 1, padding: '16px 18px', marginBottom: i < entries.length - 1 ? 16 : 0 }}>
+                <div style={{ ...card, flex: 1, padding: '16px 18px', marginBottom: i < arr.length - 1 ? 16 : 0, borderColor: isResolvido ? '#A7F3D0' : undefined }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <span style={{ fontSize: 12, color: GRAY3, fontWeight: 500 }}>{fmtDate(e.data)}</span>
-                    {canEdit && (
-                      <button onClick={() => deleteEntry(e.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
-                        onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
-                        <Trash2 size={13} />
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12, color: GRAY3, fontWeight: 500 }}>{fmtDate(e.data)}</span>
+                      {isResolvido && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#065F46', background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 5, padding: '2px 7px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Check size={9} /> RESOLVIDO {e.resolvido_at ? `em ${fmtDate(e.resolvido_at.split('T')[0])}` : ''}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {canEdit && !isResolvido && (
+                        <button onClick={() => resolverFca(e.id)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid #A7F3D0`, background: '#ECFDF5', color: '#065F46', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                          <Check size={11} /> Resolver
+                        </button>
+                      )}
+                      {canEdit && isResolvido && (
+                        <button onClick={() => reabrirFca(e.id)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY3, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                          Reabrir
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button onClick={() => deleteEntry(e.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                          onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Fato + Causa */}
