@@ -158,37 +158,43 @@ export default function CSDashboard() {
     }
   }, [ativos])
 
-  // ── Volume de entregas por serviço ────────────────────────────────────────
-  const entregasPorServico = useMemo(() => {
-    const executarIds = new Set(
-      ativos.flatMap(c => c.projetos.filter(p => p.tipo === 'executar' && p.status === 'ativo').map(p => p.id))
+  // ── Volume contratado vs entregue (Executar) ─────────────────────────────
+  const volumeComparison = useMemo(() => {
+    const executarProjetos = ativos.flatMap(c =>
+      c.projetos.filter(p => p.tipo === 'executar' && p.status === 'ativo')
     )
-    const regs = registros.filter(r => executarIds.has(r.projeto_id))
+    const executarIds = new Set(executarProjetos.map(p => p.id))
 
-    // Named services (via servico_id + quantidade)
-    const byNamed: Record<string, { nome: string; total: number; unidade: string }> = {}
-    regs.forEach(r => {
-      if (r.servico_id && r.quantidade != null && r.quantidade > 0) {
-        const svc = servicosProjeto.find(s => s.id === r.servico_id)
-        const nome = svc?.nome ?? 'Serviço'
-        const unidade = svc?.unidade ?? 'un'
-        if (!byNamed[nome]) byNamed[nome] = { nome, total: 0, unidade }
-        byNamed[nome].total += r.quantidade
-      }
+    // Contratado: lê servicos_executar de cada projeto ativo
+    let cCampanhas = 0, cEstaticos = 0, cVideos = 0, cPosts = 0
+    executarProjetos.forEach(p => {
+      ;(p.servicos_executar ?? []).forEach(se => {
+        cCampanhas += se.campanhas ?? 0
+        cEstaticos += se.estaticos ?? 0
+        cVideos    += se.videos    ?? 0
+        cPosts     += se.posts     ?? 0
+      })
     })
 
-    // Legacy columns
-    const legacy: { nome: string; total: number; unidade: string }[] = [
-      { nome: 'Campanhas', total: regs.reduce((s, r) => s + (r.campanhas ?? 0), 0), unidade: 'camp.' },
-      { nome: 'Estáticos', total: regs.reduce((s, r) => s + (r.estaticos ?? 0), 0), unidade: 'peças' },
-      { nome: 'Vídeos',    total: regs.reduce((s, r) => s + (r.videos ?? 0), 0),    unidade: 'vídeos' },
-      { nome: 'Posts',     total: regs.reduce((s, r) => s + (r.posts ?? 0), 0),     unidade: 'posts' },
-    ].filter(l => l.total > 0)
+    // Entregue: soma registros do mês atual para esses projetos
+    const regs = registros.filter(r => executarIds.has(r.projeto_id))
+    let eCampanhas = 0, eEstaticos = 0, eVideos = 0, ePosts = 0
+    regs.forEach(r => {
+      eCampanhas += r.campanhas ?? 0
+      eEstaticos += r.estaticos ?? 0
+      eVideos    += r.videos    ?? 0
+      ePosts     += r.posts     ?? 0
+    })
 
-    const items = [...Object.values(byNamed), ...legacy].sort((a, b) => b.total - a.total)
-    const max = Math.max(...items.map(i => i.total), 1)
-    return { items, max, regsCount: regs.length }
-  }, [registros, servicosProjeto, ativos])
+    const items = [
+      { nome: 'Campanhas', contratado: cCampanhas, entregue: eCampanhas, unidade: 'camp.' },
+      { nome: 'Estáticos', contratado: cEstaticos, entregue: eEstaticos, unidade: 'peças' },
+      { nome: 'Vídeos',    contratado: cVideos,    entregue: eVideos,    unidade: 'vídeos' },
+      { nome: 'Posts',     contratado: cPosts,     entregue: ePosts,     unidade: 'posts' },
+    ].filter(i => i.contratado > 0 || i.entregue > 0)
+
+    return { items, regsCount: regs.length }
+  }, [registros, ativos])
 
   // ── Distribuição de risco ─────────────────────────────────────────────────
   const riskDist = useMemo(() => ({
@@ -380,28 +386,44 @@ export default function CSDashboard() {
           </div>
         </div>
 
-        {/* Volume de Entregas */}
+        {/* Volume Contratado vs Entregue */}
         <div style={{ ...card, padding: 22 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 2 }}>Volume de Entregas — {mesLabel}</div>
-          <div style={{ fontSize: 11, color: GRAY3, marginBottom: 18 }}>
-            Registros em projetos Executar ativos · {entregasPorServico.regsCount} registro{entregasPorServico.regsCount !== 1 ? 's' : ''} no mês
+          <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 2 }}>Entregas — {mesLabel}</div>
+          <div style={{ fontSize: 11, color: GRAY3, marginBottom: 20 }}>
+            Contratado vs entregue em projetos Executar ativos · {volumeComparison.regsCount} registro{volumeComparison.regsCount !== 1 ? 's' : ''} no mês
           </div>
-          {entregasPorServico.items.length === 0 ? (
+          {volumeComparison.items.length === 0 ? (
             <div style={{ padding: '28px 0', textAlign: 'center', color: GRAY3, fontSize: 13, fontStyle: 'italic' }}>
-              Nenhuma entrega registrada este mês
+              Nenhum contrato ou entrega encontrado
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {entregasPorServico.items.map(({ nome, total, unidade }) => {
-                const pct = Math.round((total / entregasPorServico.max) * 100)
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {/* Cabeçalho */}
+              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 72px 72px 44px', gap: 10, alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.06em' }} />
+                <span />
+                <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>Contrat.</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>Entregue</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>%</span>
+              </div>
+              {volumeComparison.items.map(({ nome, contratado, entregue, unidade }) => {
+                const rawPct  = contratado > 0 ? (entregue / contratado) * 100 : 0
+                const barPct  = Math.min(100, rawPct)
+                const dispPct = Math.round(rawPct)
+                const color   = rawPct >= 90 ? GREEN : rawPct >= 60 ? YELLOW : R
                 return (
-                  <div key={nome} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 12, color: GRAY2, width: 110, flexShrink: 0, fontWeight: 500 }}>{nome}</span>
-                    <div style={{ flex: 1, height: 8, background: GRAY5, borderRadius: 4 }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: BLUE, borderRadius: 4, opacity: 0.75, transition: 'width .4s' }} />
+                  <div key={nome} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 72px 72px 44px', gap: 10, alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${GRAY5}` }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: GRAY1 }}>{nome}</span>
+                    <div style={{ height: 8, background: GRAY5, borderRadius: 4, position: 'relative' }}>
+                      {contratado > 0 && (
+                        <div style={{ position: 'absolute', inset: 0, width: `${barPct}%`, background: color, borderRadius: 4, transition: 'width .4s' }} />
+                      )}
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: GRAY1, flexShrink: 0, minWidth: 36, textAlign: 'right' }}>{total}</span>
-                    <span style={{ fontSize: 10, color: GRAY3, flexShrink: 0, width: 38 }}>{unidade}</span>
+                    <span style={{ fontSize: 12, color: GRAY3, textAlign: 'right' }}>{contratado > 0 ? `${contratado} ${unidade}` : '—'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: GRAY1, textAlign: 'right' }}>{entregue > 0 ? `${entregue} ${unidade}` : '—'}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: contratado > 0 ? color : GRAY3, textAlign: 'right' }}>
+                      {contratado > 0 ? `${dispPct}%` : '—'}
+                    </span>
                   </div>
                 )
               })}
