@@ -232,6 +232,16 @@ export type ServicoProjeto = {
   created_at: string
 }
 
+export type CatalogoServico = {
+  id: string
+  tipo: 'saber' | 'ter'
+  nome: string
+  etapas: string[]
+  ativo: boolean
+  ordem: number
+  created_at: string
+}
+
 export type FcaEntry = {
   id: string
   cliente_id: string

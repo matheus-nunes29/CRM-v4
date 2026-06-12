@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao, ObjetivoMensal, ResultadoSemanal, RegistroEntrega, ServicoProjeto } from '@/lib/supabase'
+import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao, ObjetivoMensal, ResultadoSemanal, RegistroEntrega, ServicoProjeto, CatalogoServico } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE, SEGMENTOS } from '@/lib/crm-constants'
 import {
@@ -253,6 +253,7 @@ export default function ClienteCockpitPage() {
   const [reunioes, setReunioes]       = useState<Reuniao[]>([])
   const [registrosEntrega, setRegistrosEntrega] = useState<RegistroEntrega[]>([])
   const [servicosProjeto, setServicosProjeto] = useState<ServicoProjeto[]>([])
+  const [catalogoServicos, setCatalogoServicos] = useState<CatalogoServico[]>([])
   const [loading, setLoading]         = useState(true)
   const [leadContrato, setLeadContrato] = useState<string | null>(null)
 
@@ -280,7 +281,7 @@ export default function ClienteCockpitPage() {
       setLeadContrato(null)
     }
 
-    const [ct, pr, hs, mt, op, fc, re, obj, res, reg, svc] = await Promise.all([
+    const [ct, pr, hs, mt, op, fc, re, obj, res, reg, svc, cat] = await Promise.all([
       supabase.from('contatos').select('*').eq('cliente_id', actualId).order('is_primary', { ascending: false }),
       supabase.from('projetos').select('*').eq('cliente_id', actualId).order('created_at'),
       supabase.from('health_score_entries').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }).limit(20),
@@ -292,6 +293,7 @@ export default function ClienteCockpitPage() {
       supabase.from('resultados_semanais').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }),
       supabase.from('registros_entrega').select('*').eq('cliente_id', actualId).order('data', { ascending: false }),
       supabase.from('servicos_projeto').select('*').eq('cliente_id', actualId).order('created_at', { ascending: true }),
+      supabase.from('catalogo_servicos').select('*').eq('ativo', true).order('tipo').order('ordem').order('nome'),
     ])
     setContatos(ct.data || [])
     setProjetos(pr.data || [])
@@ -304,6 +306,7 @@ export default function ClienteCockpitPage() {
     setResultados(res.data || [])
     setRegistrosEntrega(reg.data || [])
     setServicosProjeto(svc.data || [])
+    setCatalogoServicos(cat.data || [])
     setLoading(false)
   }, [slugOrId])
 
@@ -391,7 +394,7 @@ export default function ClienteCockpitPage() {
       {/* ── Tab content ── */}
       <div>
         {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteRealId} canEdit={canEditCockpit} leadContrato={leadContrato} />}
-        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} catalogoServicos={catalogoServicos} />}
         {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
@@ -760,7 +763,7 @@ function fmtCents(cents: string): string {
   return (parseInt(cents, 10) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean }) {
+function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean; catalogoServicos: CatalogoServico[] }) {
   const emptyForm = { nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' }
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -813,6 +816,19 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
       }
       return s
     })
+  }
+
+  function getEtapasDyn(tipo: Projeto['tipo'], servico: string | null): string[] {
+    if (!servico) return []
+    const cat = catalogoServicos.find(s => s.id === servico && s.tipo === tipo)
+    if (cat) return cat.etapas
+    return CATALOGO[tipo]?.find(s => s.key === servico)?.etapas ?? []
+  }
+  function getServicoLabel(tipo: Projeto['tipo'], servico: string | null): string | undefined {
+    if (!servico) return undefined
+    const cat = catalogoServicos.find(s => s.id === servico && s.tipo === tipo)
+    if (cat) return cat.nome
+    return CATALOGO[tipo]?.find(s => s.key === servico)?.label
   }
 
   function openEntrega(p: Projeto) {
@@ -876,7 +892,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
       if (missing.length) { toast.warning(`Preencha os volumes obrigatórios: ${missing.join(', ')}`); return }
     }
     setSaving(true)
-    const etapas = getEtapas(form.tipo, form.servico || null)
+    const etapas = getEtapasDyn(form.tipo, form.servico || null)
     const { data: newProj } = await supabase.from('projetos').insert({
       nome: form.nome, tipo: form.tipo, valor_tipo: form.valor_tipo,
       valor: fromCents(form.valor), cliente_id: clienteId,
@@ -940,7 +956,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
 
   const totalMRR     = projetos.filter(p => p.valor_tipo === 'mensalidade' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
   const totalPontual = projetos.filter(p => p.valor_tipo === 'pontual' && p.status === 'ativo').reduce((s, p) => s + p.valor, 0)
-  const servicosDoTipo = CATALOGO[form.tipo] ?? []
+  const servicosDoTipo = catalogoServicos.filter(s => s.tipo === form.tipo)
 
   return (
     <div>
@@ -969,9 +985,9 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
         {projetos.map(p => {
           const t = TIPO[p.tipo], st = STATUS[p.status]
-          const etapas = getEtapas(p.tipo, p.servico)
+          const etapas = getEtapasDyn(p.tipo, p.servico)
           const etapaIdx = etapas.indexOf(p.etapa_atual ?? '')
-          const servicoLabel = CATALOGO[p.tipo]?.find(s => s.key === p.servico)?.label
+          const servicoLabel = getServicoLabel(p.tipo, p.servico)
           const isEditing = editId === p.id
           return (
             <div key={p.id} style={{ ...card, overflow: 'hidden' }}>
@@ -1225,6 +1241,18 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                     </select>
                   </div>
 
+                  {(editForm.tipo === 'saber' || editForm.tipo === 'ter') && (
+                    <div>
+                      <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Serviço</label>
+                      <select value={editForm.servico} onChange={e => setEditForm(f => ({ ...f, servico: e.target.value }))} style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', cursor: 'pointer' }}>
+                        <option value="">Selecione um serviço...</option>
+                        {catalogoServicos.filter(s => s.tipo === editForm.tipo).map(s => (
+                          <option key={s.id} value={s.id}>{s.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                     <label style={{ fontSize: 10, color: GRAY3, display: 'block', marginBottom: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Cobrança</label>
                     <select value={editForm.valor_tipo} onChange={e => setEditForm(f => ({ ...f, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ padding: '10px 13px', background: WHITE, border: `1.5px solid ${GRAY5}`, borderRadius: 9, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', cursor: 'pointer' }}>
@@ -1391,13 +1419,14 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                 <option value="saber">Saber</option><option value="ter">Ter</option><option value="executar">Executar</option>
               </select>
             </div>
-            {servicosDoTipo.length > 0 && (
+            {(form.tipo === 'saber' || form.tipo === 'ter') && (
               <div>
                 <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Serviço</label>
                 <select value={form.servico} onChange={e => setForm(p => ({ ...p, servico: e.target.value }))} style={{ ...input14 }}>
                   <option value="">Selecione um serviço...</option>
-                  {servicosDoTipo.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  {servicosDoTipo.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
                 </select>
+                {servicosDoTipo.length === 0 && <div style={{ fontSize: 11, color: GRAY3, marginTop: 4 }}>Nenhum serviço cadastrado. Acesse <strong>Catálogo</strong> no menu para criar.</div>}
               </div>
             )}
             {form.tipo === 'executar' && (
