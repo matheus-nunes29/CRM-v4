@@ -11,6 +11,7 @@ const VIEW_MAP: Record<string, string> = {
   '/': 'inicio',
   '/dashboard': 'dashboard', '/leads': 'leads', '/pipeline': 'pipeline',
   '/cockpit': 'cockpit',
+  '/cockpit/dashboard': 'cockpit/dashboard',
   '/expansao': 'expansao',
   '/catalogo': 'catalogo',
   '/metas': 'metas', '/acompanhamento': 'acompanhamento',
@@ -23,6 +24,7 @@ const VIEW_LABELS: Record<string, string> = {
   inicio: 'Início',
   dashboard: 'Dashboard', leads: 'Leads', pipeline: 'Pipeline',
   cockpit: 'Cockpit de Clientes',
+  'cockpit/dashboard': 'CS Dashboard',
   expansao: 'Pipeline de Expansão',
   catalogo: 'Catálogo de Serviços',
   metas: 'Metas', acompanhamento: 'Acompanhamento',
@@ -35,7 +37,7 @@ const VIEW_LABELS: Record<string, string> = {
 export default function CRMLayout({ children, title, subtitle }: { children: ReactNode; title?: string; subtitle?: string }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const view     = VIEW_MAP[pathname] || (pathname.startsWith('/cockpit') ? 'cockpit' : pathname.startsWith('/expansao') ? 'expansao' : 'inicio')
+  const view     = VIEW_MAP[pathname] || (pathname.startsWith('/cockpit/dashboard') ? 'cockpit/dashboard' : pathname.startsWith('/cockpit') ? 'cockpit' : pathname.startsWith('/expansao') ? 'expansao' : 'inicio')
   const [progress, setProgress] = useState(false)
   const [prevPath, setPrevPath] = useState(pathname)
 

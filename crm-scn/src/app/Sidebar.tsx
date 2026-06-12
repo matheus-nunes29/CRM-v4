@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench, ChevronLeft, ChevronRight, LayoutGrid, Rocket, Home, BookOpen } from 'lucide-react'
+import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench, ChevronLeft, ChevronRight, LayoutGrid, Rocket, Home, BookOpen, BarChart2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { LOGO_SRC } from './logo'
 
@@ -27,8 +27,9 @@ const MENU: NavEntry[] = [
   { type: 'item', id: 'inteligencia',   label: 'Inteligência',  icon: TrendingUp },
   { type: 'item', id: 'ferramentas',    label: 'Ferramentas',   icon: Wrench },
   { type: 'divider', label: 'Operação' },
-  { type: 'item', id: 'cockpit',        label: 'Cockpit',       icon: LayoutGrid },
-  { type: 'item', id: 'expansao',       label: 'Expansão',      icon: Rocket },
+  { type: 'item', id: 'cockpit',           label: 'Cockpit',       icon: LayoutGrid },
+  { type: 'item', id: 'cockpit/dashboard', label: 'CS Dashboard',  icon: BarChart2 },
+  { type: 'item', id: 'expansao',          label: 'Expansão',      icon: Rocket },
   { type: 'item', id: 'catalogo',       label: 'Catálogo',      icon: BookOpen },
   { type: 'divider', label: '' },
   { type: 'item', id: 'configuracoes',  label: 'Configurações', icon: Settings },
