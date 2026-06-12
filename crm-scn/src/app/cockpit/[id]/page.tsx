@@ -10,9 +10,9 @@ import {
 } from 'recharts'
 import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown,
-  Link2, Layers, TrendingUp, Target, AlertTriangle, Users,
+  Link2, Layers, TrendingUp, TrendingDown, Target, AlertTriangle, Users,
   Calendar, Package, Clock, Trash2, Globe, Info,
-  Building2, Phone, Mail, ExternalLink, Video, FileText, Upload, BarChart2, Zap,
+  Building2, Phone, Mail, ExternalLink, Video, FileText, Upload, BarChart2, Zap, Award,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
@@ -812,6 +812,8 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(emptyForm)
   const [editServicosSel, setEditServicosSel] = useState<ServicoSel[]>([])
+  const [pausaModal, setPausaModal]   = useState<Projeto | null>(null)
+  const [pausaMotivo, setPausaMotivo] = useState('')
   const [entregaProjetoId, setEntregaProjetoId] = useState<string | null>(null)
   const [entregaMes, setEntregaMes] = useState(() => new Date().toISOString().slice(0, 7))
   const [entregaForm, setEntregaForm] = useState({ campanhas: '', estaticos: '', videos: '', posts: '', data: new Date().toISOString().slice(0, 10), observacao: '' })
@@ -991,9 +993,21 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
     await onReload(); setSaving(false)
   }
   async function toggleStatus(p: Projeto) {
-    const next = p.status === 'ativo' ? 'pausado' : p.status === 'pausado' ? 'encerrado' : 'ativo'
-    await supabase.from('projetos').update({ status: next }).eq('id', p.id)
+    if (p.status === 'ativo') {
+      // Executar: pede motivo de pausa
+      setPausaMotivo('')
+      setPausaModal(p)
+      return
+    }
+    const next = p.status === 'pausado' ? 'encerrado' : 'ativo'
+    await supabase.from('projetos').update({ status: next, ...(next === 'ativo' ? { motivo_pausa: null } : {}) }).eq('id', p.id)
     await onReload()
+  }
+
+  async function confirmPausa() {
+    if (!pausaModal) return
+    await supabase.from('projetos').update({ status: 'pausado', motivo_pausa: pausaMotivo || null }).eq('id', pausaModal.id)
+    setPausaModal(null); await onReload()
   }
   async function deleteProj(id: string) {
     const ok = await confirmDialog.show({ title: 'Excluir projeto?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true })
@@ -1070,6 +1084,11 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
                         </div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{p.nome}</div>
                         {servicoLabel && <div style={{ fontSize: 11, color: GRAY2, marginTop: 3 }}>{servicoLabel}</div>}
+                        {p.status === 'pausado' && p.motivo_pausa && (
+                          <div style={{ fontSize: 11, color: '#92400E', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <AlertTriangle size={10} /> Motivo: {p.motivo_pausa}
+                          </div>
+                        )}
                         {p.tipo === 'executar' && p.servicos_executar && p.servicos_executar.length > 0 && (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
                             {p.servicos_executar.map(s => {
@@ -1620,6 +1639,43 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
           </div>
         </div>
       )}
+
+      {/* Modal: motivo de pausa */}
+      {pausaModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => setPausaModal(null)}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>Pausar projeto</div>
+                <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>{pausaModal.nome}</div>
+              </div>
+              <button onClick={() => setPausaModal(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}><X size={18} /></button>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.07em', display: 'block', marginBottom: 10 }}>Motivo da pausa</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                {['Pausa financeira do cliente', 'Problema de relacionamento', 'Reestruturação interna', 'Aguardando materiais', 'Outro'].map(opt => (
+                  <button key={opt} onClick={() => setPausaMotivo(opt)}
+                    style={{ padding: '9px 14px', borderRadius: 8, border: `1.5px solid ${pausaMotivo === opt ? '#92400E' : GRAY5}`, background: pausaMotivo === opt ? '#FEF3C7' : WHITE, color: pausaMotivo === opt ? '#92400E' : GRAY2, fontSize: 13, fontWeight: pausaMotivo === opt ? 700 : 500, cursor: 'pointer', textAlign: 'left' as const, transition: 'all .12s' }}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+              <input type="text" value={pausaMotivo} onChange={e => setPausaMotivo(e.target.value)}
+                placeholder="Ou descreva o motivo..."
+                style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setPausaModal(null)} style={btnGhost}>Cancelar</button>
+              <button onClick={confirmPausa} style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: '#92400E', color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Confirmar pausa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1817,6 +1873,29 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
             <div style={{ fontSize: 11, color: GRAY3, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>Health Score Atual</div>
             <div style={{ fontSize: 56, fontWeight: 900, color: sc, lineHeight: 1 }}>{score !== null ? score.toFixed(1) : '—'}</div>
             <div style={{ fontSize: 12, color: GRAY3, marginTop: 4 }}>de 10.0</div>
+            {/* Sparkline últimas 4 semanas */}
+            {entries.length >= 2 && (() => {
+              const pts = [...entries].reverse().slice(-4).map(e => Number(e.score_total))
+              const min = Math.min(...pts), max = Math.max(...pts)
+              const range = max - min || 1
+              const W = 80, H = 28
+              const x = (i: number) => (i / (pts.length - 1)) * W
+              const y = (v: number) => H - ((v - min) / range) * H
+              const d = pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+              const last = pts[pts.length - 1], prev = pts[pts.length - 2]
+              const trend = last > prev ? GREEN : last < prev ? R : GRAY3
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 }}>
+                  <svg width={W} height={H + 4} style={{ overflow: 'visible' }}>
+                    <path d={d} fill="none" stroke={trend} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx={x(pts.length - 1)} cy={y(last)} r={3} fill={trend} />
+                  </svg>
+                  <span style={{ fontSize: 10, color: trend, fontWeight: 700 }}>
+                    {last > prev ? '▲' : last < prev ? '▼' : '='} {Math.abs(last - prev).toFixed(1)}
+                  </span>
+                </div>
+              )
+            })()}
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <RadarChart data={radarData} outerRadius={70} margin={{ top: 10, right: 20, bottom: 10, left: 30 }}>
@@ -2817,18 +2896,37 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
           const metaVideos    = hasDesign ? (sv.find(s => s.key === 'design_grafico')?.videos    ?? 0) : 0
           const metaPosts     = hasSocial ? (sv.find(s => s.key === 'social_media')?.posts      ?? 0) : 0
 
-          // Itens que excederam a meta no mês selecionado
-          const overages: string[] = []
+          // Itens que excederam ou ficaram abaixo da meta no mês selecionado
+          const overages:   string[] = []
+          const underages:  string[] = []
           if (isExec) {
-            if (hasMidia  && metaCampanhas > 0 && soma(regsProj, 'campanhas') > metaCampanhas) overages.push(`Campanhas (${soma(regsProj, 'campanhas')} / meta ${metaCampanhas})`)
-            if (hasDesign && metaEstaticos > 0 && soma(regsProj, 'estaticos') > metaEstaticos) overages.push(`Estáticos (${soma(regsProj, 'estaticos')} / meta ${metaEstaticos})`)
-            if (hasDesign && metaVideos    > 0 && soma(regsProj, 'videos')    > metaVideos)    overages.push(`Vídeos (${soma(regsProj, 'videos')} / meta ${metaVideos})`)
-            if (hasSocial && metaPosts     > 0 && soma(regsProj, 'posts')     > metaPosts)     overages.push(`Posts (${soma(regsProj, 'posts')} / meta ${metaPosts})`)
+            if (hasMidia  && metaCampanhas > 0) {
+              const v = soma(regsProj, 'campanhas')
+              if (v > metaCampanhas) overages.push(`Campanhas (${v} / meta ${metaCampanhas})`)
+              else if (v < metaCampanhas) underages.push(`Campanhas (${v} de ${metaCampanhas})`)
+            }
+            if (hasDesign && metaEstaticos > 0) {
+              const v = soma(regsProj, 'estaticos')
+              if (v > metaEstaticos) overages.push(`Estáticos (${v} / meta ${metaEstaticos})`)
+              else if (v < metaEstaticos) underages.push(`Estáticos (${v} de ${metaEstaticos})`)
+            }
+            if (hasDesign && metaVideos > 0) {
+              const v = soma(regsProj, 'videos')
+              if (v > metaVideos) overages.push(`Vídeos (${v} / meta ${metaVideos})`)
+              else if (v < metaVideos) underages.push(`Vídeos (${v} de ${metaVideos})`)
+            }
+            if (hasSocial && metaPosts > 0) {
+              const v = soma(regsProj, 'posts')
+              if (v > metaPosts) overages.push(`Posts (${v} / meta ${metaPosts})`)
+              else if (v < metaPosts) underages.push(`Posts (${v} de ${metaPosts})`)
+            }
           } else {
             projSvcs.forEach(svc => {
               const entregues = regsProj.filter(r => r.servico_id === svc.id).reduce((s, r) => s + (r.quantidade || 0), 0)
               if (svc.quantidade_prevista > 0 && entregues > svc.quantidade_prevista)
                 overages.push(`${svc.nome} (${entregues} / meta ${svc.quantidade_prevista})`)
+              else if (svc.quantidade_prevista > 0 && entregues < svc.quantidade_prevista)
+                underages.push(`${svc.nome} (${entregues} de ${svc.quantidade_prevista})`)
             })
           }
 
@@ -2872,13 +2970,22 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
 
               {/* Warning: entregas acima da meta */}
               {overages.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 10, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 10, marginBottom: 10 }}>
                   <AlertTriangle size={15} color="#92400E" style={{ flexShrink: 0, marginTop: 1 }} />
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 3 }}>Entregas acima do previsto em {fmtMesLabel(mesSel)}</div>
-                    <div style={{ fontSize: 11, color: '#92400E', lineHeight: 1.6 }}>
-                      {overages.join(' · ')}
-                    </div>
+                    <div style={{ fontSize: 11, color: '#92400E', lineHeight: 1.6 }}>{overages.join(' · ')}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Warning: under-delivery (risco silencioso de churn) */}
+              {underages.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: '#DBEAFE', border: '1px solid #93C5FD', borderRadius: 10, marginBottom: 16 }}>
+                  <TrendingDown size={15} color="#1D4ED8" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1D4ED8', marginBottom: 3 }}>Entregas abaixo do previsto em {fmtMesLabel(mesSel)}</div>
+                    <div style={{ fontSize: 11, color: '#1D4ED8', lineHeight: 1.6 }}>{underages.join(' · ')}</div>
                   </div>
                 </div>
               )}
@@ -3016,11 +3123,35 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: REUNIÕES
 // ══════════════════════════════════════════════════════════════════════════════
-type ReuniaoFormData = { data: string; titulo: string; link_apresentacao: string; link_transcricao: string; observacoes: string }
+type ReuniaoFormData = { data: string; titulo: string; tipo: 'operacional' | 'qbr'; link_apresentacao: string; link_transcricao: string; observacoes: string }
+
+const QBR_PAUTA_TEMPLATE = `1. Revisão de resultados do trimestre
+2. Análise de meta vs. realizado
+3. Health Score e pontos de melhoria
+4. Estratégia para o próximo trimestre
+5. Riscos e oportunidades identificadas
+6. Próximos passos e responsáveis`
 
 function ReuniaoFormFields({ f, setF }: { f: ReuniaoFormData; setF: (v: ReuniaoFormData) => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Tipo */}
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Tipo de Reunião *</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {([{ k: 'operacional', label: 'Operacional', icon: Video, color: BLUE, desc: 'Alinhamento periódico' }, { k: 'qbr', label: 'QBR', icon: Award, color: '#7C3AED', desc: 'Revisão trimestral estratégica' }] as const).map(opt => (
+            <button key={opt.k} onClick={() => setF({ ...f, tipo: opt.k, observacoes: opt.k === 'qbr' && !f.observacoes ? QBR_PAUTA_TEMPLATE : f.observacoes })}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 9, border: `1.5px solid ${f.tipo === opt.k ? opt.color : GRAY5}`, background: f.tipo === opt.k ? `${opt.color}10` : WHITE, cursor: 'pointer', textAlign: 'left' as const, transition: 'all .12s' }}>
+              <opt.icon size={14} color={f.tipo === opt.k ? opt.color : GRAY3} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: f.tipo === opt.k ? opt.color : GRAY1 }}>{opt.label}</div>
+                <div style={{ fontSize: 10, color: GRAY3, marginTop: 1 }}>{opt.desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
         <div>
           <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Data *</label>
@@ -3028,7 +3159,7 @@ function ReuniaoFormFields({ f, setF }: { f: ReuniaoFormData; setF: (v: ReuniaoF
         </div>
         <div>
           <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Título / Pauta</label>
-          <input type="text" value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} placeholder="Ex: Revisão mensal de resultados" style={input14} />
+          <input type="text" value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} placeholder={f.tipo === 'qbr' ? 'Ex: QBR Q2 2025 — Revisão de resultados' : 'Ex: Alinhamento semanal'} style={input14} />
         </div>
       </div>
       <div>
@@ -3040,8 +3171,12 @@ function ReuniaoFormFields({ f, setF }: { f: ReuniaoFormData; setF: (v: ReuniaoF
         <input type="url" value={f.link_transcricao} onChange={e => setF({ ...f, link_transcricao: e.target.value })} placeholder="https://docs.google.com/document/..." style={input14} />
       </div>
       <div>
-        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Observações</label>
-        <textarea value={f.observacoes} onChange={e => setF({ ...f, observacoes: e.target.value })} placeholder="Pontos discutidos, decisões tomadas..." rows={3} style={{ ...input14, resize: 'vertical', fontFamily: 'inherit' }} />
+        <label style={{ fontSize: 11, fontWeight: 700, color: GRAY3, display: 'block', marginBottom: 5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          {f.tipo === 'qbr' ? 'Pauta QBR' : 'Observações'}
+        </label>
+        <textarea value={f.observacoes} onChange={e => setF({ ...f, observacoes: e.target.value })}
+          placeholder={f.tipo === 'qbr' ? QBR_PAUTA_TEMPLATE : 'Pontos discutidos, decisões tomadas...'} rows={f.tipo === 'qbr' ? 7 : 3}
+          style={{ ...input14, resize: 'vertical' as const, fontFamily: 'inherit' }} />
       </div>
     </div>
   )
@@ -3062,7 +3197,7 @@ function ReuniaoLinkButton({ href, label, icon: Icon, color }: { href: string; l
 function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
   reunioes: Reuniao[]; clienteId: string; onReload: () => void; canEdit: boolean
 }) {
-  const emptyForm: ReuniaoFormData = { data: new Date().toISOString().split('T')[0], titulo: '', link_apresentacao: '', link_transcricao: '', observacoes: '' }
+  const emptyForm: ReuniaoFormData = { data: new Date().toISOString().split('T')[0], titulo: '', tipo: 'operacional', link_apresentacao: '', link_transcricao: '', observacoes: '' }
   const [showNew, setShowNew]   = useState(false)
   const [form, setForm]         = useState(emptyForm)
   const [saving, setSaving]     = useState(false)
@@ -3078,6 +3213,7 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
       cliente_id: clienteId,
       data: form.data,
       titulo: form.titulo || null,
+      tipo: form.tipo,
       link_apresentacao: form.link_apresentacao || null,
       link_transcricao: form.link_transcricao || null,
       observacoes: form.observacoes || null,
@@ -3089,6 +3225,7 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
     await supabase.from('reunioes').update({
       data: editForm.data,
       titulo: editForm.titulo || null,
+      tipo: editForm.tipo,
       link_apresentacao: editForm.link_apresentacao || null,
       link_transcricao: editForm.link_transcricao || null,
       observacoes: editForm.observacoes || null,
@@ -3104,7 +3241,7 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
   }
 
   function startEdit(r: Reuniao) {
-    setEditForm({ data: r.data, titulo: r.titulo || '', link_apresentacao: r.link_apresentacao || '', link_transcricao: r.link_transcricao || '', observacoes: r.observacoes || '' })
+    setEditForm({ data: r.data, titulo: r.titulo || '', tipo: r.tipo || 'operacional', link_apresentacao: r.link_apresentacao || '', link_transcricao: r.link_transcricao || '', observacoes: r.observacoes || '' })
     setEditId(r.id)
   }
 
@@ -3113,8 +3250,15 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>Reuniões Periódicas</div>
-          <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>{reunioes.length} {reunioes.length === 1 ? 'reunião registrada' : 'reuniões registradas'}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>Reuniões</div>
+          <div style={{ fontSize: 12, color: GRAY3, marginTop: 2, display: 'flex', gap: 10 }}>
+            <span>{reunioes.length} {reunioes.length === 1 ? 'reunião' : 'reuniões'}</span>
+            {reunioes.some(r => r.tipo === 'qbr') && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#7C3AED', fontWeight: 600 }}>
+                <Award size={11} /> {reunioes.filter(r => r.tipo === 'qbr').length} QBR
+              </span>
+            )}
+          </div>
         </div>
         {canEdit && !showNew && (
           <button onClick={() => setShowNew(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, border: 'none', background: R, color: WHITE, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: `0 2px 8px ${R}40` }}>
@@ -3169,12 +3313,17 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
                   {/* Row header */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: `${BLUE}0F`, border: `1px solid ${BLUE}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Video size={16} color={BLUE} />
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: r.tipo === 'qbr' ? '#7C3AED10' : `${BLUE}0F`, border: `1px solid ${r.tipo === 'qbr' ? '#7C3AED30' : BLUE + '25'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {r.tipo === 'qbr' ? <Award size={16} color="#7C3AED" /> : <Video size={16} color={BLUE} />}
                       </div>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{r.titulo || 'Reunião Periódica'}</div>
-                        <div style={{ fontSize: 12, color: GRAY3, marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+                          {r.tipo === 'qbr' && (
+                            <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, background: '#EDE9FE', border: '1px solid #C4B5FD', color: '#7C3AED', letterSpacing: '0.08em' }}>QBR</span>
+                          )}
+                          <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{r.titulo || (r.tipo === 'qbr' ? 'Revisão Trimestral' : 'Reunião Operacional')}</div>
+                        </div>
+                        <div style={{ fontSize: 12, color: GRAY3, display: 'flex', alignItems: 'center', gap: 5 }}>
                           <Calendar size={11} /> {fmtDate(r.data)}
                         </div>
                       </div>
@@ -3388,7 +3537,7 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
       </div>
 
       {/* Legend de níveis */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
         {NIVEIS_CONSCIENCIA.map(n => {
           const count    = estr.filter(e => e.etapa === n.key).length
           const etapaOrc = estr.filter(e => e.etapa === n.key).reduce((s, e) => s + e.orcamento, 0)
@@ -3402,6 +3551,65 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
           )
         })}
       </div>
+
+      {/* Comparativo com mês anterior */}
+      {(() => {
+        const [y, m] = mesSel.split('-').map(Number)
+        const prevDate = new Date(y, m - 2, 1)
+        const prevMes  = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
+        const estrPrev = estrategias.filter(e => e.projeto_id === projetoSel && e.mes === prevMes)
+        if (estrPrev.length === 0) return null
+        const prevTotal = estrPrev.reduce((s, e) => s + e.orcamento, 0)
+        return (
+          <div style={{ ...card, padding: '14px 18px', marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GRAY3, letterSpacing: '0.07em', textTransform: 'uppercase' as const, marginBottom: 12 }}>
+              Comparativo — {fmtMesLabel(prevMes)} vs {fmtMesLabel(mesSel)}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {NIVEIS_CONSCIENCIA.map(n => {
+                const curr     = estr.filter(e => e.etapa === n.key).reduce((s, e) => s + e.orcamento, 0)
+                const prev     = estrPrev.filter(e => e.etapa === n.key).reduce((s, e) => s + e.orcamento, 0)
+                const pctCurr  = totalOrc > 0 ? Math.round((curr / totalOrc) * 100) : 0
+                const pctPrev  = prevTotal > 0 ? Math.round((prev / prevTotal) * 100) : 0
+                if (curr === 0 && prev === 0) return null
+                const delta    = pctCurr - pctPrev
+                return (
+                  <div key={n.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: n.color, width: 160, flexShrink: 0 }}>{n.label}</span>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ flex: 1, height: 5, background: GRAY5, borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ width: `${pctPrev}%`, height: '100%', background: `${n.color}50`, borderRadius: 3 }} />
+                        </div>
+                        <span style={{ fontSize: 10, color: GRAY3, width: 32, textAlign: 'right' as const }}>{pctPrev}%</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ flex: 1, height: 5, background: GRAY5, borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ width: `${pctCurr}%`, height: '100%', background: n.color, borderRadius: 3 }} />
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: n.color, width: 32, textAlign: 'right' as const }}>{pctCurr}%</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: delta > 0 ? GREEN : delta < 0 ? R : GRAY3, width: 38, textAlign: 'right' as const }}>
+                      {delta > 0 ? '+' : ''}{delta}%
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${GRAY5}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ width: 24, height: 5, background: GRAY3, borderRadius: 3, opacity: 0.4 }} />
+                <span style={{ fontSize: 10, color: GRAY3 }}>{fmtMesLabel(prevMes)}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ width: 24, height: 5, background: GRAY1, borderRadius: 3 }} />
+                <span style={{ fontSize: 10, color: GRAY2, fontWeight: 600 }}>{fmtMesLabel(mesSel)} (atual)</span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Grid de estratégias */}
       {estr.length === 0 ? (

@@ -119,6 +119,7 @@ export type Projeto = {
   nome: string
   tipo: 'saber' | 'ter' | 'executar'
   status: 'ativo' | 'pausado' | 'encerrado' | 'entregue'
+  motivo_pausa: string | null
   valor_tipo: 'pontual' | 'mensalidade'
   valor: number
   data_inicio: string | null
@@ -261,6 +262,7 @@ export type Reuniao = {
   cliente_id: string
   data: string
   titulo: string | null
+  tipo: 'operacional' | 'qbr' | null
   link_apresentacao: string | null
   link_transcricao: string | null
   observacoes: string | null
