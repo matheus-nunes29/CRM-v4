@@ -12,7 +12,7 @@ import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown,
   Link2, Layers, TrendingUp, Target, AlertTriangle, Users,
   Calendar, Package, Clock, Trash2, Globe, Info,
-  Building2, Phone, Mail, ExternalLink, Video, FileText, Upload, BarChart2,
+  Building2, Phone, Mail, ExternalLink, Video, FileText, Upload, BarChart2, Zap,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
@@ -89,9 +89,33 @@ const TABS = [
   { id: 'metas',         label: 'Metas',          icon: Target },
   { id: 'reunioes',      label: 'Reuniões',       icon: Video },
   { id: 'entregas',      label: 'Entregas',       icon: BarChart2 },
+  { id: 'estrategia',    label: 'Estratégia',     icon: Zap },
   { id: 'oportunidades', label: 'Oportunidades',  icon: Package },
   { id: 'fca',           label: 'FCA',            icon: AlertTriangle },
 ]
+
+// ── Estratégia: tipos e config ────────────────────────────────────────────────
+type EtapaKey = 'topo' | 'meio' | 'fundo' | 'retencao'
+type EstrategiaItem = {
+  id: string; projeto_id: string; cliente_id: string; mes: string
+  etapa: EtapaKey; objetivo: string; plataforma: string; tipo: string
+  orcamento: number; num_campanhas: number | null; num_criativos: number | null
+  observacao: string | null; created_at: string
+}
+const ETAPAS_FUNIL: { key: EtapaKey; label: string; desc: string; color: string; bg: string; border: string }[] = [
+  { key: 'topo',     label: 'Topo',     desc: 'Atrair e gerar demanda nova',          color: '#1D4ED8', bg: '#DBEAFE', border: '#93C5FD' },
+  { key: 'meio',     label: 'Meio',     desc: 'Nutrir e qualificar o interesse',       color: '#92400E', bg: '#FEF3C7', border: '#FDE68A' },
+  { key: 'fundo',    label: 'Fundo',    desc: 'Converter em venda / agendamento',      color: '#065F46', bg: '#D1FAE5', border: '#6EE7B7' },
+  { key: 'retencao', label: 'Retenção', desc: 'Recomprar e aumentar o LTV',            color: '#5B21B6', bg: '#EDE9FE', border: '#C4B5FD' },
+]
+const OBJETIVOS_ETAPA: Record<EtapaKey, string[]> = {
+  topo:     ['Reconhecimento', 'Tráfego', 'Alcance', 'Visualização de vídeo', 'Cadastro'],
+  meio:     ['Engajamento', 'Visualização de vídeo', 'Cadastro', 'Tráfego'],
+  fundo:    ['Conversão', 'Mensagens', 'Agendamento', 'Ligações', 'Cadastro'],
+  retencao: ['Mensagens', 'Conversão', 'Engajamento', 'Tráfego'],
+}
+const PLATAFORMAS_ESTR = ['Meta', 'Google', 'TikTok', 'LinkedIn', 'Outro']
+const TIPOS_ESTR = ['Prospecção', 'Retargeting', 'Conversão']
 
 const OPP_STAGES: { key: Oportunidade['etapa']; label: string; color: string; bg: string }[] = [
   { key: 'identificada',      label: 'Identificada',      color: GRAY2,   bg: GRAY4 },
@@ -255,6 +279,7 @@ export default function ClienteCockpitPage() {
   const [registrosEntrega, setRegistrosEntrega] = useState<RegistroEntrega[]>([])
   const [servicosProjeto, setServicosProjeto] = useState<ServicoProjeto[]>([])
   const [catalogoServicos, setCatalogoServicos] = useState<CatalogoServico[]>([])
+  const [estrategias, setEstrategias] = useState<EstrategiaItem[]>([])
   const [loading, setLoading]         = useState(true)
   const [leadContrato, setLeadContrato] = useState<string | null>(null)
 
@@ -282,7 +307,7 @@ export default function ClienteCockpitPage() {
       setLeadContrato(null)
     }
 
-    const [ct, pr, hs, mt, op, fc, re, obj, res, reg, svc, cat] = await Promise.all([
+    const [ct, pr, hs, mt, op, fc, re, obj, res, reg, svc, cat, est] = await Promise.all([
       supabase.from('contatos').select('*').eq('cliente_id', actualId).order('is_primary', { ascending: false }),
       supabase.from('projetos').select('*').eq('cliente_id', actualId).order('created_at'),
       supabase.from('health_score_entries').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }).limit(20),
@@ -295,6 +320,7 @@ export default function ClienteCockpitPage() {
       supabase.from('registros_entrega').select('*').eq('cliente_id', actualId).order('data', { ascending: false }),
       supabase.from('servicos_projeto').select('*').eq('cliente_id', actualId).order('created_at', { ascending: true }),
       supabase.from('catalogo_servicos').select('*').eq('ativo', true).order('tipo').order('ordem').order('nome'),
+      supabase.from('estrategias_projeto').select('*').eq('cliente_id', actualId).order('created_at'),
     ])
     setContatos(ct.data || [])
     setProjetos(pr.data || [])
@@ -308,6 +334,7 @@ export default function ClienteCockpitPage() {
     setRegistrosEntrega(reg.data || [])
     setServicosProjeto(svc.data || [])
     setCatalogoServicos(cat.data || [])
+    setEstrategias(est.data || [])
     setLoading(false)
   }, [slugOrId])
 
@@ -400,6 +427,7 @@ export default function ClienteCockpitPage() {
         {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'entregas'      && <TabEntregas      registros={registrosEntrega} projetos={projetos} servicosProjeto={servicosProjeto} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'estrategia'    && <TabEstrategia    estrategias={estrategias} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
       </div>
@@ -3169,3 +3197,305 @@ function TabReunioes({ reunioes, clienteId, onReload, canEdit }: {
   )
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: ESTRATÉGIA
+// ══════════════════════════════════════════════════════════════════════════════
+function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: {
+  estrategias: EstrategiaItem[]; projetos: Projeto[]
+  clienteId: string; onReload: () => void; canEdit: boolean
+}) {
+  const hoje     = new Date()
+  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`
+
+  const projetosExec = projetos.filter(p => p.tipo === 'executar' && p.status === 'ativo')
+  const [projetoSel, setProjetoSel] = useState(projetosExec[0]?.id || '')
+  const [mesSel, setMesSel]         = useState(mesAtual)
+  const [modalEtapa, setModalEtapa] = useState<EtapaKey | null>(null)
+  const [editItem, setEditItem]     = useState<EstrategiaItem | null>(null)
+  const [saving, setSaving]         = useState(false)
+  const [form, setForm] = useState({
+    objetivo: '', plataforma: 'Meta', tipo: 'Prospecção',
+    orcamento: '', num_campanhas: '', num_criativos: '', observacao: '',
+  })
+
+  const estr      = estrategias.filter(e => e.projeto_id === projetoSel && e.mes === mesSel)
+  const totalOrc  = estr.reduce((s, e) => s + (e.orcamento || 0), 0)
+  const mesesDisp = Array.from(new Set([mesAtual, ...estrategias.filter(e => e.projeto_id === projetoSel).map(e => e.mes)])).sort((a, b) => b.localeCompare(a))
+
+  function fmtMesLabel(m: string) {
+    const [y, mo] = m.split('-')
+    return ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][parseInt(mo)-1] + ' ' + y
+  }
+
+  function openModal(etapa: EtapaKey, item?: EstrategiaItem) {
+    setModalEtapa(etapa); setEditItem(item || null)
+    setForm(item ? {
+      objetivo: item.objetivo, plataforma: item.plataforma, tipo: item.tipo,
+      orcamento: String(item.orcamento), num_campanhas: String(item.num_campanhas ?? ''),
+      num_criativos: String(item.num_criativos ?? ''), observacao: item.observacao || '',
+    } : { objetivo: '', plataforma: 'Meta', tipo: 'Prospecção', orcamento: '', num_campanhas: '', num_criativos: '', observacao: '' })
+  }
+
+  function closeModal() { setModalEtapa(null); setEditItem(null) }
+
+  async function saveEstrategia() {
+    if (!modalEtapa || !form.objetivo.trim() || !form.orcamento) return
+    setSaving(true)
+    const payload = {
+      projeto_id: projetoSel, cliente_id: clienteId, mes: mesSel, etapa: modalEtapa,
+      objetivo: form.objetivo.trim(), plataforma: form.plataforma, tipo: form.tipo,
+      orcamento: parseFloat(form.orcamento.replace(',', '.')) || 0,
+      num_campanhas: form.num_campanhas ? parseInt(form.num_campanhas) : null,
+      num_criativos: form.num_criativos ? parseInt(form.num_criativos) : null,
+      observacao: form.observacao || null,
+    }
+    if (editItem) {
+      await supabase.from('estrategias_projeto').update(payload).eq('id', editItem.id)
+    } else {
+      await supabase.from('estrategias_projeto').insert(payload)
+    }
+    setSaving(false); closeModal(); await onReload()
+  }
+
+  async function deleteEstrategia(id: string) {
+    if (!await confirmDialog.show({ title: 'Excluir estratégia?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true })) return
+    await supabase.from('estrategias_projeto').delete().eq('id', id); await onReload()
+  }
+
+  if (projetosExec.length === 0) return (
+    <div style={{ ...card, padding: '56px 24px', textAlign: 'center' }}>
+      <Zap size={32} color={GRAY3} style={{ margin: '0 auto 14px' }} />
+      <div style={{ fontSize: 14, fontWeight: 700, color: GRAY2 }}>Nenhum projeto Executar ativo</div>
+      <div style={{ fontSize: 12, color: GRAY3, marginTop: 6 }}>Crie um projeto Executar na aba Projetos para montar estratégias.</div>
+    </div>
+  )
+
+  const pillBtn = (active: boolean, color: string, bg: string): React.CSSProperties => ({
+    padding: '6px 14px', borderRadius: 8,
+    border: `1.5px solid ${active ? color : GRAY5}`,
+    background: active ? bg : WHITE,
+    color: active ? color : GRAY2,
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all .12s',
+  })
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>
+            Estratégia{projetoSel ? ` · ${projetosExec.find(p => p.id === projetoSel)?.nome}` : ''}
+          </div>
+          <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>Fluxo de funil — selecione o mês para editar</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {projetosExec.length > 1 && (
+            <select value={projetoSel} onChange={e => setProjetoSel(e.target.value)}
+              style={{ padding: '7px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', cursor: 'pointer' }}>
+              {projetosExec.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: GRAY4, borderRadius: 8, border: `1px solid ${GRAY5}` }}>
+            <Calendar size={12} color={GRAY3} />
+            <select value={mesSel} onChange={e => setMesSel(e.target.value)}
+              style={{ border: 'none', background: 'transparent', fontSize: 13, fontWeight: 600, color: GRAY1, outline: 'none', cursor: 'pointer' }}>
+              {mesesDisp.map(m => <option key={m} value={m}>{fmtMesLabel(m)}</option>)}
+            </select>
+          </div>
+          {totalOrc > 0 && (
+            <div style={{ padding: '7px 14px', background: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#065F46' }}>
+              {fmt(totalOrc)} total
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Funil vertical */}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {ETAPAS_FUNIL.map((etapa, idx) => {
+          const itens    = estr.filter(e => e.etapa === etapa.key)
+          const etapaOrc = itens.reduce((s, e) => s + (e.orcamento || 0), 0)
+          const pct      = totalOrc > 0 ? Math.round((etapaOrc / totalOrc) * 100) : 0
+
+          return (
+            <React.Fragment key={etapa.key}>
+              <div style={{ background: WHITE, borderRadius: 14, border: `1px solid ${GRAY5}`, boxShadow: '0 1px 4px rgba(0,0,0,.05)', overflow: 'hidden' }}>
+                {/* Stage header */}
+                <div style={{ padding: '16px 20px', borderBottom: `1px solid ${GRAY5}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 12px', borderRadius: 20, background: etapa.bg, border: `1px solid ${etapa.border}`, color: etapa.color, letterSpacing: '0.05em' }}>{etapa.label}</span>
+                    <span style={{ fontSize: 13, color: GRAY2 }}>{etapa.desc}</span>
+                  </div>
+                  {etapaOrc > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>{fmt(etapaOrc)}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: etapa.bg, color: etapa.color }}>{pct}%</span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ padding: '16px 20px' }}>
+                  {itens.length === 0 ? (
+                    <div style={{ padding: '11px 14px', background: '#FFFBEB', border: '1px dashed #FDE68A', borderRadius: 10, display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+                      <AlertTriangle size={14} color="#92400E" style={{ flexShrink: 0, marginTop: 1 }} />
+                      <span style={{ fontSize: 12, color: '#92400E', lineHeight: 1.6 }}>
+                        {etapa.key === 'topo'     && 'Nenhuma estratégia de topo. Sem captação de demanda nova, o funil não se abastece.'}
+                        {etapa.key === 'meio'     && 'Nenhuma estratégia de meio. Leads gerados no topo podem esfriar sem nutrição.'}
+                        {etapa.key === 'fundo'    && 'Nenhuma estratégia de fundo. Sem conversão direta, o investimento em topo e meio não fecha.'}
+                        {etapa.key === 'retencao' && 'Nenhuma estratégia de retenção. A base convertida não está sendo trabalhada para recompra.'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                      {itens.map(item => (
+                        <div key={item.id} style={{ padding: '12px 14px', background: GRAY4, borderRadius: 10, border: `1px solid ${GRAY5}` }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>{item.objetivo}</span>
+                            {canEdit && (
+                              <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                                <button onClick={() => openModal(etapa.key, item)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 3, display: 'flex' }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = GRAY1)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                                  <Edit2 size={11} />
+                                </button>
+                                <button onClick={() => deleteEstrategia(item.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 3, display: 'flex' }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, color: GRAY3 }}>
+                            {item.plataforma} · {item.tipo} · {fmt(item.orcamento)}
+                          </div>
+                          {(item.num_campanhas || item.num_criativos) && (
+                            <div style={{ fontSize: 11, color: GRAY3, marginTop: 3 }}>
+                              {[item.num_campanhas && `${item.num_campanhas} campanha${item.num_campanhas !== 1 ? 's' : ''}`, item.num_criativos && `${item.num_criativos} criativo${item.num_criativos !== 1 ? 's' : ''}`].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                          {item.observacao && <div style={{ fontSize: 11, color: GRAY3, marginTop: 4, fontStyle: 'italic' }}>{item.observacao}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => openModal(etapa.key)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1.5px dashed ${etapa.color}50`, background: `${etapa.color}06`, color: etapa.color, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'background .15s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = `${etapa.color}12`)}
+                      onMouseLeave={e => (e.currentTarget.style.background = `${etapa.color}06`)}>
+                      <Plus size={13} /> Adicionar estratégia
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {idx < ETAPAS_FUNIL.length - 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', color: GRAY3 }}>
+                  <ChevronDown size={22} />
+                </div>
+              )}
+            </React.Fragment>
+          )
+        })}
+      </div>
+
+      {/* Modal */}
+      {modalEtapa && (() => {
+        const ec      = ETAPAS_FUNIL.find(e => e.key === modalEtapa)!
+        const sugs    = OBJETIVOS_ETAPA[modalEtapa]
+        const canSave = !!(form.objetivo.trim() && form.orcamento && !saving)
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+            onClick={closeModal}>
+            <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}
+              onClick={e => e.stopPropagation()}>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 12px', borderRadius: 20, background: ec.bg, border: `1px solid ${ec.border}`, color: ec.color }}>{ec.label}</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>{editItem ? 'Editar' : 'Nova'} estratégia</span>
+                </div>
+                <button onClick={closeModal} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}><X size={18} /></button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                {/* Objetivo */}
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Objetivo *</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 8 }}>
+                    {sugs.map(obj => (
+                      <button key={obj} onClick={() => setForm(f => ({ ...f, objetivo: obj }))}
+                        style={pillBtn(form.objetivo === obj, ec.color, ec.bg)}>{obj}</button>
+                    ))}
+                  </div>
+                  <input type="text" value={form.objetivo} onChange={e => setForm(f => ({ ...f, objetivo: e.target.value }))}
+                    placeholder="Ou escreva um objetivo personalizado..."
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                </div>
+
+                {/* Plataforma */}
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Plataforma *</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
+                    {PLATAFORMAS_ESTR.map(p => (
+                      <button key={p} onClick={() => setForm(f => ({ ...f, plataforma: p }))}
+                        style={pillBtn(form.plataforma === p, ec.color, ec.bg)}>{p}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tipo */}
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Tipo *</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {TIPOS_ESTR.map(t => (
+                      <button key={t} onClick={() => setForm(f => ({ ...f, tipo: t }))}
+                        style={pillBtn(form.tipo === t, ec.color, ec.bg)}>{t}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Números */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Orçamento (R$) *</label>
+                    <input type="text" inputMode="decimal" value={form.orcamento}
+                      onChange={e => setForm(f => ({ ...f, orcamento: e.target.value.replace(/[^0-9,.]/g, '') }))}
+                      placeholder="0,00"
+                      style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 15, fontWeight: 700, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Campanhas</label>
+                    <input type="number" min="1" value={form.num_campanhas} onChange={e => setForm(f => ({ ...f, num_campanhas: e.target.value }))} placeholder="—"
+                      style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Criativos</label>
+                    <input type="number" min="1" value={form.num_criativos} onChange={e => setForm(f => ({ ...f, num_criativos: e.target.value }))} placeholder="—"
+                      style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  </div>
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Observação</label>
+                    <textarea value={form.observacao} onChange={e => setForm(f => ({ ...f, observacao: e.target.value }))} rows={2}
+                      placeholder="Ex: 2 campanhas de captação de lead com lookalike da base..."
+                      style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const, resize: 'vertical' as const, fontFamily: 'inherit' }} />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+                <button onClick={closeModal} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button onClick={saveEstrategia} disabled={!canSave}
+                  style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: canSave ? ec.color : GRAY3, color: WHITE, fontSize: 13, fontWeight: 700, cursor: canSave ? 'pointer' : 'not-allowed' }}>
+                  {saving ? 'Salvando...' : editItem ? 'Salvar' : 'Adicionar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+    </div>
+  )
+}
