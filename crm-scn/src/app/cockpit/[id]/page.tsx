@@ -95,24 +95,28 @@ const TABS = [
 ]
 
 // ── Estratégia: tipos e config ────────────────────────────────────────────────
-type EtapaKey = 'topo' | 'meio' | 'fundo' | 'retencao'
+type EtapaKey = 'inconsciente' | 'consciente_problema' | 'consciente_solucao' | 'consciente_produto' | 'totalmente_consciente' | 'retencao'
 type EstrategiaItem = {
   id: string; projeto_id: string; cliente_id: string; mes: string
   etapa: EtapaKey; objetivo: string; plataforma: string; tipo: string
   orcamento: number; num_campanhas: number | null; num_criativos: number | null
   observacao: string | null; created_at: string
 }
-const ETAPAS_FUNIL: { key: EtapaKey; label: string; desc: string; color: string; bg: string; border: string }[] = [
-  { key: 'topo',     label: 'Topo',     desc: 'Atrair e gerar demanda nova',          color: '#1D4ED8', bg: '#DBEAFE', border: '#93C5FD' },
-  { key: 'meio',     label: 'Meio',     desc: 'Nutrir e qualificar o interesse',       color: '#92400E', bg: '#FEF3C7', border: '#FDE68A' },
-  { key: 'fundo',    label: 'Fundo',    desc: 'Converter em venda / agendamento',      color: '#065F46', bg: '#D1FAE5', border: '#6EE7B7' },
-  { key: 'retencao', label: 'Retenção', desc: 'Recomprar e aumentar o LTV',            color: '#5B21B6', bg: '#EDE9FE', border: '#C4B5FD' },
+const NIVEIS_CONSCIENCIA: { key: EtapaKey; label: string; desc: string; color: string; bg: string; border: string }[] = [
+  { key: 'inconsciente',          label: 'Inconsciente',           desc: 'Não sabe que tem um problema',                     color: '#374151', bg: '#F3F4F6', border: '#D1D5DB' },
+  { key: 'consciente_problema',   label: 'Consciente do Problema', desc: 'Reconhece a dor, mas ignora que há soluções',      color: '#92400E', bg: '#FEF3C7', border: '#FDE68A' },
+  { key: 'consciente_solucao',    label: 'Consciente da Solução',  desc: 'Sabe que há soluções, mas não conhece você',       color: '#1D4ED8', bg: '#DBEAFE', border: '#93C5FD' },
+  { key: 'consciente_produto',    label: 'Consciente do Produto',  desc: 'Conhece a oferta, precisa ser convencido',         color: '#5B21B6', bg: '#EDE9FE', border: '#C4B5FD' },
+  { key: 'totalmente_consciente', label: 'Totalmente Consciente',  desc: 'Confia na marca, pronto para comprar',             color: '#065F46', bg: '#D1FAE5', border: '#6EE7B7' },
+  { key: 'retencao',              label: 'Retenção',               desc: 'Recomprar e aumentar o LTV',                       color: '#BE185D', bg: '#FCE7F3', border: '#FBCFE8' },
 ]
 const OBJETIVOS_ETAPA: Record<EtapaKey, string[]> = {
-  topo:     ['Reconhecimento', 'Tráfego', 'Alcance', 'Visualização de vídeo', 'Cadastro'],
-  meio:     ['Engajamento', 'Visualização de vídeo', 'Cadastro', 'Tráfego'],
-  fundo:    ['Conversão', 'Mensagens', 'Agendamento', 'Ligações', 'Cadastro'],
-  retencao: ['Mensagens', 'Conversão', 'Engajamento', 'Tráfego'],
+  inconsciente:          ['Reconhecimento', 'Alcance', 'Visualização de vídeo'],
+  consciente_problema:   ['Tráfego', 'Engajamento', 'Visualização de vídeo', 'Cadastro'],
+  consciente_solucao:    ['Tráfego', 'Cadastro', 'Engajamento'],
+  consciente_produto:    ['Conversão', 'Mensagens', 'Cadastro'],
+  totalmente_consciente: ['Conversão', 'Mensagens', 'Agendamento', 'Ligações'],
+  retencao:              ['Mensagens', 'Conversão', 'Engajamento', 'Tráfego'],
 }
 const PLATAFORMAS_ESTR = ['Meta', 'Google', 'TikTok', 'LinkedIn', 'Outro']
 const TIPOS_ESTR = ['Prospecção', 'Retargeting', 'Conversão']
@@ -3211,40 +3215,48 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
   const projetosExec = projetos.filter(p => p.tipo === 'executar' && p.status === 'ativo')
   const [projetoSel, setProjetoSel] = useState(projetosExec[0]?.id || '')
   const [mesSel, setMesSel]         = useState(mesAtual)
-  const [modalEtapa, setModalEtapa] = useState<EtapaKey | null>(null)
+  const [modalOpen, setModalOpen]   = useState(false)
   const [editItem, setEditItem]     = useState<EstrategiaItem | null>(null)
   const [saving, setSaving]         = useState(false)
   const [form, setForm] = useState({
+    etapa: 'inconsciente' as EtapaKey,
     objetivo: '', plataforma: 'Meta', tipo: 'Prospecção',
     orcamento: '', num_campanhas: '', num_criativos: '', observacao: '',
   })
 
-  const projetoAtual   = projetosExec.find(p => p.id === projetoSel)
-  const orcTotal       = projetoAtual?.investimento_midia || 0   // verba cadastrada no projeto
-  const estr           = estrategias.filter(e => e.projeto_id === projetoSel && e.mes === mesSel)
-  const totalOrc       = estr.reduce((s, e) => s + (e.orcamento || 0), 0)
-  const orcRestante    = Math.max(0, orcTotal - totalOrc)
-  const pctGeral       = orcTotal > 0 ? Math.min(100, Math.round((totalOrc / orcTotal) * 100)) : 0
-  const mesesDisp      = Array.from(new Set([mesAtual, ...estrategias.filter(e => e.projeto_id === projetoSel).map(e => e.mes)])).sort((a, b) => b.localeCompare(a))
+  const projetoAtual = projetosExec.find(p => p.id === projetoSel)
+  const orcTotal     = projetoAtual?.investimento_midia || 0
+  const estr         = estrategias.filter(e => e.projeto_id === projetoSel && e.mes === mesSel)
+  const totalOrc     = estr.reduce((s, e) => s + (e.orcamento || 0), 0)
+  const orcRestante  = Math.max(0, orcTotal - totalOrc)
+  const pctGeral     = orcTotal > 0 ? Math.min(100, Math.round((totalOrc / orcTotal) * 100)) : 0
+  const mesesDisp    = Array.from(new Set([mesAtual, ...estrategias.filter(e => e.projeto_id === projetoSel).map(e => e.mes)])).sort((a, b) => b.localeCompare(a))
 
   function fmtMesLabel(m: string) {
     const [y, mo] = m.split('-')
     return ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][parseInt(mo)-1] + ' ' + y
   }
 
-  function openModal(etapa: EtapaKey, item?: EstrategiaItem) {
-    setModalEtapa(etapa); setEditItem(item || null)
-    setForm(item ? {
-      objetivo: item.objetivo, plataforma: item.plataforma, tipo: item.tipo,
-      orcamento: String(item.orcamento), num_campanhas: String(item.num_campanhas ?? ''),
-      num_criativos: String(item.num_criativos ?? ''), observacao: item.observacao || '',
-    } : { objetivo: '', plataforma: 'Meta', tipo: 'Prospecção', orcamento: '', num_campanhas: '', num_criativos: '', observacao: '' })
+  function openNew() {
+    setEditItem(null)
+    setForm({ etapa: 'inconsciente', objetivo: '', plataforma: 'Meta', tipo: 'Prospecção', orcamento: '', num_campanhas: '', num_criativos: '', observacao: '' })
+    setModalOpen(true)
   }
 
-  function closeModal() { setModalEtapa(null); setEditItem(null) }
+  function openEdit(item: EstrategiaItem) {
+    setEditItem(item)
+    setForm({
+      etapa: item.etapa, objetivo: item.objetivo, plataforma: item.plataforma, tipo: item.tipo,
+      orcamento: String(item.orcamento), num_campanhas: String(item.num_campanhas ?? ''),
+      num_criativos: String(item.num_criativos ?? ''), observacao: item.observacao || '',
+    })
+    setModalOpen(true)
+  }
+
+  function closeModal() { setModalOpen(false); setEditItem(null) }
 
   async function saveEstrategia() {
-    if (!modalEtapa || !form.objetivo.trim() || !form.orcamento) return
+    if (!form.objetivo.trim() || !form.orcamento) return
     const novoOrc      = parseFloat(form.orcamento.replace(',', '.')) || 0
     const orcJaAlocado = editItem ? totalOrc - editItem.orcamento : totalOrc
     if (orcTotal > 0 && orcJaAlocado + novoOrc > orcTotal) {
@@ -3253,9 +3265,9 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
     }
     setSaving(true)
     const payload = {
-      projeto_id: projetoSel, cliente_id: clienteId, mes: mesSel, etapa: modalEtapa,
+      projeto_id: projetoSel, cliente_id: clienteId, mes: mesSel, etapa: form.etapa,
       objetivo: form.objetivo.trim(), plataforma: form.plataforma, tipo: form.tipo,
-      orcamento: parseFloat(form.orcamento.replace(',', '.')) || 0,
+      orcamento: novoOrc,
       num_campanhas: form.num_campanhas ? parseInt(form.num_campanhas) : null,
       num_criativos: form.num_criativos ? parseInt(form.num_criativos) : null,
       observacao: form.observacao || null,
@@ -3289,17 +3301,25 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
     fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all .12s',
   })
 
+  const ec           = NIVEIS_CONSCIENCIA.find(e => e.key === form.etapa)!
+  const sugs         = OBJETIVOS_ETAPA[form.etapa]
+  const novoOrcModal = parseFloat(form.orcamento.replace(',', '.')) || 0
+  const orcJaAlocado = editItem ? totalOrc - editItem.orcamento : totalOrc
+  const disponivel   = orcTotal > 0 ? orcTotal - orcJaAlocado : null
+  const excede       = disponivel !== null && novoOrcModal > disponivel
+  const canSave      = !!(form.objetivo.trim() && form.orcamento && !saving && !excede)
+
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>
-            Estratégia{projetoSel ? ` · ${projetosExec.find(p => p.id === projetoSel)?.nome}` : ''}
+            Estratégia{projetoAtual ? ` · ${projetoAtual.nome}` : ''}
           </div>
-          <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>Fluxo de funil — selecione o mês para editar</div>
+          <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>Estratégias por nível de consciência</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           {projetosExec.length > 1 && (
             <select value={projetoSel} onChange={e => setProjetoSel(e.target.value)}
               style={{ padding: '7px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', cursor: 'pointer' }}>
@@ -3313,230 +3333,222 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
               {mesesDisp.map(m => <option key={m} value={m}>{fmtMesLabel(m)}</option>)}
             </select>
           </div>
-          {orcTotal > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, minWidth: 200 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+          {orcTotal > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 210 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 11, color: GRAY3, fontWeight: 600 }}>Verba alocada</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: pctGeral >= 100 ? R : pctGeral >= 80 ? '#92400E' : '#065F46' }}>
                   {fmt(totalOrc)} / {fmt(orcTotal)} ({pctGeral}%)
                 </span>
               </div>
-              <div style={{ width: '100%', height: 6, background: GRAY5, borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ height: 6, background: GRAY5, borderRadius: 4, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${pctGeral}%`, borderRadius: 4, background: pctGeral >= 100 ? R : pctGeral >= 80 ? '#F59E0B' : '#10B981', transition: 'width .3s' }} />
               </div>
               <span style={{ fontSize: 11, color: pctGeral >= 100 ? R : GRAY3 }}>
                 {pctGeral >= 100 ? 'Orçamento esgotado' : `${fmt(orcRestante)} disponível`}
               </span>
             </div>
-          ) : totalOrc > 0 ? (
-            <div style={{ padding: '7px 14px', background: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#065F46' }}>
-              {fmt(totalOrc)} alocado
-            </div>
-          ) : null}
+          )}
         </div>
       </div>
 
-      {/* Funil vertical */}
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {ETAPAS_FUNIL.map((etapa, idx) => {
-          const itens    = estr.filter(e => e.etapa === etapa.key)
-          const etapaOrc = itens.reduce((s, e) => s + (e.orcamento || 0), 0)
+      {/* Legend de níveis */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+        {NIVEIS_CONSCIENCIA.map(n => {
+          const count    = estr.filter(e => e.etapa === n.key).length
+          const etapaOrc = estr.filter(e => e.etapa === n.key).reduce((s, e) => s + e.orcamento, 0)
           const pct      = orcTotal > 0 ? Math.round((etapaOrc / orcTotal) * 100) : 0
-
           return (
-            <React.Fragment key={etapa.key}>
-              <div style={{ background: WHITE, borderRadius: 14, border: `1px solid ${GRAY5}`, boxShadow: '0 1px 4px rgba(0,0,0,.05)', overflow: 'hidden' }}>
-                {/* Stage header */}
-                <div style={{ padding: '16px 20px', borderBottom: `1px solid ${GRAY5}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 12px', borderRadius: 20, background: etapa.bg, border: `1px solid ${etapa.border}`, color: etapa.color, letterSpacing: '0.05em' }}>{etapa.label}</span>
-                    <span style={{ fontSize: 13, color: GRAY2 }}>{etapa.desc}</span>
-                  </div>
-                  {etapaOrc > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>{fmt(etapaOrc)}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: etapa.bg, color: etapa.color }}>{pct}%</span>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ padding: '16px 20px' }}>
-                  {itens.length === 0 ? (
-                    <div style={{ padding: '11px 14px', background: '#FFFBEB', border: '1px dashed #FDE68A', borderRadius: 10, display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
-                      <AlertTriangle size={14} color="#92400E" style={{ flexShrink: 0, marginTop: 1 }} />
-                      <span style={{ fontSize: 12, color: '#92400E', lineHeight: 1.6 }}>
-                        {etapa.key === 'topo'     && 'Nenhuma estratégia de topo. Sem captação de demanda nova, o funil não se abastece.'}
-                        {etapa.key === 'meio'     && 'Nenhuma estratégia de meio. Leads gerados no topo podem esfriar sem nutrição.'}
-                        {etapa.key === 'fundo'    && 'Nenhuma estratégia de fundo. Sem conversão direta, o investimento em topo e meio não fecha.'}
-                        {etapa.key === 'retencao' && 'Nenhuma estratégia de retenção. A base convertida não está sendo trabalhada para recompra.'}
-                      </span>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                      {itens.map(item => (
-                        <div key={item.id} style={{ padding: '12px 14px', background: GRAY4, borderRadius: 10, border: `1px solid ${GRAY5}` }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>{item.objetivo}</span>
-                            {canEdit && (
-                              <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-                                <button onClick={() => openModal(etapa.key, item)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 3, display: 'flex' }}
-                                  onMouseEnter={e => (e.currentTarget.style.color = GRAY1)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                                  <Edit2 size={11} />
-                                </button>
-                                <button onClick={() => deleteEstrategia(item.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 3, display: 'flex' }}
-                                  onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
-                                  <Trash2 size={11} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 12, color: GRAY3 }}>
-                            {item.plataforma} · {item.tipo} · {fmt(item.orcamento)}
-                          </div>
-                          {(item.num_campanhas || item.num_criativos) && (
-                            <div style={{ fontSize: 11, color: GRAY3, marginTop: 3 }}>
-                              {[item.num_campanhas && `${item.num_campanhas} campanha${item.num_campanhas !== 1 ? 's' : ''}`, item.num_criativos && `${item.num_criativos} criativo${item.num_criativos !== 1 ? 's' : ''}`].filter(Boolean).join(' · ')}
-                            </div>
-                          )}
-                          {item.observacao && <div style={{ fontSize: 11, color: GRAY3, marginTop: 4, fontStyle: 'italic' }}>{item.observacao}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {canEdit && (
-                    <button onClick={() => openModal(etapa.key)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1.5px dashed ${etapa.color}50`, background: `${etapa.color}06`, color: etapa.color, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'background .15s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = `${etapa.color}12`)}
-                      onMouseLeave={e => (e.currentTarget.style.background = `${etapa.color}06`)}>
-                      <Plus size={13} /> Adicionar estratégia
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {idx < ETAPAS_FUNIL.length - 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', color: GRAY3 }}>
-                  <ChevronDown size={22} />
-                </div>
-              )}
-            </React.Fragment>
+            <div key={n.key} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 8, background: count > 0 ? n.bg : GRAY4, border: `1px solid ${count > 0 ? n.border : GRAY5}` }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: count > 0 ? n.color : GRAY3 }}>{n.label}</span>
+              {count > 0 && <span style={{ fontSize: 10, color: n.color, opacity: 0.8 }}>{count} · {pct}%</span>}
+              {count === 0 && <span style={{ fontSize: 10, color: GRAY3 }}>—</span>}
+            </div>
           )
         })}
       </div>
 
-      {/* Modal */}
-      {modalEtapa && (() => {
-        const ec           = ETAPAS_FUNIL.find(e => e.key === modalEtapa)!
-        const sugs         = OBJETIVOS_ETAPA[modalEtapa]
-        const novoOrc      = parseFloat(form.orcamento.replace(',', '.')) || 0
-        const orcJaAlocado = editItem ? totalOrc - editItem.orcamento : totalOrc
-        const disponivel   = orcTotal > 0 ? orcTotal - orcJaAlocado : null
-        const excede       = disponivel !== null && novoOrc > disponivel
-        const canSave      = !!(form.objetivo.trim() && form.orcamento && !saving && !excede)
-        return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-            onClick={closeModal}>
-            <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}
-              onClick={e => e.stopPropagation()}>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 12px', borderRadius: 20, background: ec.bg, border: `1px solid ${ec.border}`, color: ec.color }}>{ec.label}</span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>{editItem ? 'Editar' : 'Nova'} estratégia</span>
-                </div>
-                <button onClick={closeModal} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}><X size={18} /></button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                {/* Objetivo */}
-                <div>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Objetivo *</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 8 }}>
-                    {sugs.map(obj => (
-                      <button key={obj} onClick={() => setForm(f => ({ ...f, objetivo: obj }))}
-                        style={pillBtn(form.objetivo === obj, ec.color, ec.bg)}>{obj}</button>
-                    ))}
-                  </div>
-                  <input type="text" value={form.objetivo} onChange={e => setForm(f => ({ ...f, objetivo: e.target.value }))}
-                    placeholder="Ou escreva um objetivo personalizado..."
-                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
-                </div>
-
-                {/* Plataforma */}
-                <div>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Plataforma *</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
-                    {PLATAFORMAS_ESTR.map(p => (
-                      <button key={p} onClick={() => setForm(f => ({ ...f, plataforma: p }))}
-                        style={pillBtn(form.plataforma === p, ec.color, ec.bg)}>{p}</button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Tipo */}
-                <div>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Tipo *</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {TIPOS_ESTR.map(t => (
-                      <button key={t} onClick={() => setForm(f => ({ ...f, tipo: t }))}
-                        style={pillBtn(form.tipo === t, ec.color, ec.bg)}>{t}</button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Números */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={{ gridColumn: '1/-1' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                      <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Orçamento (R$) *</label>
-                      {disponivel !== null && (
-                        <span style={{ fontSize: 11, fontWeight: 600, color: excede ? R : '#065F46' }}>
-                          {excede ? `Excede em ${fmt(novoOrc - disponivel)}` : `Disponível: ${fmt(disponivel)}`}
-                        </span>
-                      )}
+      {/* Grid de estratégias */}
+      {estr.length === 0 ? (
+        <div style={{ ...card, padding: '48px 24px', textAlign: 'center' }}>
+          <Zap size={28} color={GRAY3} style={{ margin: '0 auto 12px' }} />
+          <div style={{ fontSize: 13, fontWeight: 600, color: GRAY2, marginBottom: 6 }}>Nenhuma estratégia em {fmtMesLabel(mesSel)}</div>
+          <div style={{ fontSize: 12, color: GRAY3 }}>Clique em "+ Nova estratégia" para começar a montar o mês.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          {estr.map(item => {
+            const n   = NIVEIS_CONSCIENCIA.find(x => x.key === item.etapa)!
+            const pct = orcTotal > 0 ? Math.round((item.orcamento / orcTotal) * 100) : 0
+            return (
+              <div key={item.id} style={{ background: WHITE, borderRadius: 12, border: `1px solid ${GRAY5}`, boxShadow: '0 1px 3px rgba(0,0,0,.05)', overflow: 'hidden' }}>
+                <div style={{ height: 3, background: n.color }} />
+                <div style={{ padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: n.bg, border: `1px solid ${n.border}`, color: n.color, letterSpacing: '0.04em', display: 'inline-block', marginBottom: 6 }}>{n.label}</span>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{item.objetivo}</div>
                     </div>
-                    <input type="text" inputMode="decimal" value={form.orcamento}
-                      onChange={e => setForm(f => ({ ...f, orcamento: e.target.value.replace(/[^0-9,.]/g, '') }))}
-                      placeholder="0,00"
-                      style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${excede ? R : GRAY5}`, borderRadius: 8, fontSize: 15, fontWeight: 700, color: excede ? R : GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
-                    {excede && (
-                      <div style={{ fontSize: 11, color: R, marginTop: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <AlertTriangle size={11} /> Valor ultrapassa a verba disponível para este mês.
+                    {canEdit && (
+                      <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                        <button onClick={() => openEdit(item)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 4, display: 'flex' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = GRAY1)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                          <Edit2 size={12} />
+                        </button>
+                        <button onClick={() => deleteEstrategia(item.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 4, display: 'flex' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                          <Trash2 size={12} />
+                        </button>
                       </div>
                     )}
                   </div>
-                  <div>
-                    <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Campanhas</label>
-                    <input type="number" min="1" value={form.num_campanhas} onChange={e => setForm(f => ({ ...f, num_campanhas: e.target.value }))} placeholder="—"
-                      style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px', fontSize: 12, color: GRAY3 }}>
+                    <span>{item.plataforma}</span>
+                    <span>·</span>
+                    <span>{item.tipo}</span>
+                    <span>·</span>
+                    <span style={{ fontWeight: 700, color: GRAY2 }}>{fmt(item.orcamento)}{orcTotal > 0 && <span style={{ fontWeight: 500, color: GRAY3 }}> ({pct}%)</span>}</span>
                   </div>
-                  <div>
-                    <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Criativos</label>
-                    <input type="number" min="1" value={form.num_criativos} onChange={e => setForm(f => ({ ...f, num_criativos: e.target.value }))} placeholder="—"
-                      style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
-                  </div>
-                  <div style={{ gridColumn: '1/-1' }}>
-                    <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Observação</label>
-                    <textarea value={form.observacao} onChange={e => setForm(f => ({ ...f, observacao: e.target.value }))} rows={2}
-                      placeholder="Ex: 2 campanhas de captação de lead com lookalike da base..."
-                      style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const, resize: 'vertical' as const, fontFamily: 'inherit' }} />
-                  </div>
+                  {(item.num_campanhas || item.num_criativos) && (
+                    <div style={{ fontSize: 11, color: GRAY3, marginTop: 4 }}>
+                      {[item.num_campanhas && `${item.num_campanhas} campanha${item.num_campanhas !== 1 ? 's' : ''}`, item.num_criativos && `${item.num_criativos} criativo${item.num_criativos !== 1 ? 's' : ''}`].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                  {item.observacao && <div style={{ fontSize: 11, color: GRAY3, marginTop: 4, fontStyle: 'italic' }}>{item.observacao}</div>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {canEdit && (
+        <button onClick={openNew}
+          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: `2px dashed ${R}60`, background: `${R}06`, color: R, fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%', justifyContent: 'center', transition: 'background .15s' }}
+          onMouseEnter={e => (e.currentTarget.style.background = `${R}10`)}
+          onMouseLeave={e => (e.currentTarget.style.background = `${R}06`)}>
+          <Plus size={14} /> Nova estratégia
+        </button>
+      )}
+
+      {/* Modal */}
+      {modalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={closeModal}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: '100%', maxWidth: 540, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}
+            onClick={e => e.stopPropagation()}>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>{editItem ? 'Editar' : 'Nova'} estratégia</span>
+              <button onClick={closeModal} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}><X size={18} /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Nível de consciência */}
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Nível de consciência *</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {NIVEIS_CONSCIENCIA.map(n => (
+                    <button key={n.key} onClick={() => setForm(f => ({ ...f, etapa: n.key, objetivo: '' }))}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${form.etapa === n.key ? n.color : GRAY5}`, background: form.etapa === n.key ? n.bg : WHITE, cursor: 'pointer', textAlign: 'left' as const, transition: 'all .12s' }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: n.color, flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: form.etapa === n.key ? n.color : GRAY1 }}>{n.label}</div>
+                        <div style={{ fontSize: 11, color: GRAY3, marginTop: 1 }}>{n.desc}</div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
-                <button onClick={closeModal} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  Cancelar
-                </button>
-                <button onClick={saveEstrategia} disabled={!canSave}
-                  style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: canSave ? ec.color : GRAY3, color: WHITE, fontSize: 13, fontWeight: 700, cursor: canSave ? 'pointer' : 'not-allowed' }}>
-                  {saving ? 'Salvando...' : editItem ? 'Salvar' : 'Adicionar'}
-                </button>
+              {/* Objetivo */}
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Objetivo *</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 8 }}>
+                  {sugs.map(obj => (
+                    <button key={obj} onClick={() => setForm(f => ({ ...f, objetivo: obj }))}
+                      style={pillBtn(form.objetivo === obj, ec.color, ec.bg)}>{obj}</button>
+                  ))}
+                </div>
+                <input type="text" value={form.objetivo} onChange={e => setForm(f => ({ ...f, objetivo: e.target.value }))}
+                  placeholder="Ou escreva um objetivo personalizado..."
+                  style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+              </div>
+
+              {/* Plataforma */}
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Plataforma *</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
+                  {PLATAFORMAS_ESTR.map(p => (
+                    <button key={p} onClick={() => setForm(f => ({ ...f, plataforma: p }))}
+                      style={pillBtn(form.plataforma === p, ec.color, ec.bg)}>{p}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tipo */}
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Tipo *</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {TIPOS_ESTR.map(t => (
+                    <button key={t} onClick={() => setForm(f => ({ ...f, tipo: t }))}
+                      style={pillBtn(form.tipo === t, ec.color, ec.bg)}>{t}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Orçamento + campanhas + criativos */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ gridColumn: '1/-1' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Orçamento (R$) *</label>
+                    {disponivel !== null && (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: excede ? R : '#065F46' }}>
+                        {excede ? `Excede em ${fmt(novoOrcModal - disponivel)}` : `Disponível: ${fmt(disponivel)}`}
+                      </span>
+                    )}
+                  </div>
+                  <input type="text" inputMode="decimal" value={form.orcamento}
+                    onChange={e => setForm(f => ({ ...f, orcamento: e.target.value.replace(/[^0-9,.]/g, '') }))}
+                    placeholder="0,00"
+                    style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${excede ? R : GRAY5}`, borderRadius: 8, fontSize: 15, fontWeight: 700, color: excede ? R : GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                  {excede && (
+                    <div style={{ fontSize: 11, color: R, marginTop: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <AlertTriangle size={11} /> Valor ultrapassa a verba disponível para este mês.
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Campanhas</label>
+                  <input type="number" min="1" value={form.num_campanhas} onChange={e => setForm(f => ({ ...f, num_campanhas: e.target.value }))} placeholder="—"
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Criativos</label>
+                  <input type="number" min="1" value={form.num_criativos} onChange={e => setForm(f => ({ ...f, num_criativos: e.target.value }))} placeholder="—"
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
+                </div>
+                <div style={{ gridColumn: '1/-1' }}>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Observação</label>
+                  <textarea value={form.observacao} onChange={e => setForm(f => ({ ...f, observacao: e.target.value }))} rows={2}
+                    placeholder="Ex: 2 campanhas de captação de lead com lookalike da base..."
+                    style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, color: GRAY1, outline: 'none', boxSizing: 'border-box' as const, resize: 'vertical' as const, fontFamily: 'inherit' }} />
+                </div>
               </div>
             </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+              <button onClick={closeModal} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={saveEstrategia} disabled={!canSave}
+                style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: canSave ? ec.color : GRAY3, color: WHITE, fontSize: 13, fontWeight: 700, cursor: canSave ? 'pointer' : 'not-allowed' }}>
+                {saving ? 'Salvando...' : editItem ? 'Salvar' : 'Adicionar'}
+              </button>
+            </div>
           </div>
-        )
-      })()}
+        </div>
+      )}
     </div>
   )
 }
