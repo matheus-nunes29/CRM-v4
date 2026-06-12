@@ -205,6 +205,21 @@ export type Oportunidade = {
   updated_at: string
 }
 
+export type RegistroEntrega = {
+  id: string
+  projeto_id: string
+  cliente_id: string
+  mes: string
+  data: string
+  campanhas: number | null
+  estaticos: number | null
+  videos: number | null
+  posts: number | null
+  observacao: string | null
+  created_by: string | null
+  created_at: string
+}
+
 export type FcaEntry = {
   id: string
   cliente_id: string

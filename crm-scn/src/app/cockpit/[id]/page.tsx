@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao, ObjetivoMensal, ResultadoSemanal } from '@/lib/supabase'
+import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao, ObjetivoMensal, ResultadoSemanal, RegistroEntrega } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE, SEGMENTOS } from '@/lib/crm-constants'
 import {
@@ -12,7 +12,7 @@ import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown,
   Link2, Layers, TrendingUp, Target, AlertTriangle, Users,
   Calendar, Package, Clock, Trash2, Globe, Info,
-  Building2, Phone, Mail, ExternalLink, Video, FileText, Upload,
+  Building2, Phone, Mail, ExternalLink, Video, FileText, Upload, BarChart2,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
@@ -87,6 +87,7 @@ const TABS = [
   { id: 'health-score',  label: 'Health Score',   icon: TrendingUp },
   { id: 'metas',         label: 'Metas',          icon: Target },
   { id: 'reunioes',      label: 'Reuniões',       icon: Video },
+  { id: 'entregas',      label: 'Entregas',       icon: BarChart2 },
   { id: 'oportunidades', label: 'Oportunidades',  icon: Package },
   { id: 'fca',           label: 'FCA',            icon: AlertTriangle },
 ]
@@ -250,6 +251,7 @@ export default function ClienteCockpitPage() {
   const [oportunidades, setOps]       = useState<Oportunidade[]>([])
   const [fcaEntries, setFCA]          = useState<FcaEntry[]>([])
   const [reunioes, setReunioes]       = useState<Reuniao[]>([])
+  const [registrosEntrega, setRegistrosEntrega] = useState<RegistroEntrega[]>([])
   const [loading, setLoading]         = useState(true)
   const [leadContrato, setLeadContrato] = useState<string | null>(null)
 
@@ -277,7 +279,7 @@ export default function ClienteCockpitPage() {
       setLeadContrato(null)
     }
 
-    const [ct, pr, hs, mt, op, fc, re, obj, res] = await Promise.all([
+    const [ct, pr, hs, mt, op, fc, re, obj, res, reg] = await Promise.all([
       supabase.from('contatos').select('*').eq('cliente_id', actualId).order('is_primary', { ascending: false }),
       supabase.from('projetos').select('*').eq('cliente_id', actualId).order('created_at'),
       supabase.from('health_score_entries').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }).limit(20),
@@ -287,6 +289,7 @@ export default function ClienteCockpitPage() {
       supabase.from('reunioes').select('*').eq('cliente_id', actualId).order('data', { ascending: false }),
       supabase.from('objetivos_mensais').select('*').eq('cliente_id', actualId).order('mes', { ascending: false }),
       supabase.from('resultados_semanais').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }),
+      supabase.from('registros_entrega').select('*').eq('cliente_id', actualId).order('data', { ascending: false }),
     ])
     setContatos(ct.data || [])
     setProjetos(pr.data || [])
@@ -297,6 +300,7 @@ export default function ClienteCockpitPage() {
     setReunioes(re.data || [])
     setObjetivos(obj.data || [])
     setResultados(res.data || [])
+    setRegistrosEntrega(reg.data || [])
     setLoading(false)
   }, [slugOrId])
 
@@ -388,6 +392,7 @@ export default function ClienteCockpitPage() {
         {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
+        {tab === 'entregas'      && <TabEntregas      registros={registrosEntrega} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
       </div>
@@ -763,7 +768,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   const [editServicosSel, setEditServicosSel] = useState<ServicoSel[]>([])
   const [entregaProjetoId, setEntregaProjetoId] = useState<string | null>(null)
   const [entregaMes, setEntregaMes] = useState(() => new Date().toISOString().slice(0, 7))
-  const [entregaForm, setEntregaForm] = useState({ campanhas: '', estaticos: '', videos: '', posts: '' })
+  const [entregaForm, setEntregaForm] = useState({ campanhas: '', estaticos: '', videos: '', posts: '', data: new Date().toISOString().slice(0, 10), observacao: '' })
   const [savingEntrega, setSavingEntrega] = useState(false)
 
   function toggleServico(key: string) {
@@ -808,18 +813,24 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
   function openEntrega(p: Projeto) {
     setEntregaProjetoId(p.id)
     setEntregaMes(new Date().toISOString().slice(0, 7))
-    setEntregaForm({ campanhas: '', estaticos: '', videos: '', posts: '' })
+    setEntregaForm({ campanhas: '', estaticos: '', videos: '', posts: '', data: new Date().toISOString().slice(0, 10), observacao: '' })
   }
 
   async function saveEntrega(projetoId: string) {
     setSavingEntrega(true)
-    const vals: any = { projeto_id: projetoId, cliente_id: clienteId, mes: entregaMes }
     const p = projetos.find(x => x.id === projetoId)
     const servicos = (p?.servicos_executar || []).map(s => s.key)
-    if (servicos.includes('midia_paga'))     vals.midia_campanhas  = entregaForm.campanhas  ? parseInt(entregaForm.campanhas, 10)  : null
-    if (servicos.includes('design_grafico')) { vals.design_estaticos = entregaForm.estaticos ? parseInt(entregaForm.estaticos, 10) : null; vals.design_videos = entregaForm.videos ? parseInt(entregaForm.videos, 10) : null }
-    if (servicos.includes('social_media'))   vals.social_posts     = entregaForm.posts      ? parseInt(entregaForm.posts, 10)      : null
-    const { error } = await supabase.from('entregas_mensais').upsert(vals, { onConflict: 'projeto_id,mes' })
+    const vals: any = {
+      projeto_id: projetoId,
+      cliente_id: clienteId,
+      mes: entregaMes,
+      data: entregaForm.data || new Date().toISOString().slice(0, 10),
+      observacao: entregaForm.observacao || null,
+    }
+    if (servicos.includes('midia_paga'))     vals.campanhas = entregaForm.campanhas  ? parseInt(entregaForm.campanhas, 10)  : null
+    if (servicos.includes('design_grafico')) { vals.estaticos = entregaForm.estaticos ? parseInt(entregaForm.estaticos, 10) : null; vals.videos = entregaForm.videos ? parseInt(entregaForm.videos, 10) : null }
+    if (servicos.includes('social_media'))   vals.posts     = entregaForm.posts      ? parseInt(entregaForm.posts, 10)      : null
+    const { error } = await supabase.from('registros_entrega').insert(vals)
     setSavingEntrega(false)
     if (error) { toast.error('Erro ao salvar: ' + error.message); return }
     setEntregaProjetoId(null)
@@ -1076,9 +1087,15 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                 </button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Mês de referência</label>
-                  <input type="month" value={entregaMes} onChange={e => setEntregaMes(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data do lançamento</label>
+                    <input type="date" value={entregaForm.data} onChange={e => setEntregaForm(f => ({ ...f, data: e.target.value }))} style={{ width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Mês de referência</label>
+                    <input type="month" value={entregaMes} onChange={e => setEntregaMes(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
                 </div>
                 {hasMidia && (
                   <div>
@@ -1107,6 +1124,10 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit }: { projetos: Pro
                 {!hasMidia && !hasDesign && !hasSocial && (
                   <div style={{ fontSize: 12, color: GRAY3, padding: '12px 0', textAlign: 'center' }}>Nenhum serviço com volume configurado neste projeto.</div>
                 )}
+                <div>
+                  <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Observação (opcional)</label>
+                  <input type="text" value={entregaForm.observacao} onChange={e => setEntregaForm(f => ({ ...f, observacao: e.target.value }))} placeholder="Ex: Entrega parcial — arte aprovada na revisão" style={{ width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
                 <button onClick={() => setEntregaProjetoId(null)} style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
@@ -2455,6 +2476,242 @@ function TabFCA({ entries, clienteId, onReload, canEdit }: { entries: FcaEntry[]
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: ENTREGAS
+// ══════════════════════════════════════════════════════════════════════════════
+function EntregaProgressBar({ label, atual, meta }: { label: string; atual: number; meta: number }) {
+  const pct = meta > 0 ? Math.min(100, (atual / meta) * 100) : 0
+  const cor = pct >= 100 ? GREEN : pct >= 60 ? BLUE : pct > 0 ? YELLOW : GRAY3
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: GRAY2 }}>{label}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: cor }}>{atual}{meta > 0 ? ` / ${meta}` : ''}</span>
+      </div>
+      <div style={{ height: 6, background: GRAY5, borderRadius: 4 }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: cor, borderRadius: 4, transition: 'width .3s' }} />
+      </div>
+    </div>
+  )
+}
+
+function TabEntregas({ registros, projetos, clienteId, onReload, canEdit }: {
+  registros: RegistroEntrega[]; projetos: Projeto[]; clienteId: string
+  onReload: () => void; canEdit: boolean
+}) {
+  const hoje = new Date()
+  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`
+  const [mesSel, setMesSel] = useState(mesAtual)
+  const [modalProjeto, setModalProjeto] = useState<Projeto | null>(null)
+  const [modalMes, setModalMes]         = useState(mesAtual)
+  const [modalForm, setModalForm]       = useState({ campanhas: '', estaticos: '', videos: '', posts: '', data: hoje.toISOString().slice(0, 10), observacao: '' })
+  const [saving, setSaving]             = useState(false)
+
+  const projetosExecutar = projetos.filter(p => p.tipo === 'executar' && p.status === 'ativo')
+  const registrosMes     = registros.filter(r => r.mes === mesSel)
+  const mesesDisponiveis = Array.from(new Set([mesAtual, ...registros.map(r => r.mes)])).sort((a, b) => b.localeCompare(a))
+
+  function fmtMesLabel(m: string) {
+    const [y, mo] = m.split('-')
+    const nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+    return `${nomes[parseInt(mo) - 1]} ${y}`
+  }
+
+  function openModal(p: Projeto) {
+    setModalProjeto(p)
+    setModalMes(mesAtual)
+    setModalForm({ campanhas: '', estaticos: '', videos: '', posts: '', data: new Date().toISOString().slice(0, 10), observacao: '' })
+  }
+
+  async function saveModal() {
+    if (!modalProjeto) return
+    setSaving(true)
+    const servicos = (modalProjeto.servicos_executar || []).map(s => s.key)
+    const vals: any = {
+      projeto_id: modalProjeto.id,
+      cliente_id: clienteId,
+      mes: modalMes,
+      data: modalForm.data || new Date().toISOString().slice(0, 10),
+      observacao: modalForm.observacao || null,
+    }
+    if (servicos.includes('midia_paga'))     vals.campanhas = modalForm.campanhas  ? parseInt(modalForm.campanhas,  10) : null
+    if (servicos.includes('design_grafico')) { vals.estaticos = modalForm.estaticos ? parseInt(modalForm.estaticos, 10) : null; vals.videos = modalForm.videos ? parseInt(modalForm.videos, 10) : null }
+    if (servicos.includes('social_media'))   vals.posts     = modalForm.posts      ? parseInt(modalForm.posts,      10) : null
+    const { error } = await supabase.from('registros_entrega').insert(vals)
+    setSaving(false)
+    if (error) { toast.error('Erro ao salvar: ' + error.message); return }
+    setModalProjeto(null)
+    await onReload()
+  }
+
+  async function deleteRegistro(id: string) {
+    if (!confirm('Excluir este lançamento?')) return
+    await supabase.from('registros_entrega').delete().eq('id', id)
+    await onReload()
+  }
+
+  function soma(arr: RegistroEntrega[], campo: keyof RegistroEntrega) {
+    return arr.reduce((s, r) => s + ((r[campo] as number) || 0), 0)
+  }
+
+  const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', boxSizing: 'border-box' }
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>Entregas</div>
+          <div style={{ fontSize: 12, color: GRAY3, marginTop: 2 }}>Lançamentos cumulativos por mês</div>
+        </div>
+        <select value={mesSel} onChange={e => setMesSel(e.target.value)} style={{ padding: '7px 10px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 13, color: GRAY1, outline: 'none', fontWeight: 600, cursor: 'pointer' }}>
+          {mesesDisponiveis.map(m => <option key={m} value={m}>{fmtMesLabel(m)}</option>)}
+        </select>
+      </div>
+
+      {projetosExecutar.length === 0 && (
+        <div style={{ ...card, padding: '48px 24px', textAlign: 'center' }}>
+          <BarChart2 size={32} color={GRAY3} style={{ margin: '0 auto 12px' }} />
+          <div style={{ fontSize: 14, color: GRAY2 }}>Nenhum projeto Executar ativo</div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {projetosExecutar.map(p => {
+          const regsProj  = registrosMes.filter(r => r.projeto_id === p.id)
+          const servicos  = (p.servicos_executar || []).map(s => s.key)
+          const hasMidia  = servicos.includes('midia_paga')
+          const hasDesign = servicos.includes('design_grafico')
+          const hasSocial = servicos.includes('social_media')
+          const sv = (p.servicos_executar || [])
+          const metaCampanhas = hasMidia  ? (sv.find(s => s.key === 'midia_paga')?.campanhas   ?? 0) : 0
+          const metaEstaticos = hasDesign ? (sv.find(s => s.key === 'design_grafico')?.estaticos ?? 0) : 0
+          const metaVideos    = hasDesign ? (sv.find(s => s.key === 'design_grafico')?.videos    ?? 0) : 0
+          const metaPosts     = hasSocial ? (sv.find(s => s.key === 'social_media')?.posts      ?? 0) : 0
+
+          return (
+            <div key={p.id} style={{ ...card, padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: GRAY1 }}>{p.nome}</div>
+                  <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>{regsProj.length} lançamento{regsProj.length !== 1 ? 's' : ''} em {fmtMesLabel(mesSel)}</div>
+                </div>
+                {canEdit && (
+                  <button onClick={() => openModal(p)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: BLUE, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    <Plus size={13} /> Registrar
+                  </button>
+                )}
+              </div>
+
+              {(hasMidia || hasDesign || hasSocial) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', background: GRAY4, borderRadius: 10, marginBottom: 16 }}>
+                  {hasMidia  && <EntregaProgressBar label="Campanhas (Mídia Paga)" atual={soma(regsProj, 'campanhas')} meta={metaCampanhas} />}
+                  {hasDesign && <EntregaProgressBar label="Estáticos (Design)"     atual={soma(regsProj, 'estaticos')} meta={metaEstaticos} />}
+                  {hasDesign && <EntregaProgressBar label="Vídeos (Design)"        atual={soma(regsProj, 'videos')}    meta={metaVideos} />}
+                  {hasSocial && <EntregaProgressBar label="Posts (Social Media)"   atual={soma(regsProj, 'posts')}     meta={metaPosts} />}
+                </div>
+              )}
+
+              {regsProj.length === 0 ? (
+                <div style={{ fontSize: 12, color: GRAY3, fontStyle: 'italic', textAlign: 'center', padding: '12px 0' }}>Nenhum lançamento neste mês</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {regsProj.map(r => (
+                    <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', background: WHITE, borderRadius: 8, border: `1px solid ${GRAY5}` }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 8, background: `${BLUE}0F`, border: `1px solid ${BLUE}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Calendar size={14} color={BLUE} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: GRAY1, marginBottom: 3 }}>{fmtDate(r.data)}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+                          {r.campanhas != null && <span style={{ fontSize: 11, color: GRAY2 }}>📢 {r.campanhas} campanha{r.campanhas !== 1 ? 's' : ''}</span>}
+                          {r.estaticos != null && <span style={{ fontSize: 11, color: GRAY2 }}>🖼 {r.estaticos} estático{r.estaticos !== 1 ? 's' : ''}</span>}
+                          {r.videos    != null && <span style={{ fontSize: 11, color: GRAY2 }}>🎬 {r.videos} vídeo{r.videos !== 1 ? 's' : ''}</span>}
+                          {r.posts     != null && <span style={{ fontSize: 11, color: GRAY2 }}>📝 {r.posts} post{r.posts !== 1 ? 's' : ''}</span>}
+                        </div>
+                        {r.observacao && <div style={{ fontSize: 11, color: GRAY3, marginTop: 4, fontStyle: 'italic' }}>{r.observacao}</div>}
+                      </div>
+                      {canEdit && (
+                        <button onClick={() => deleteRegistro(r.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: GRAY3, padding: 4, flexShrink: 0 }}
+                          onMouseEnter={e => (e.currentTarget.style.color = R)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Modal de lançamento */}
+      {modalProjeto && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => setModalProjeto(null)}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: GRAY1 }}>Registrar Entrega</div>
+                <div style={{ fontSize: 11, color: GRAY3, marginTop: 2 }}>{modalProjeto.nome}</div>
+              </div>
+              <button onClick={() => setModalProjeto(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 4, borderRadius: 6, display: 'flex' }}><X size={18} /></button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data do lançamento</label>
+                  <input type="date" value={modalForm.data} onChange={e => setModalForm(f => ({ ...f, data: e.target.value }))} style={inp} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Mês de referência</label>
+                  <input type="month" value={modalMes} onChange={e => setModalMes(e.target.value)} style={inp} />
+                </div>
+              </div>
+              {(modalProjeto.servicos_executar || []).map(s => s.key).includes('midia_paga') && (
+                <div>
+                  <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Campanhas rodadas (Mídia Paga)</label>
+                  <input type="number" min="0" value={modalForm.campanhas} onChange={e => setModalForm(f => ({ ...f, campanhas: e.target.value }))} placeholder="0" style={inp} />
+                </div>
+              )}
+              {(modalProjeto.servicos_executar || []).map(s => s.key).includes('design_grafico') && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Estáticos entregues</label>
+                    <input type="number" min="0" value={modalForm.estaticos} onChange={e => setModalForm(f => ({ ...f, estaticos: e.target.value }))} placeholder="0" style={inp} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Vídeos entregues</label>
+                    <input type="number" min="0" value={modalForm.videos} onChange={e => setModalForm(f => ({ ...f, videos: e.target.value }))} placeholder="0" style={inp} />
+                  </div>
+                </div>
+              )}
+              {(modalProjeto.servicos_executar || []).map(s => s.key).includes('social_media') && (
+                <div>
+                  <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Posts publicados (Social Media)</label>
+                  <input type="number" min="0" value={modalForm.posts} onChange={e => setModalForm(f => ({ ...f, posts: e.target.value }))} placeholder="0" style={inp} />
+                </div>
+              )}
+              <div>
+                <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Observação (opcional)</label>
+                <input type="text" value={modalForm.observacao} onChange={e => setModalForm(f => ({ ...f, observacao: e.target.value }))} placeholder="Ex: Entrega parcial — arte aprovada" style={inp} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+              <button onClick={() => setModalProjeto(null)} style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={saveModal} disabled={saving} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: BLUE, color: WHITE, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
