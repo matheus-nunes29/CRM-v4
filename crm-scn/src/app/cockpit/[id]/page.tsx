@@ -892,7 +892,11 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
   }
 
   async function save() {
-    if (!form.nome.trim()) return
+    if (!form.nome.trim()) { toast.warning('Preencha o nome do projeto'); return }
+    if ((form.tipo === 'saber' || form.tipo === 'ter') && !form.servico) { toast.warning('Selecione um serviço'); return }
+    if (!form.valor) { toast.warning('Preencha o valor'); return }
+    if (!form.data_inicio) { toast.warning('Preencha a data de início'); return }
+    if ((form.tipo === 'saber' || form.tipo === 'ter') && !form.data_fim) { toast.warning('Preencha a data de fim'); return }
     if (form.tipo === 'executar') {
       const missing = servicosSel.filter(s => isMissingVolume(s, servicosExec)).map(s => servicosExec.find(x => x.key === s.key)?.label)
       if (missing.length) { toast.warning(`Preencha os volumes obrigatórios: ${missing.join(', ')}`); return }
@@ -1415,13 +1419,13 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
             </div>
             <div>
               <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Tipo</label>
-              <select value={form.tipo} onChange={e => { setForm(p => ({ ...p, tipo: e.target.value as Projeto['tipo'], servico: '' })); setNewServicos([]) }} style={{ ...input14 }}>
+              <select value={form.tipo} onChange={e => { const t = e.target.value as Projeto['tipo']; setForm(p => ({ ...p, tipo: t, servico: '', valor_tipo: t === 'executar' ? 'mensalidade' : p.valor_tipo })); setNewServicos([]) }} style={{ ...input14 }}>
                 <option value="saber">Saber</option><option value="ter">Ter</option><option value="executar">Executar</option>
               </select>
             </div>
             {(form.tipo === 'saber' || form.tipo === 'ter') && (
               <div>
-                <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Serviço</label>
+                <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Serviço *</label>
                 <select value={form.servico} onChange={e => setForm(p => ({ ...p, servico: e.target.value }))} style={{ ...input14 }}>
                   <option value="">Selecione um serviço...</option>
                   {servicosDoTipo.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
@@ -1486,13 +1490,16 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
               </div>
             )}
             <div>
-              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Cobrança</label>
-              <select value={form.valor_tipo} onChange={e => setForm(p => ({ ...p, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ ...input14 }}>
-                <option value="mensalidade">Mensalidade</option><option value="pontual">Pontual</option>
-              </select>
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Cobrança *</label>
+              {form.tipo === 'executar'
+                ? <div style={{ ...input14, background: GRAY4, color: GRAY2, display: 'flex', alignItems: 'center' }}>Mensalidade</div>
+                : <select value={form.valor_tipo} onChange={e => setForm(p => ({ ...p, valor_tipo: e.target.value as Projeto['valor_tipo'] }))} style={{ ...input14 }}>
+                    <option value="mensalidade">Mensalidade</option><option value="pontual">Pontual</option>
+                  </select>
+              }
             </div>
             <div>
-              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$)</label>
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Valor (R$) *</label>
               <input type="text" inputMode="numeric"
                 value={fmtCents(form.valor)}
                 onChange={e => setForm(p => ({ ...p, valor: e.target.value.replace(/\D/g, '') }))}
@@ -1508,11 +1515,13 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
               </div>
             )}
             <div>
-              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de início</label>
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de início *</label>
               <input type="date" value={form.data_inicio} onChange={e => setForm(p => ({ ...p, data_inicio: e.target.value }))} style={input14} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>Data de fim (opcional)</label>
+              <label style={{ fontSize: 11, color: GRAY3, display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                Data de fim {(form.tipo === 'saber' || form.tipo === 'ter') ? '*' : '(opcional)'}
+              </label>
               <input type="date" value={form.data_fim} onChange={e => setForm(p => ({ ...p, data_fim: e.target.value }))} style={input14} />
             </div>
             <div style={{ gridColumn: '1/-1' }}>
