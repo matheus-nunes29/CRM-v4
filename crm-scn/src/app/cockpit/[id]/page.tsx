@@ -1896,15 +1896,18 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
       const daysInMonth = new Date(y, m, 0).getDate()
       const slotDays = getSlotDays(semanaAtual, mesAtual)
       const resSem = resultados.filter(r => r.semana === semanaAtual)
-      const pcts = objMes.map(o => {
+      const weighted: { pct: number; peso: number }[] = []
+      for (const o of objMes) {
         const r = resSem.find(r => r.objetivo_id === o.id)
-        if (!r || r.valor_realizado === null) return null
+        if (!r || r.valor_realizado === null) continue
         const metaPeriodo = o.valor_meta * slotDays / daysInMonth
-        if (!metaPeriodo) return null
-        return (r.valor_realizado / metaPeriodo) * 100
-      }).filter((v): v is number => v !== null)
-      if (!pcts.length) return 0
-      return Math.min(10, parseFloat((pcts.reduce((a, b) => a + b, 0) / pcts.length / 10).toFixed(2)))
+        if (!metaPeriodo) continue
+        weighted.push({ pct: (r.valor_realizado / metaPeriodo) * 100, peso: o.peso ?? 1 })
+      }
+      if (!weighted.length) return 0
+      const totalPeso = weighted.reduce((a, b) => a + b.peso, 0)
+      const somaPonderada = weighted.reduce((a, b) => a + b.pct * b.peso, 0)
+      return Math.min(10, parseFloat((somaPonderada / totalPeso / 10).toFixed(2)))
     }
     const legacy = metas.filter(m => m.semana === semanaAtual && m.valor_meta && m.valor_realizado !== null)
     if (!legacy.length) return 0
@@ -2228,10 +2231,10 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
 
   const [selectedMes, setSelectedMes] = useState(mesAtual)
   const [showNewObjetivo, setShowNewObjetivo] = useState(false)
-  const [formObjetivo, setFormObjetivo] = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
+  const [formObjetivo, setFormObjetivo] = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '', peso: '1' })
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
+  const [editForm, setEditForm] = useState({ descricao: '', valor_meta: '', unidade: '', projeto_id: '', peso: '1' })
   const [resultadosLocal, setResultadosLocal] = useState<Record<string, string>>({})
 
   const objetivosMes = objetivos.filter(o => o.mes === selectedMes)
@@ -2285,10 +2288,11 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
       valor_meta: parseFloat(formObjetivo.valor_meta),
       unidade: formObjetivo.unidade,
       projeto_id: formObjetivo.projeto_id || null,
+      peso: Math.max(1, parseInt(formObjetivo.peso) || 1),
       observacoes: '',
     })
     setShowNewObjetivo(false)
-    setFormObjetivo({ descricao: '', valor_meta: '', unidade: '', projeto_id: '' })
+    setFormObjetivo({ descricao: '', valor_meta: '', unidade: '', projeto_id: '', peso: '1' })
     await onReload(); setSaving(false)
   }
 
@@ -2300,6 +2304,7 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
       valor_meta: parseFloat(editForm.valor_meta),
       unidade: editForm.unidade,
       projeto_id: editForm.projeto_id || null,
+      peso: Math.max(1, parseInt(editForm.peso) || 1),
     }).eq('id', editingId)
     setEditingId(null); await onReload(); setSaving(false)
   }
@@ -2362,13 +2367,22 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
       {showNewObjetivo && canEdit && (
         <div style={{ ...card, padding: 18, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 12 }}>Novo objetivo mensal</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px', gap: 10, marginBottom: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 80px', gap: 10, marginBottom: 10 }}>
             <input value={formObjetivo.descricao} onChange={e => setFormObjetivo(p => ({ ...p, descricao: e.target.value }))}
               placeholder="Descrição do objetivo *" style={{ ...input14 }} />
             <input type="number" value={formObjetivo.valor_meta} onChange={e => setFormObjetivo(p => ({ ...p, valor_meta: e.target.value }))}
               placeholder="Meta *" style={{ ...input14 }} />
             <input value={formObjetivo.unidade} onChange={e => setFormObjetivo(p => ({ ...p, unidade: e.target.value }))}
               placeholder="Unidade" style={{ ...input14 }} />
+            <div style={{ position: 'relative' }}>
+              <input type="number" min={1} max={10} value={formObjetivo.peso}
+                onChange={e => setFormObjetivo(p => ({ ...p, peso: e.target.value }))}
+                placeholder="Peso" style={{ ...input14, paddingRight: 28 }} />
+              <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: GRAY3, pointerEvents: 'none' }}>P</span>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: GRAY3, marginBottom: 10 }}>
+            Peso: importância relativa desta meta no Resultado do Health Score (ex: 3 = três vezes mais importante que uma meta com peso 1)
           </div>
           {projetos.length > 0 && (
             <select value={formObjetivo.projeto_id} onChange={e => setFormObjetivo(p => ({ ...p, projeto_id: e.target.value }))}
@@ -2413,13 +2427,19 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
             {/* Objective header */}
             {isEditingThis ? (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px', gap: 10, marginBottom: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 80px', gap: 10, marginBottom: 10 }}>
                   <input autoFocus value={editForm.descricao} onChange={e => setEditForm(p => ({ ...p, descricao: e.target.value }))}
                     placeholder="Descrição *" style={{ ...input14 }} />
                   <input type="number" value={editForm.valor_meta} onChange={e => setEditForm(p => ({ ...p, valor_meta: e.target.value }))}
                     placeholder="Meta *" style={{ ...input14 }} />
                   <input value={editForm.unidade} onChange={e => setEditForm(p => ({ ...p, unidade: e.target.value }))}
                     placeholder="Unidade" style={{ ...input14 }} />
+                  <div style={{ position: 'relative' }}>
+                    <input type="number" min={1} max={10} value={editForm.peso}
+                      onChange={e => setEditForm(p => ({ ...p, peso: e.target.value }))}
+                      placeholder="Peso" style={{ ...input14, paddingRight: 28 }} />
+                    <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: GRAY3, pointerEvents: 'none' }}>P</span>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={saveEditObjetivo} disabled={!editForm.descricao.trim() || !editForm.valor_meta || saving}
@@ -2433,10 +2453,13 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>{objetivo.descricao}</div>
-                  <div style={{ fontSize: 12, color: GRAY3, marginTop: 3, display: 'flex', gap: 10 }}>
+                  <div style={{ fontSize: 12, color: GRAY3, marginTop: 3, display: 'flex', gap: 10, alignItems: 'center' }}>
                     <span>Meta: <strong style={{ color: GRAY2 }}>{objetivo.valor_meta} {objetivo.unidade}</strong></span>
                     <span>Realizado: <strong style={{ color: statusColor }}>{cumulativo > 0 ? `${cumulativo.toFixed(1)} ${objetivo.unidade}` : '—'}</strong></span>
                     {cumulativo > 0 && <span style={{ color: statusColor, fontWeight: 700 }}>{pct.toFixed(1)}%</span>}
+                    <span style={{ padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 700, background: '#EEF2FF', color: '#4338CA', border: '1px solid #C7D2FE' }}>
+                      Peso {objetivo.peso ?? 1}
+                    </span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2450,7 +2473,7 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
                   </span>
                   {canEdit && !objetivosLocked && (
                     <>
-                      <button onClick={() => { setEditingId(objetivo.id); setEditForm({ descricao: objetivo.descricao, valor_meta: String(objetivo.valor_meta), unidade: objetivo.unidade || '', projeto_id: objetivo.projeto_id || '' }) }}
+                      <button onClick={() => { setEditingId(objetivo.id); setEditForm({ descricao: objetivo.descricao, valor_meta: String(objetivo.valor_meta), unidade: objetivo.unidade || '', projeto_id: objetivo.projeto_id || '', peso: String(objetivo.peso ?? 1) }) }}
                         style={{ padding: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
                         onMouseEnter={e => (e.currentTarget.style.color = BLUE)} onMouseLeave={e => (e.currentTarget.style.color = GRAY3)}>
                         <Edit2 size={13} />

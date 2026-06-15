@@ -176,6 +176,7 @@ export type ObjetivoMensal = {
   descricao: string
   valor_meta: number
   unidade: string
+  peso: number          // peso relativo no resultado (padrão 1)
   observacoes: string
   created_at: string
   updated_at: string
