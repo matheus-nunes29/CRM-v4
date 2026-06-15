@@ -77,8 +77,8 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
     const el = itemRefs.current[activeView]
     const nav = navRef.current
     if (!el || !nav) return
-    // only update when the button is actually rendered (not display:none)
-    if (el.getBoundingClientRect().height === 0) return
+    // hide indicator when the active item is not visible (section collapsed)
+    if (el.getBoundingClientRect().height === 0) { setIndicatorTop(null); return }
     const navTop = nav.getBoundingClientRect().top
     const elTop  = el.getBoundingClientRect().top
     setIndicatorTop(elTop - navTop + nav.scrollTop)
