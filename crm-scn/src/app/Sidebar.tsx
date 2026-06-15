@@ -200,20 +200,22 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
           )
         })}
 
+      </nav>
+
+      {/* Bottom — recolher + configurações + user */}
+      <div style={{ padding: collapsed ? '12px 6px' : '12px 10px', borderTop: `1px solid ${BORDER}`, display: 'flex', alignItems: collapsed ? 'center' : 'stretch', flexDirection: 'column', gap: 4 }}>
+
         {/* Toggle collapse */}
         <button
           onClick={() => setCollapsed(v => { const n = !v; localStorage.setItem('sidebar-collapsed', String(n)); return n })}
           title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-end', gap: 6, padding: collapsed ? '8px 0' : '8px 12px', borderRadius: 9, border: 'none', cursor: 'pointer', background: 'transparent', color: TEXT_MUT, width: '100%', marginTop: 8, flexShrink: 0, transition: 'color .15s' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-end', gap: 6, padding: collapsed ? '7px 0' : '7px 12px', borderRadius: 9, border: 'none', cursor: 'pointer', background: 'transparent', color: TEXT_MUT, width: '100%', flexShrink: 0, transition: 'color .15s' }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(237,232,225,0.60)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = TEXT_MUT }}
         >
           {collapsed ? <ChevronRight size={14} /> : <><span style={{ fontSize: 11, fontWeight: 500 }}>Recolher</span><ChevronLeft size={14} /></>}
         </button>
-      </nav>
-
-      {/* Bottom — configurações + user */}
-      <div style={{ padding: collapsed ? '12px 6px' : '12px 10px', borderTop: `1px solid ${BORDER}`, display: 'flex', alignItems: collapsed ? 'center' : 'stretch', flexDirection: 'column', gap: 6 }}>
+        <div style={{ height: 1, background: BORDER, margin: '2px 0' }} />
         {/* Configurações fixo */}
         {(() => {
           const active  = activeView === 'configuracoes'
