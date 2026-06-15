@@ -4182,10 +4182,15 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
                       <div style={{ padding: '10px 12px', background: GRAY4, border: `1.5px solid ${GRAY5}`, borderRadius: 8, minHeight: 44, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                         {porDia !== null ? (
                           <>
-                            <span style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: porDia < 15 ? R : GRAY1 }}>
                               R$ {porDia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                             <span style={{ fontSize: 10, color: GRAY3, marginTop: 2 }}>{dias} dia{dias !== 1 ? 's' : ''} de veiculação</span>
+                            {porDia < 15 && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 5, fontSize: 11, color: R, fontWeight: 600 }}>
+                                <AlertTriangle size={11} /> Mínimo é R$ 15/dia
+                              </div>
+                            )}
                           </>
                         ) : (
                           <span style={{ fontSize: 13, color: GRAY3 }}>—</span>
