@@ -2396,15 +2396,18 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
             <strong>Peso</strong> = importância desta meta no Resultado do Health Score. Ex: peso 3 vale três vezes mais que peso 1.
           </div>
           {projetos.length > 0 && (
-            <select value={formObjetivo.projeto_id} onChange={e => setFormObjetivo(p => ({ ...p, projeto_id: e.target.value }))}
-              style={{ ...input14, marginBottom: 10 }}>
-              <option value="">Projeto (opcional)</option>
-              {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-            </select>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Projeto <span style={{ color: R }}>*</span></div>
+              <select value={formObjetivo.projeto_id} onChange={e => setFormObjetivo(p => ({ ...p, projeto_id: e.target.value }))}
+                style={{ ...input14 }}>
+                <option value="">Selecione o projeto</option>
+                {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={saveObjetivo} disabled={!formObjetivo.descricao.trim() || !formObjetivo.valor_meta || saving}
-              style={btnPrimary(!formObjetivo.descricao.trim() || !formObjetivo.valor_meta || saving)}>
+            <button onClick={saveObjetivo} disabled={!formObjetivo.descricao.trim() || !formObjetivo.valor_meta || (projetos.length > 0 && !formObjetivo.projeto_id) || saving}
+              style={btnPrimary(!formObjetivo.descricao.trim() || !formObjetivo.valor_meta || (projetos.length > 0 && !formObjetivo.projeto_id) || saving)}>
               {saving ? 'Salvando...' : 'Adicionar objetivo'}
             </button>
             <button onClick={() => setShowNewObjetivo(false)} style={btnGhost}>Cancelar</button>
@@ -2463,9 +2466,19 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
                       placeholder="1" style={{ ...input14 }} />
                   </div>
                 </div>
+                {projetos.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Projeto <span style={{ color: R }}>*</span></div>
+                    <select value={editForm.projeto_id} onChange={e => setEditForm(p => ({ ...p, projeto_id: e.target.value }))}
+                      style={{ ...input14 }}>
+                      <option value="">Selecione o projeto</option>
+                      {projetos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={saveEditObjetivo} disabled={!editForm.descricao.trim() || !editForm.valor_meta || saving}
-                    style={btnPrimary(!editForm.descricao.trim() || !editForm.valor_meta || saving)}>
+                  <button onClick={saveEditObjetivo} disabled={!editForm.descricao.trim() || !editForm.valor_meta || (projetos.length > 0 && !editForm.projeto_id) || saving}
+                    style={btnPrimary(!editForm.descricao.trim() || !editForm.valor_meta || (projetos.length > 0 && !editForm.projeto_id) || saving)}>
                     {saving ? 'Salvando...' : 'Salvar'}
                   </button>
                   <button onClick={() => setEditingId(null)} style={btnGhost}>Cancelar</button>
