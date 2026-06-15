@@ -2367,22 +2367,33 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
       {showNewObjetivo && canEdit && (
         <div style={{ ...card, padding: 18, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 12 }}>Novo objetivo mensal</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 80px', gap: 10, marginBottom: 10 }}>
-            <input value={formObjetivo.descricao} onChange={e => setFormObjetivo(p => ({ ...p, descricao: e.target.value }))}
-              placeholder="Descrição do objetivo *" style={{ ...input14 }} />
-            <input type="number" value={formObjetivo.valor_meta} onChange={e => setFormObjetivo(p => ({ ...p, valor_meta: e.target.value }))}
-              placeholder="Meta *" style={{ ...input14 }} />
-            <input value={formObjetivo.unidade} onChange={e => setFormObjetivo(p => ({ ...p, unidade: e.target.value }))}
-              placeholder="Unidade" style={{ ...input14 }} />
-            <div style={{ position: 'relative' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 100px', gap: 10, marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Descrição <span style={{ color: R }}>*</span></div>
+              <input value={formObjetivo.descricao} onChange={e => setFormObjetivo(p => ({ ...p, descricao: e.target.value }))}
+                placeholder="Ex: Leads gerados" style={{ ...input14 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Meta <span style={{ color: R }}>*</span></div>
+              <input type="number" value={formObjetivo.valor_meta} onChange={e => setFormObjetivo(p => ({ ...p, valor_meta: e.target.value }))}
+                placeholder="0" style={{ ...input14 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Unidade</div>
+              <input value={formObjetivo.unidade} onChange={e => setFormObjetivo(p => ({ ...p, unidade: e.target.value }))}
+                placeholder="leads, R$..." style={{ ...input14 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>
+                Peso no resultado <span style={{ fontSize: 10, fontWeight: 400, color: GRAY3 }}>(1–10)</span>
+              </div>
               <input type="number" min={1} max={10} value={formObjetivo.peso}
                 onChange={e => setFormObjetivo(p => ({ ...p, peso: e.target.value }))}
-                placeholder="Peso" style={{ ...input14, paddingRight: 28 }} />
-              <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: GRAY3, pointerEvents: 'none' }}>P</span>
+                placeholder="1" style={{ ...input14 }} />
             </div>
           </div>
-          <div style={{ fontSize: 11, color: GRAY3, marginBottom: 10 }}>
-            Peso: importância relativa desta meta no Resultado do Health Score (ex: 3 = três vezes mais importante que uma meta com peso 1)
+          <div style={{ fontSize: 11, color: GRAY3, marginBottom: 10, padding: '7px 10px', background: '#F9FAFB', borderRadius: 6, border: '1px solid #F3F4F6' }}>
+            O <strong>Peso</strong> define quanto esta meta impacta o Resultado do Health Score. Ex: peso 3 vale três vezes mais que uma meta com peso 1.
           </div>
           {projetos.length > 0 && (
             <select value={formObjetivo.projeto_id} onChange={e => setFormObjetivo(p => ({ ...p, projeto_id: e.target.value }))}
@@ -2427,18 +2438,29 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
             {/* Objective header */}
             {isEditingThis ? (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 80px', gap: 10, marginBottom: 10 }}>
-                  <input autoFocus value={editForm.descricao} onChange={e => setEditForm(p => ({ ...p, descricao: e.target.value }))}
-                    placeholder="Descrição *" style={{ ...input14 }} />
-                  <input type="number" value={editForm.valor_meta} onChange={e => setEditForm(p => ({ ...p, valor_meta: e.target.value }))}
-                    placeholder="Meta *" style={{ ...input14 }} />
-                  <input value={editForm.unidade} onChange={e => setEditForm(p => ({ ...p, unidade: e.target.value }))}
-                    placeholder="Unidade" style={{ ...input14 }} />
-                  <div style={{ position: 'relative' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 100px', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Descrição <span style={{ color: R }}>*</span></div>
+                    <input autoFocus value={editForm.descricao} onChange={e => setEditForm(p => ({ ...p, descricao: e.target.value }))}
+                      placeholder="Descrição" style={{ ...input14 }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Meta <span style={{ color: R }}>*</span></div>
+                    <input type="number" value={editForm.valor_meta} onChange={e => setEditForm(p => ({ ...p, valor_meta: e.target.value }))}
+                      placeholder="0" style={{ ...input14 }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>Unidade</div>
+                    <input value={editForm.unidade} onChange={e => setEditForm(p => ({ ...p, unidade: e.target.value }))}
+                      placeholder="leads, R$..." style={{ ...input14 }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>
+                      Peso no resultado <span style={{ fontSize: 10, fontWeight: 400, color: GRAY3 }}>(1–10)</span>
+                    </div>
                     <input type="number" min={1} max={10} value={editForm.peso}
                       onChange={e => setEditForm(p => ({ ...p, peso: e.target.value }))}
-                      placeholder="Peso" style={{ ...input14, paddingRight: 28 }} />
-                    <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: GRAY3, pointerEvents: 'none' }}>P</span>
+                      placeholder="1" style={{ ...input14 }} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
