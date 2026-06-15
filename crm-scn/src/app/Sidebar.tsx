@@ -31,8 +31,6 @@ const MENU: NavEntry[] = [
   { type: 'item', id: 'cockpit/dashboard', label: 'CS Dashboard', icon: BarChart2,  section: 'operacao' },
   { type: 'item', id: 'expansao',          label: 'Expansão',     icon: Rocket,     section: 'operacao' },
   { type: 'item', id: 'catalogo',          label: 'Catálogo',     icon: BookOpen,   section: 'operacao' },
-  { type: 'sep' },
-  { type: 'item', id: 'configuracoes', label: 'Configurações', icon: Settings, section: null },
 ]
 
 function sectionOf(id: string | null): string | null {
@@ -214,8 +212,40 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
         </button>
       </nav>
 
-      {/* Bottom — user */}
-      <div style={{ padding: collapsed ? '12px 6px' : '12px 10px', borderTop: `1px solid ${BORDER}`, display: 'flex', alignItems: collapsed ? 'center' : 'stretch', flexDirection: 'column', gap: 8 }}>
+      {/* Bottom — configurações + user */}
+      <div style={{ padding: collapsed ? '12px 6px' : '12px 10px', borderTop: `1px solid ${BORDER}`, display: 'flex', alignItems: collapsed ? 'center' : 'stretch', flexDirection: 'column', gap: 6 }}>
+        {/* Configurações fixo */}
+        {(() => {
+          const active  = activeView === 'configuracoes'
+          const isHover = hovered === 'configuracoes' && !active
+          return (
+            <button
+              onClick={() => onNavigate('configuracoes')}
+              onMouseEnter={() => setHovered('configuracoes')}
+              onMouseLeave={() => setHovered(null)}
+              title={collapsed ? 'Configurações' : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 9,
+                padding: collapsed ? '9px 0' : '9px 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                width: '100%',
+                background: active
+                  ? `linear-gradient(135deg, ${R}DD, ${R}99)`
+                  : isHover ? 'rgba(255,255,255,0.07)' : 'transparent',
+                color: active ? WHITE : isHover ? 'rgba(237,232,225,0.85)' : TEXT_MUT,
+                fontWeight: active ? 700 : 500, fontSize: 13,
+                boxShadow: active ? `0 4px 20px ${R}50, 0 0 0 1px ${R}40, inset 0 1px 0 rgba(255,255,255,0.25)` : 'none',
+                transition: 'background .16s, color .16s, transform .18s cubic-bezier(.22,1,.36,1)',
+                transform: !collapsed && isHover ? 'translateX(3px)' : 'translateX(0)',
+              }}
+            >
+              <Settings size={15} strokeWidth={active ? 2.5 : 2}
+                style={{ flexShrink: 0, filter: active ? 'drop-shadow(0 0 6px rgba(255,255,255,0.5))' : 'none', transition: 'transform .2s', transform: isHover ? 'scale(1.15)' : 'scale(1)' }}
+              />
+              {!collapsed && 'Configurações'}
+            </button>
+          )
+        })()}
+        <div style={{ height: 1, background: BORDER, margin: '2px 0' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px', justifyContent: collapsed ? 'center' : 'flex-start' }}>
           <button onClick={handleSignOut} title={collapsed ? 'Sair' : undefined} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
             {session?.user?.user_metadata?.avatar_url
