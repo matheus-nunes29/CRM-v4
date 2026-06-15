@@ -4149,12 +4149,13 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
 
               {/* Orçamento + campanhas + criativos */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div style={{ gridColumn: '1/-1' }}>
+                {/* Orçamento */}
+                <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
                     <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Orçamento (R$) *</label>
                     {disponivel !== null && (
-                      <span style={{ fontSize: 11, fontWeight: 600, color: excede ? R : '#065F46' }}>
-                        {excede ? `Excede em ${fmt(novoOrcModal - disponivel)}` : `Disponível: ${fmt(disponivel)}`}
+                      <span style={{ fontSize: 10, fontWeight: 600, color: excede ? R : '#065F46' }}>
+                        {excede ? `Excede ${fmt(novoOrcModal - disponivel)}` : `Disp: ${fmt(disponivel)}`}
                       </span>
                     )}
                   </div>
@@ -4164,10 +4165,35 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
                     style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${excede ? R : GRAY5}`, borderRadius: 8, fontSize: 15, fontWeight: 700, color: excede ? R : GRAY1, outline: 'none', boxSizing: 'border-box' as const }} />
                   {excede && (
                     <div style={{ fontSize: 11, color: R, marginTop: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <AlertTriangle size={11} /> Valor ultrapassa a verba disponível para este mês.
+                      <AlertTriangle size={11} /> Valor ultrapassa a verba disponível.
                     </div>
                   )}
                 </div>
+                {/* Orçamento / dia — calculado a partir das datas */}
+                {(() => {
+                  const orcVal = parseFloat(form.orcamento.replace(',', '.')) || 0
+                  const d1 = form.data_inicio ? new Date(form.data_inicio + 'T00:00:00') : null
+                  const d2 = form.data_fim    ? new Date(form.data_fim    + 'T00:00:00') : null
+                  const dias = d1 && d2 ? Math.floor((d2.getTime() - d1.getTime()) / 86400000) + 1 : null
+                  const porDia = orcVal > 0 && dias && dias > 0 ? orcVal / dias : null
+                  return (
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Orçamento / dia</label>
+                      <div style={{ padding: '10px 12px', background: GRAY4, border: `1.5px solid ${GRAY5}`, borderRadius: 8, minHeight: 44, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        {porDia !== null ? (
+                          <>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: GRAY1 }}>
+                              R$ {porDia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span style={{ fontSize: 10, color: GRAY3, marginTop: 2 }}>{dias} dia{dias !== 1 ? 's' : ''} de veiculação</span>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: 13, color: GRAY3 }}>—</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
                 <div>
                   <label style={{ fontSize: 10, fontWeight: 700, color: GRAY3, textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Campanhas *</label>
                   <input type="number" min="1" value={form.num_campanhas} onChange={e => setForm(f => ({ ...f, num_campanhas: e.target.value }))} placeholder="0"
