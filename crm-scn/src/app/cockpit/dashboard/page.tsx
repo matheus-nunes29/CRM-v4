@@ -250,19 +250,17 @@ export default function CSDashboard() {
     }
   }, [clientes, ativos, mesAtual])
 
-  // ── NPS/CSAT ──────────────────────────────────────────────────────────────
+  // ── NPS ───────────────────────────────────────────────────────────────────
   const npsOv = useMemo(() => {
     const recs      = clientes.flatMap(c => c.npsCsat.filter(n => n.tipo === 'nps' && n.created_at >= cutoff90))
     const promotores = recs.filter(n => n.pontuacao >= 9).length
     const neutros    = recs.filter(n => n.pontuacao >= 7 && n.pontuacao <= 8).length
     const detratores = recs.filter(n => n.pontuacao <= 6).length
     const nps        = recs.length ? Math.round(((promotores - detratores) / recs.length) * 100) : null
-    const csatRecs   = clientes.flatMap(c => c.npsCsat.filter(n => n.tipo === 'csat' && n.mes === mesAtual))
-    const csatMedio  = csatRecs.length ? csatRecs.reduce((s, n) => s + n.pontuacao, 0) / csatRecs.length : null
     const ultimos    = [...recs].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5).map(n => ({
       ...n, empresa: clientes.find(c => c.id === n.cliente_id)?.empresa || '',
     }))
-    return { promotores, neutros, detratores, total: recs.length, nps, csatMedio, ultimos }
+    return { promotores, neutros, detratores, total: recs.length, nps, ultimos }
   }, [clientes, cutoff90, mesAtual])
 
   // ── Pipeline de expansão ──────────────────────────────────────────────────
@@ -694,10 +692,10 @@ export default function CSDashboard() {
         </div>
       </div>
 
-      {/* ── NPS/CSAT ── */}
+      {/* ── NPS ── */}
       <div style={{ ...card, padding: 22, marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 2 }}>NPS & CSAT</div>
-        <div style={{ fontSize: 11, color: GRAY3, marginBottom: 18 }}>NPS últimos 90 dias · CSAT mês atual</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 2 }}>NPS</div>
+        <div style={{ fontSize: 11, color: GRAY3, marginBottom: 18 }}>Net Promoter Score — últimos 90 dias</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 2fr', gap: 16, alignItems: 'start' }}>
           {/* NPS score */}
           <div style={{ padding: '16px 18px', background: GRAY4, borderRadius: 12, textAlign: 'center' }}>

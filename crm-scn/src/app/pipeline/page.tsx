@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Lead } from '@/lib/supabase'
-import { ArrowRight, X, Search } from 'lucide-react'
+import { ArrowRight, X, Search, Plus } from 'lucide-react'
 import CRMLayout from '../_components/CRMLayout'
 import { TempBadge } from '@/lib/crm-badges'
 import {
@@ -548,6 +548,12 @@ export default function PipelinePage() {
                 </>
               )}
             </div>
+            <button
+              onClick={() => router.push('/leads/new')}
+              style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 18px', borderRadius:10, border:'none', background:R, color:WHITE, fontSize:13, fontWeight:800, cursor:'pointer', whiteSpace:'nowrap', boxShadow:`0 2px 10px ${R}40`, letterSpacing:'0.04em', flexShrink:0 }}
+            >
+              <Plus size={14} strokeWidth={2.5} /> NOVO LEAD
+            </button>
           </div>
         </div>
 

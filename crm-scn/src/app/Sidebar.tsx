@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench, ChevronLeft, ChevronRight, LayoutGrid, Rocket, Home, BookOpen, BarChart2 } from 'lucide-react'
+import { Users, Plus, LayoutDashboard, GitBranch, Settings, Target, CalendarDays, LogOut, TrendingUp, Wrench, ChevronLeft, ChevronRight, LayoutGrid, Rocket, Home, BookOpen, BarChart2, ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { LOGO_SRC } from './logo'
 
@@ -10,30 +10,34 @@ const WHITE     = '#FFFFFF'
 const BORDER    = 'rgba(255,255,255,0.07)'
 const TEXT_MUT  = 'rgba(237,232,225,0.38)'
 const TEXT_ACT  = '#EDE8E1'
-const GLASS_BG  = 'rgba(255,255,255,0.06)'
 
-type NavItem = { type: 'item'; id: string; label: string; icon: React.ComponentType<any> }
-type NavDivider = { type: 'divider'; label: string }
-type NavEntry = NavItem | NavDivider
+type NavItem    = { type: 'item'; id: string; label: string; icon: React.ComponentType<any>; section: string | null }
+type NavDivider = { type: 'divider'; label: string; sectionId: string | null }
+type NavEntry   = NavItem | NavDivider
 
 const MENU: NavEntry[] = [
-  { type: 'item', id: 'inicio', label: 'Início', icon: Home },
-  { type: 'divider', label: 'Vendas' },
-  { type: 'item', id: 'dashboard',      label: 'Dashboard',     icon: LayoutDashboard },
-  { type: 'item', id: 'leads',          label: 'Leads',         icon: Users },
-  { type: 'item', id: 'pipeline',       label: 'Pipeline',      icon: GitBranch },
-  { type: 'item', id: 'metas',          label: 'Metas',         icon: Target },
-  { type: 'item', id: 'acompanhamento', label: 'Acompanhamento', icon: CalendarDays },
-  { type: 'item', id: 'inteligencia',   label: 'Inteligência',  icon: TrendingUp },
-  { type: 'item', id: 'ferramentas',    label: 'Ferramentas',   icon: Wrench },
-  { type: 'divider', label: 'Operação' },
-  { type: 'item', id: 'cockpit',           label: 'Cockpit',       icon: LayoutGrid },
-  { type: 'item', id: 'cockpit/dashboard', label: 'CS Dashboard',  icon: BarChart2 },
-  { type: 'item', id: 'expansao',          label: 'Expansão',      icon: Rocket },
-  { type: 'item', id: 'catalogo',       label: 'Catálogo',      icon: BookOpen },
-  { type: 'divider', label: '' },
-  { type: 'item', id: 'configuracoes',  label: 'Configurações', icon: Settings },
+  { type: 'item', id: 'inicio', label: 'Início', icon: Home, section: null },
+  { type: 'divider', label: 'Vendas', sectionId: 'vendas' },
+  { type: 'item', id: 'dashboard',      label: 'Dashboard',      icon: LayoutDashboard, section: 'vendas' },
+  { type: 'item', id: 'leads',          label: 'Leads',          icon: Users,           section: 'vendas' },
+  { type: 'item', id: 'pipeline',       label: 'Pipeline',       icon: GitBranch,       section: 'vendas' },
+  { type: 'item', id: 'metas',          label: 'Metas',          icon: Target,          section: 'vendas' },
+  { type: 'item', id: 'acompanhamento', label: 'Acompanhamento', icon: CalendarDays,    section: 'vendas' },
+  { type: 'item', id: 'inteligencia',   label: 'Inteligência',   icon: TrendingUp,      section: 'vendas' },
+  { type: 'item', id: 'ferramentas',    label: 'Ferramentas',    icon: Wrench,          section: 'vendas' },
+  { type: 'divider', label: 'Operação', sectionId: 'operacao' },
+  { type: 'item', id: 'cockpit',            label: 'Cockpit',      icon: LayoutGrid, section: 'operacao' },
+  { type: 'item', id: 'cockpit/dashboard',  label: 'CS Dashboard', icon: BarChart2,  section: 'operacao' },
+  { type: 'item', id: 'expansao',           label: 'Expansão',     icon: Rocket,     section: 'operacao' },
+  { type: 'item', id: 'catalogo',           label: 'Catálogo',     icon: BookOpen,   section: 'operacao' },
+  { type: 'divider', label: '', sectionId: null },
+  { type: 'item', id: 'configuracoes', label: 'Configurações', icon: Settings, section: null },
 ]
+
+function getSectionOf(id: string): string | null {
+  const item = MENU.find(e => e.type === 'item' && e.id === id)
+  return item?.type === 'item' ? item.section : null
+}
 
 type SidebarProps = {
   activeView: string | null
@@ -50,6 +54,10 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('sidebar-collapsed') === 'true'
   })
+  const [openSection, setOpenSection] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return 'vendas'
+    return getSectionOf(localStorage.getItem('sidebar-active') || '') || 'vendas'
+  })
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   const toggleCollapse = () => setCollapsed(v => {
@@ -58,10 +66,22 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
     return next
   })
 
+  const toggleSection = (id: string) => {
+    setOpenSection(prev => prev === id ? null : id)
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
     setMounted(true)
   }, [])
+
+  // open the section of the active item
+  useEffect(() => {
+    if (!activeView) return
+    const sec = getSectionOf(activeView)
+    if (sec) setOpenSection(sec)
+    localStorage.setItem('sidebar-active', activeView)
+  }, [activeView])
 
   useEffect(() => {
     if (!activeView) return
@@ -71,7 +91,7 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
       const elTop  = el.getBoundingClientRect().top
       setIndicatorTop(elTop - navTop)
     }
-  }, [activeView])
+  }, [activeView, openSection])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -97,13 +117,9 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
 
       {/* Logo */}
       <div style={{ padding: collapsed ? '16px 0' : '20px 18px 18px', borderBottom: `1px solid ${BORDER}`, display:'flex', justifyContent: collapsed ? 'center' : 'flex-start' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          animation: 'fadeUp .4s cubic-bezier(.22,1,.36,1) both',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeUp .4s cubic-bezier(.22,1,.36,1) both' }}>
           <div style={{
-            width: 34, height: 34, flexShrink: 0, borderRadius: 9,
-            overflow: 'hidden',
+            width: 34, height: 34, flexShrink: 0, borderRadius: 9, overflow: 'hidden',
             background: `linear-gradient(135deg, ${R}, #FF4040)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: `0 0 22px ${R}55, 0 4px 12px rgba(0,0,0,0.4)`,
@@ -121,8 +137,8 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: collapsed ? '14px 6px' : '14px 10px', display: 'flex', flexDirection: 'column', gap: 1, position: 'relative' }}>
-        {/* Sliding glass indicator */}
+      <nav style={{ flex: 1, overflowY: 'auto', padding: collapsed ? '14px 6px' : '14px 10px', display: 'flex', flexDirection: 'column', gap: 1, position: 'relative' }}>
+        {/* Sliding indicator */}
         {indicatorTop !== null && (
           <div style={{
             position: 'absolute', left: 10, width: 'calc(100% - 20px)', height: 36,
@@ -137,24 +153,52 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
 
         {MENU.map((entry, idx) => {
           if (entry.type === 'divider') {
+            // empty divider (separator before Configurações)
+            if (!entry.sectionId) {
+              return (
+                <div key={`div-${idx}`} style={{ margin: '10px 0 6px', padding: collapsed ? '0 6px' : '0 4px' }}>
+                  <div style={{ height: 1, background: BORDER }} />
+                </div>
+              )
+            }
+
+            // collapsible section header
+            const isOpen = openSection === entry.sectionId
             return (
-              <div key={`div-${idx}`} style={{ margin: idx === 0 ? '4px 0 6px' : '10px 0 6px', padding: collapsed ? '0 6px' : '0 4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ flex: 1, height: 1, background: BORDER }} />
-                  {!collapsed && entry.label && (
-                    <span style={{ fontSize: 9, fontWeight: 700, color: TEXT_MUT, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', opacity: 0.7 }}>
+              <button
+                key={`sec-${entry.sectionId}`}
+                onClick={() => !collapsed && toggleSection(entry.sectionId!)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between',
+                  gap: 6, margin: idx === 0 ? '4px 0 2px' : '8px 0 2px',
+                  padding: collapsed ? '6px 0' : '5px 4px',
+                  background: 'transparent', border: 'none',
+                  cursor: collapsed ? 'default' : 'pointer', width: '100%',
+                }}
+              >
+                {!collapsed && (
+                  <>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: TEXT_MUT, letterSpacing: '0.12em', textTransform: 'uppercase' as const, whiteSpace: 'nowrap' as const, opacity: 0.7 }}>
                       {entry.label}
                     </span>
-                  )}
-                  {!collapsed && entry.label && <div style={{ flex: 1, height: 1, background: BORDER }} />}
-                </div>
-              </div>
+                    {isOpen
+                      ? <ChevronUp size={11} color={TEXT_MUT} style={{ opacity: 0.6, flexShrink: 0 }} />
+                      : <ChevronDown size={11} color={TEXT_MUT} style={{ opacity: 0.6, flexShrink: 0 }} />
+                    }
+                  </>
+                )}
+                {collapsed && <div style={{ width: '100%', height: 1, background: BORDER }} />}
+              </button>
             )
           }
 
+          // regular nav item
           const item = entry
           const active = activeView === item.id
           const isHover = hovered === item.id && !active
+
+          // hide items when section is collapsed (but always show when sidebar is collapsed to icon-only)
+          const hidden = !collapsed && item.section !== null && openSection !== item.section
 
           return (
             <button
@@ -165,7 +209,8 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
               onMouseLeave={() => setHovered(null)}
               title={collapsed ? item.label : undefined}
               style={{
-                display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 9,
+                display: hidden ? 'none' : 'flex',
+                alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 9,
                 padding: collapsed ? '9px 0' : '9px 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
                 textAlign: 'left', width: '100%', position: 'relative', zIndex: 1,
                 background: isHover ? 'rgba(255,255,255,0.07)' : 'transparent',
@@ -173,7 +218,6 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
                 fontWeight: active ? 700 : 500, fontSize: 13,
                 transition: 'background .16s ease, color .16s ease, transform .18s cubic-bezier(.22,1,.36,1)',
                 transform: !collapsed && isHover ? 'translateX(3px)' : 'translateX(0)',
-                animation: `slideRight .35s cubic-bezier(.22,1,.36,1) ${idx * 40}ms both`,
               }}
             >
               <item.icon
@@ -197,41 +241,8 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
         </button>
       </nav>
 
-      {/* Bottom */}
+      {/* Bottom — user only */}
       <div style={{ padding: collapsed ? '12px 6px' : '12px 10px', borderTop: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 8, alignItems: collapsed ? 'center' : 'stretch' }}>
-        {/* Novo Lead */}
-        <button
-          onClick={() => router.push('/leads/new')}
-          title={collapsed ? 'Novo Lead' : undefined}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            padding: collapsed ? '10px 0' : '10px 12px', borderRadius: 9,
-            border: `1px solid rgba(232,0,28,0.45)`,
-            background: 'rgba(232,0,28,0.10)',
-            backdropFilter: 'blur(12px)',
-            color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            letterSpacing: collapsed ? 0 : '0.05em',
-            transition: 'background .18s, border-color .18s, box-shadow .18s',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
-          }}
-          onMouseEnter={e => {
-            const el = e.currentTarget
-            el.style.background = R
-            el.style.borderColor = R
-            el.style.boxShadow = `0 0 24px ${R}55, 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget
-            el.style.background = 'rgba(232,0,28,0.10)'
-            el.style.borderColor = 'rgba(232,0,28,0.45)'
-            el.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.10)'
-          }}
-        >
-          <Plus size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-          {!collapsed && 'NOVO LEAD'}
-        </button>
-
-        {/* User */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px', justifyContent: collapsed ? 'center' : 'flex-start' }}>
           <button onClick={handleSignOut} title={collapsed ? 'Sair' : undefined} style={{ background:'none', border:'none', cursor:'pointer', padding:0, display:'flex', flexShrink:0 }}>
             {session?.user?.user_metadata?.avatar_url

@@ -289,7 +289,6 @@ export default function ClienteCockpitPage() {
   const [estrategias, setEstrategias] = useState<EstrategiaItem[]>([])
   const [npsCsat, setNpsCsat]         = useState<NpsCsat[]>([])
   const [proximosPassos, setProximos] = useState<ProximoPasso[]>([])
-  const [npsModal, setNpsModal]       = useState<{ projetoId: string; projetoNome: string } | null>(null)
   const [loading, setLoading]         = useState(true)
   const [leadContrato, setLeadContrato] = useState<string | null>(null)
 
@@ -435,28 +434,18 @@ export default function ClienteCockpitPage() {
 
       {/* ── Tab content ── */}
       <div>
-        {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteRealId} canEdit={canEditCockpit} leadContrato={leadContrato} />}
-        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} catalogoServicos={catalogoServicos} onNpsNeeded={(id, nome) => setNpsModal({ projetoId: id, projetoNome: nome })} />}
+        {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteRealId} canEdit={canEditCockpit} leadContrato={leadContrato} npsCsat={npsCsat} />}
+        {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} catalogoServicos={catalogoServicos} />}
         {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
-        {tab === 'entregas'      && <TabEntregas      registros={registrosEntrega} projetos={projetos} servicosProjeto={servicosProjeto} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} npsCsat={npsCsat} onReloadNps={loadAll} />}
+        {tab === 'entregas'      && <TabEntregas      registros={registrosEntrega} projetos={projetos} servicosProjeto={servicosProjeto} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'estrategia'    && <TabEstrategia    estrategias={estrategias} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'oportunidades' && <TabOportunidades oportunidades={oportunidades} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'fca'           && <TabFCA           entries={fcaEntries} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} proximosPassos={proximosPassos} />}
         {tab === 'timeline'      && <TabTimeline      reunioes={reunioes} registrosEntrega={registrosEntrega} healthEntries={healthEntries} fcaEntries={fcaEntries} oportunidades={oportunidades} npsCsat={npsCsat} proximosPassos={proximosPassos} projetos={projetos} />}
       </div>
 
-      {/* NPS Modal */}
-      {npsModal && (
-        <NpsModal
-          projetoId={npsModal.projetoId}
-          projetoNome={npsModal.projetoNome}
-          clienteId={clienteRealId}
-          onClose={() => setNpsModal(null)}
-          onSaved={() => { setNpsModal(null); loadAll() }}
-        />
-      )}
     </CRMLayout>
   )
 }
@@ -464,10 +453,10 @@ export default function ClienteCockpitPage() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: VISÃO GERAL
 // ══════════════════════════════════════════════════════════════════════════════
-function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReload, clienteId, canEdit, leadContrato }: {
+function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReload, clienteId, canEdit, leadContrato, npsCsat }: {
   cliente: Cliente; contatos: Contato[]; projetos: Projeto[]; lt: string
   onSaveCliente: (f: Partial<Cliente>) => void; onReload: () => void; clienteId: string; canEdit: boolean
-  leadContrato: string | null
+  leadContrato: string | null; npsCsat: NpsCsat[]
 }) {
   const [newStack, setNewStack]       = useState('')
   const [newLink, setNewLink]         = useState({ label: '', url: '' })
@@ -477,6 +466,10 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
   const [usuarios, setUsuarios]       = useState<{ nome: string; papel: string }[]>([])
   const [uploadingContract, setUploadingContract] = useState(false)
   const contractInputRef              = useRef<HTMLInputElement>(null)
+  const [npsOpen, setNpsOpen]         = useState(false)
+  const [npsScore, setNpsScore]       = useState<number | null>(null)
+  const [npsComentario, setNpsComentario] = useState('')
+  const [npsSaving, setNpsSaving]     = useState(false)
 
   useEffect(() => {
     supabase.from('usuarios_permitidos').select('nome, papel')
@@ -523,12 +516,34 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
     }
   }
 
+  async function saveNps() {
+    if (npsScore === null) return
+    setNpsSaving(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    await supabase.from('nps_csat').insert({
+      cliente_id: clienteId, projeto_id: null, tipo: 'nps',
+      pontuacao: npsScore, comentario: npsComentario || null,
+      mes: new Date().toISOString().slice(0, 7),
+      created_by: session?.user?.email || null,
+    })
+    setNpsSaving(false)
+    setNpsOpen(false)
+    setNpsScore(null)
+    setNpsComentario('')
+    await onReload()
+  }
+
   const effectiveContrato = cliente.link_contrato || leadContrato
   const contratoFromLead  = !cliente.link_contrato && !!leadContrato
 
   const links = Object.entries(cliente.links || {})
 
+  const npsOnly = npsCsat.filter(n => n.tipo === 'nps')
+  const npsLabel = (n: number) => n >= 9 ? 'Promotor' : n >= 7 ? 'Neutro' : 'Detrator'
+  const npsColor = (n: number) => n >= 9 ? GREEN : n >= 7 ? YELLOW : R
+
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
 
       {/* Dados gerais */}
@@ -720,6 +735,81 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
         </div>
       </div>
     </div>
+
+    {/* NPS */}
+    <div style={{ ...card, padding: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <SectionTitle icon={Award} label="NPS — Net Promoter Score" />
+        {canEdit && !npsOpen && (
+          <button onClick={() => setNpsOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: BLUE, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            <Plus size={13} /> Registrar NPS
+          </button>
+        )}
+      </div>
+
+      {npsOpen && (
+        <div style={{ background: GRAY4, borderRadius: 10, padding: 18, marginBottom: 16, border: `1px solid ${GRAY5}` }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: GRAY2, marginBottom: 10 }}>
+            De 0 a 10, qual a probabilidade do cliente recomendar a V4 Company?
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+            {Array.from({ length: 11 }, (_, i) => {
+              const c = npsColor(i)
+              const sel = npsScore === i
+              return (
+                <button key={i} onClick={() => setNpsScore(i)}
+                  style={{ flex: 1, height: 38, borderRadius: 7, border: `2px solid ${sel ? c : GRAY5}`, background: sel ? c : WHITE, color: sel ? WHITE : GRAY2, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .1s' }}>
+                  {i}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: GRAY3, marginBottom: 12 }}>
+            <span>Muito improvável</span>
+            {npsScore !== null && (
+              <span style={{ fontWeight: 700, color: npsColor(npsScore) }}>{npsLabel(npsScore)}</span>
+            )}
+            <span>Muito provável</span>
+          </div>
+          <textarea value={npsComentario} onChange={e => setNpsComentario(e.target.value)} rows={2}
+            placeholder="Comentário ou feedback do cliente (opcional)..."
+            style={{ width: '100%', padding: '9px 12px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, color: GRAY1, outline: 'none', resize: 'vertical' as const, fontFamily: 'inherit', boxSizing: 'border-box' as const, marginBottom: 12, background: WHITE }} />
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={() => { setNpsOpen(false); setNpsScore(null); setNpsComentario('') }} style={btnGhost}>Cancelar</button>
+            <button onClick={saveNps} disabled={npsScore === null || npsSaving} style={btnPrimary(npsScore === null || npsSaving)}>
+              {npsSaving ? 'Salvando...' : 'Registrar NPS'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {npsOnly.length === 0 && !npsOpen ? (
+        <div style={{ textAlign: 'center', padding: '24px 0', color: GRAY3, fontSize: 13 }}>Nenhum NPS registrado ainda.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {npsOnly.map(n => {
+            const c = npsColor(n.pontuacao)
+            const lb = npsLabel(n.pontuacao)
+            return (
+              <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: GRAY4, borderRadius: 8, border: `1px solid ${GRAY5}` }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: `${c}18`, border: `1px solid ${c}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: c }}>{n.pontuacao}</span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: `${c}18`, color: c }}>{lb}</span>
+                    <span style={{ fontSize: 11, color: GRAY3 }}>{fmtDate(n.created_at.slice(0, 10))}</span>
+                    {n.created_by && <span style={{ fontSize: 11, color: GRAY3 }}>· {n.created_by}</span>}
+                  </div>
+                  {n.comentario && <div style={{ fontSize: 12, color: GRAY2, marginTop: 4 }}>{n.comentario}</div>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+    </div>
   )
 }
 
@@ -818,7 +908,7 @@ function fmtCents(cents: string): string {
   return (parseInt(cents, 10) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos, onNpsNeeded }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean; catalogoServicos: CatalogoServico[]; onNpsNeeded?: (projetoId: string, projetoNome: string) => void }) {
+function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos }: { projetos: Projeto[]; clienteId: string; onReload: () => void; canEdit: boolean; catalogoServicos: CatalogoServico[] }) {
   const emptyForm = { nome: '', tipo: 'saber' as Projeto['tipo'], servico: '', valor_tipo: 'mensalidade' as Projeto['valor_tipo'], valor: '', investimento_midia: '', data_inicio: '', data_fim: '', escopo: '' }
 
   // Serviços Executar dinâmicos (catálogo) com fallback para lista hardcoded
@@ -1050,7 +1140,6 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos,
       if (outrosAtivos.length === 0) {
         await supabase.from('clientes').update({ status: 'churned' }).eq('id', clienteId)
       }
-      onNpsNeeded?.(id, p.nome)
     }
 
     await onReload()
@@ -1880,7 +1969,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
     { key: 'trafego'            as const, label: 'Tráfego' },
     { key: 'entregas_prazo'     as const, label: 'Entregas' },
     { key: 'qualidade_entregas' as const, label: 'Qualidade' },
-    { key: 'relacionamento'     as const, label: 'Relacionamento' },
+    { key: 'relacionamento'     as const, label: 'Relacion.' },
   ]
   const radarData = DIMS.map(d => ({ subject: d.label.split(' ')[0], value: latest ? (latest as any)[d.key] : 0, fullMark: 10 }))
   const chartData = [...entries].reverse().slice(-12).map(e => ({ semana: e.semana.slice(5).replace('-', '/'), score: Number(e.score_total.toFixed(1)) }))
@@ -1920,7 +2009,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
             })()}
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <RadarChart data={radarData} outerRadius={70} margin={{ top: 10, right: 20, bottom: 10, left: 30 }}>
+            <RadarChart data={radarData} outerRadius={62} margin={{ top: 10, right: 30, bottom: 10, left: 60 }}>
               <PolarGrid stroke={GRAY5} />
               <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: GRAY3 }} />
               <Radar name="Score" dataKey="value" stroke={sc} fill={sc} fillOpacity={0.14} strokeWidth={2} />
@@ -3045,10 +3134,9 @@ function EntregaProgressBar({ label, atual, meta }: { label: string; atual: numb
   )
 }
 
-function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload, canEdit, npsCsat, onReloadNps }: {
+function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload, canEdit }: {
   registros: RegistroEntrega[]; projetos: Projeto[]; servicosProjeto: ServicoProjeto[]
   clienteId: string; onReload: () => void; canEdit: boolean
-  npsCsat: NpsCsat[]; onReloadNps: () => void
 }) {
   const hoje = new Date()
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`
@@ -3225,23 +3313,6 @@ function TabEntregas({ registros, projetos, servicosProjeto, clienteId, onReload
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {/* CSAT mensal para executar */}
-                  {p.tipo === 'executar' && (() => {
-                    const csatMes = npsCsat.find(n => n.tipo === 'csat' && n.projeto_id === p.id && n.mes === mesSel)
-                    if (csatMes) {
-                      const c = csatMes.pontuacao >= 9 ? GREEN : csatMes.pontuacao >= 7 ? YELLOW : R
-                      return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 7, background: `${c}18`, border: `1px solid ${c}50` }}>
-                          <Star size={11} color={c} />
-                          <span style={{ fontSize: 11, fontWeight: 700, color: c }}>CSAT {csatMes.pontuacao}/10</span>
-                        </div>
-                      )
-                    }
-                    if (!canEdit) return null
-                    return (
-                      <CsatButton projetoId={p.id} projetoNome={p.nome} clienteId={clienteId} mes={mesSel} onSaved={onReloadNps} />
-                    )
-                  })()}
                   {canEdit && (
                     <button onClick={() => openModal(p)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: BLUE, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                       <Plus size={13} /> Registrar
@@ -4132,155 +4203,6 @@ function TabEstrategia({ estrategias, projetos, clienteId, onReload, canEdit }: 
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// CSAT BUTTON (inline no TabEntregas)
-// ══════════════════════════════════════════════════════════════════════════════
-function CsatButton({ projetoId, projetoNome, clienteId, mes, onSaved }: {
-  projetoId: string; projetoNome: string; clienteId: string; mes: string; onSaved: () => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [score, setScore] = useState<number | null>(null)
-  const [comentario, setComentario] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  async function save() {
-    if (score === null) return
-    setSaving(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    await supabase.from('nps_csat').insert({
-      cliente_id: clienteId, projeto_id: projetoId, tipo: 'csat',
-      pontuacao: score, comentario: comentario || null, mes,
-      created_by: session?.user?.email || null,
-    })
-    setSaving(false)
-    setOpen(false)
-    onSaved()
-  }
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY3, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-        <Star size={11} /> CSAT
-      </button>
-    )
-  }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={() => setOpen(false)}>
-      <div style={{ background: WHITE, borderRadius: 16, padding: 28, width: 440, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}
-        onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: GRAY1, marginBottom: 4 }}>CSAT Mensal</div>
-        <div style={{ fontSize: 12, color: GRAY3, marginBottom: 20 }}>{projetoNome} · {mes}</div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: GRAY2, marginBottom: 10 }}>Como o cliente avalia a entrega deste mês? (0–10)</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-          {Array.from({ length: 11 }, (_, i) => {
-            const c = i >= 9 ? GREEN : i >= 7 ? YELLOW : R
-            const sel = score === i
-            return (
-              <button key={i} onClick={() => setScore(i)}
-                style={{ width: 36, height: 36, borderRadius: 8, border: `2px solid ${sel ? c : GRAY5}`, background: sel ? c : WHITE, color: sel ? WHITE : GRAY2, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all .1s' }}>
-                {i}
-              </button>
-            )
-          })}
-        </div>
-        <textarea value={comentario} onChange={e => setComentario(e.target.value)} rows={2} placeholder="Comentário opcional..."
-          style={{ width: '100%', padding: '9px 12px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, color: GRAY1, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 16 }} />
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={() => setOpen(false)} style={btnGhost}>Cancelar</button>
-          <button onClick={save} disabled={score === null || saving} style={btnPrimary(score === null || saving)}>
-            {saving ? 'Salvando...' : 'Salvar CSAT'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// NPS MODAL
-// ══════════════════════════════════════════════════════════════════════════════
-function NpsModal({ projetoId, projetoNome, clienteId, onClose, onSaved }: {
-  projetoId: string; projetoNome: string; clienteId: string; onClose: () => void; onSaved: () => void
-}) {
-  const [score, setScore] = useState<number | null>(null)
-  const [comentario, setComentario] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  async function save() {
-    if (score === null) return
-    setSaving(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    const mes = new Date().toISOString().slice(0, 7)
-    await supabase.from('nps_csat').insert({
-      cliente_id: clienteId, projeto_id: projetoId, tipo: 'nps',
-      pontuacao: score, comentario: comentario || null, mes,
-      created_by: session?.user?.email || null,
-    })
-    setSaving(false)
-    onSaved()
-  }
-
-  const getNpsLabel = (n: number | null) => {
-    if (n === null) return ''
-    if (n >= 9) return 'Promotor'
-    if (n >= 7) return 'Neutro'
-    return 'Detrator'
-  }
-  const getNpsColor = (n: number | null) => n === null ? GRAY3 : n >= 9 ? GREEN : n >= 7 ? YELLOW : R
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: WHITE, borderRadius: 20, padding: 32, width: 500, boxShadow: '0 24px 80px rgba(0,0,0,.25)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#FEF3C7', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Award size={20} color={YELLOW} />
-          </div>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: GRAY1 }}>Pesquisa NPS</div>
-            <div style={{ fontSize: 12, color: GRAY3 }}>Projeto entregue: {projetoNome}</div>
-          </div>
-        </div>
-        <div style={{ padding: '16px 0 20px', borderBottom: `1px solid ${GRAY5}`, marginBottom: 20, fontSize: 13, color: GRAY2 }}>
-          De 0 a 10, qual a probabilidade do cliente recomendar a V4 Company?
-        </div>
-
-        {/* Escala NPS */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-          {Array.from({ length: 11 }, (_, i) => {
-            const c = i >= 9 ? GREEN : i >= 7 ? YELLOW : R
-            const sel = score === i
-            return (
-              <button key={i} onClick={() => setScore(i)}
-                style={{ flex: 1, height: 40, borderRadius: 8, border: `2px solid ${sel ? c : GRAY5}`, background: sel ? c : WHITE, color: sel ? WHITE : GRAY2, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .12s' }}>
-                {i}
-              </button>
-            )
-          })}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: GRAY3, marginBottom: 20 }}>
-          <span>Muito improvável</span>
-          {score !== null && (
-            <span style={{ fontWeight: 700, color: getNpsColor(score) }}>{getNpsLabel(score)}</span>
-          )}
-          <span>Muito provável</span>
-        </div>
-
-        <textarea value={comentario} onChange={e => setComentario(e.target.value)} rows={2}
-          placeholder="Comentário ou feedback do cliente (opcional)..."
-          style={{ width: '100%', padding: '9px 12px', border: `1px solid ${GRAY5}`, borderRadius: 8, fontSize: 12, color: GRAY1, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 20 }} />
-
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={btnGhost}>Pular</button>
-          <button onClick={save} disabled={score === null || saving} style={btnPrimary(score === null || saving)}>
-            {saving ? 'Salvando...' : 'Registrar NPS'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: LINHA DO TEMPO
