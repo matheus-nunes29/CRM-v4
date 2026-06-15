@@ -520,16 +520,18 @@ function TabVisaoGeral({ cliente, contatos, projetos, lt, onSaveCliente, onReloa
     if (npsScore === null) return
     setNpsSaving(true)
     const { data: { session } } = await supabase.auth.getSession()
-    await supabase.from('nps_csat').insert({
+    const { error } = await supabase.from('nps_csat').insert({
       cliente_id: clienteId, projeto_id: null, tipo: 'nps',
       pontuacao: npsScore, comentario: npsComentario || null,
       mes: new Date().toISOString().slice(0, 7),
       created_by: session?.user?.email || null,
     })
     setNpsSaving(false)
+    if (error) { toast.error('Erro ao salvar NPS: ' + error.message); return }
     setNpsOpen(false)
     setNpsScore(null)
     setNpsComentario('')
+    toast.success('NPS registrado!')
     await onReload()
   }
 
