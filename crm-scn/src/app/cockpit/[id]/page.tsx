@@ -2385,7 +2385,7 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>
-                Peso no resultado <span style={{ fontSize: 10, fontWeight: 400, color: GRAY3 }}>(1–10)</span>
+                Peso <span style={{ fontSize: 10, fontWeight: 400, color: GRAY3 }}>(1–10)</span>
               </div>
               <input type="number" min={1} max={10} value={formObjetivo.peso}
                 onChange={e => setFormObjetivo(p => ({ ...p, peso: e.target.value }))}
@@ -2393,7 +2393,7 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
             </div>
           </div>
           <div style={{ fontSize: 11, color: GRAY3, marginBottom: 10, padding: '7px 10px', background: '#F9FAFB', borderRadius: 6, border: '1px solid #F3F4F6' }}>
-            O <strong>Peso</strong> define quanto esta meta impacta o Resultado do Health Score. Ex: peso 3 vale três vezes mais que uma meta com peso 1.
+            <strong>Peso</strong> = importância desta meta no Resultado do Health Score. Ex: peso 3 vale três vezes mais que peso 1.
           </div>
           {projetos.length > 0 && (
             <select value={formObjetivo.projeto_id} onChange={e => setFormObjetivo(p => ({ ...p, projeto_id: e.target.value }))}
@@ -2456,7 +2456,7 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
                   </div>
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 4 }}>
-                      Peso no resultado <span style={{ fontSize: 10, fontWeight: 400, color: GRAY3 }}>(1–10)</span>
+                      Peso <span style={{ fontSize: 10, fontWeight: 400, color: GRAY3 }}>(1–10)</span>
                     </div>
                     <input type="number" min={1} max={10} value={editForm.peso}
                       onChange={e => setEditForm(p => ({ ...p, peso: e.target.value }))}
