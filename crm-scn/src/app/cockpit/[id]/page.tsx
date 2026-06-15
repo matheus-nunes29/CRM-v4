@@ -2812,6 +2812,73 @@ function TabOportunidades({ oportunidades, clienteId, onReload, canEdit }: { opo
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// UserSearchInput — campo de busca de usuário cadastrado
+// ══════════════════════════════════════════════════════════════════════════════
+function UserSearchInput({ value, onChange, users, placeholder, inputStyle }: {
+  value: string
+  onChange: (nome: string) => void
+  users: { nome: string }[]
+  placeholder?: string
+  inputStyle?: React.CSSProperties
+}) {
+  const [query, setQuery] = useState(value)
+  const [open, setOpen]   = useState(false)
+  const wrapRef           = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { setQuery(value) }, [value])
+
+  useEffect(() => {
+    function handler(ev: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(ev.target as Node)) {
+        setOpen(false)
+        if (!users.some(u => u.nome === query)) { setQuery(value) }
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [query, value, users])
+
+  const filtered = query
+    ? users.filter(u => u.nome.toLowerCase().includes(query.toLowerCase())).slice(0, 7)
+    : users.slice(0, 7)
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <input
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); if (!e.target.value) onChange('') }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder || 'Buscar responsável...'}
+        style={{ ...inputStyle, paddingRight: value ? 28 : undefined }}
+        autoComplete="off"
+      />
+      {value && (
+        <button onMouseDown={e => { e.preventDefault(); onChange(''); setQuery('') }}
+          style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, padding: 0, display: 'flex', lineHeight: 1 }}>
+          <X size={12} />
+        </button>
+      )}
+      {open && filtered.length > 0 && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0, background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 8, boxShadow: '0 6px 18px rgba(0,0,0,.10)', zIndex: 200, overflow: 'hidden' }}>
+          {filtered.map(u => (
+            <button key={u.nome}
+              onMouseDown={e => { e.preventDefault(); onChange(u.nome); setQuery(u.nome); setOpen(false) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: GRAY1, transition: 'background .1s' }}
+              onMouseEnter={e => (e.currentTarget.style.background = GRAY4)}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: `linear-gradient(135deg, ${R}, #FF4040)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: WHITE, flexShrink: 0 }}>
+                {u.nome[0].toUpperCase()}
+              </div>
+              {u.nome}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // TAB: FCA
 // ══════════════════════════════════════════════════════════════════════════════
 function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
@@ -2819,6 +2886,12 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
 }) {
   type AcaoRascunho = { uid: string; descricao: string; responsavel: string; data_vencimento: string }
   const emptyAcao = (): AcaoRascunho => ({ uid: Math.random().toString(36).slice(2), descricao: '', responsavel: '', data_vencimento: '' })
+
+  const [usuarios, setUsuarios] = useState<{ nome: string }[]>([])
+  useEffect(() => {
+    supabase.from('usuarios_permitidos').select('nome').eq('ativo', true).order('nome')
+      .then(({ data }) => setUsuarios(data || []))
+  }, [])
 
   const [showNew, setShowNew]         = useState(false)
   const [form, setForm]               = useState({ data: new Date().toISOString().split('T')[0], fato: '', causa: '' })
@@ -2993,8 +3066,13 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
                         <input value={a.descricao} onChange={e => updateAcaoRascunho(a.uid, 'descricao', e.target.value)} placeholder="O que precisa ser feito? *"
                           style={{ ...input14 }} />
                       </div>
-                      <input value={a.responsavel} onChange={e => updateAcaoRascunho(a.uid, 'responsavel', e.target.value)} placeholder="Responsável"
-                        style={{ ...input14 }} />
+                      <UserSearchInput
+                        value={a.responsavel}
+                        onChange={nome => updateAcaoRascunho(a.uid, 'responsavel', nome)}
+                        users={usuarios}
+                        placeholder="Responsável"
+                        inputStyle={{ ...input14, width: '100%', boxSizing: 'border-box' }}
+                      />
                       <input type="date" value={a.data_vencimento} onChange={e => updateAcaoRascunho(a.uid, 'data_vencimento', e.target.value)}
                         style={{ ...input14 }} />
                     </div>
@@ -3108,8 +3186,13 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
                               placeholder="O que precisa ser feito? *"
                               style={{ width: '100%', padding: '7px 10px', border: `1px solid ${GRAY5}`, borderRadius: 7, fontSize: 12, color: GRAY1, outline: 'none', boxSizing: 'border-box' }} />
                           </div>
-                          <input value={inlineForm.responsavel} onChange={e2 => setInlineForm(f => ({ ...f, responsavel: e2.target.value }))} placeholder="Responsável"
-                            style={{ padding: '6px 10px', border: `1px solid ${GRAY5}`, borderRadius: 7, fontSize: 12, color: GRAY1, outline: 'none' }} />
+                          <UserSearchInput
+                            value={inlineForm.responsavel}
+                            onChange={nome => setInlineForm(f => ({ ...f, responsavel: nome }))}
+                            users={usuarios}
+                            placeholder="Responsável"
+                            inputStyle={{ padding: '6px 10px', border: `1px solid ${GRAY5}`, borderRadius: 7, fontSize: 12, color: GRAY1, outline: 'none', width: '100%', boxSizing: 'border-box' as const }}
+                          />
                           <input type="date" value={inlineForm.data_vencimento} onChange={e2 => setInlineForm(f => ({ ...f, data_vencimento: e2.target.value }))}
                             style={{ padding: '6px 10px', border: `1px solid ${GRAY5}`, borderRadius: 7, fontSize: 12, color: GRAY1, outline: 'none' }} />
                         </div>
