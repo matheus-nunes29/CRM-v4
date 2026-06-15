@@ -2966,10 +2966,24 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
 
   async function toggleAcao(pp: ProximoPasso) {
     const now = new Date().toISOString()
+    const becomingDone = !pp.concluido
     await supabase.from('proximos_passos').update({
-      concluido: !pp.concluido,
-      concluido_at: !pp.concluido ? now : null,
+      concluido: becomingDone,
+      concluido_at: becomingDone ? now : null,
     }).eq('id', pp.id)
+
+    // Auto-resolve FCA quando todas as ações ficarem concluídas
+    if (becomingDone && pp.origem_tipo === 'fca' && pp.origem_id) {
+      const fcaAcoes = proximosPassos.filter(p => p.origem_tipo === 'fca' && p.origem_id === pp.origem_id)
+      const todasDone = fcaAcoes.every(p => p.id === pp.id || p.concluido)
+      if (todasDone) {
+        const fca = entries.find(e => e.id === pp.origem_id)
+        if (fca && !fca.resolvido) {
+          await supabase.from('fca_entries').update({ resolvido: true, resolvido_at: now }).eq('id', pp.origem_id)
+        }
+      }
+    }
+
     await onReload()
   }
 
@@ -3125,11 +3139,16 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {canEdit && !isResolvido && (
+                      {canEdit && !isResolvido && !hasLinked && (
                         <button onClick={() => resolverFca(e.id)}
                           style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid #A7F3D0`, background: '#ECFDF5', color: '#065F46', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                           <Check size={11} /> Resolver
                         </button>
+                      )}
+                      {canEdit && !isResolvido && hasLinked && pendentes.length > 0 && (
+                        <span style={{ fontSize: 10, color: GRAY3, fontStyle: 'italic' }}>
+                          {pendentes.length} ação{pendentes.length !== 1 ? 'ões' : ''} pendente{pendentes.length !== 1 ? 's' : ''}
+                        </span>
                       )}
                       {canEdit && isResolvido && (
                         <button onClick={() => reabrirFca(e.id)}
