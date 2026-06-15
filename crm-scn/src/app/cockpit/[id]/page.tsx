@@ -3233,13 +3233,10 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
                         {[...pendentes, ...concluidas].map(pp => {
                           const overdue = !pp.concluido && pp.data_vencimento && pp.data_vencimento < hoje
                           return (
-                            <div key={pp.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '7px 10px', borderRadius: 7, background: pp.concluido ? GRAY4 : overdue ? '#FFF5F5' : WHITE, border: `1px solid ${pp.concluido ? GRAY5 : overdue ? '#FECACA' : GRAY5}`, opacity: pp.concluido ? 0.65 : 1 }}>
-                              <button onClick={() => toggleAcao(pp)} style={{ marginTop: 1, flexShrink: 0, width: 16, height: 16, borderRadius: 4, border: pp.concluido ? 'none' : `2px solid ${overdue ? R : GRAY3}`, background: pp.concluido ? GREEN : WHITE, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                                {pp.concluido && <Check size={10} color={WHITE} />}
-                              </button>
+                            <div key={pp.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, background: pp.concluido ? '#F0FDF4' : overdue ? '#FFF5F5' : WHITE, border: `1px solid ${pp.concluido ? '#BBF7D0' : overdue ? '#FECACA' : GRAY5}` }}>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 12, color: pp.concluido ? GRAY3 : GRAY1, textDecoration: pp.concluido ? 'line-through' : 'none', lineHeight: 1.4 }}>{pp.descricao}</div>
-                                <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: pp.concluido ? GRAY3 : GRAY1, textDecoration: pp.concluido ? 'line-through' : 'none', lineHeight: 1.4, marginBottom: 3 }}>{pp.descricao}</div>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                   {pp.responsavel && (
                                     <span style={{ fontSize: 10, color: GRAY3, display: 'flex', alignItems: 'center', gap: 3 }}>
                                       <Users size={9} /> {pp.responsavel}
@@ -3250,14 +3247,31 @@ function TabFCA({ entries, clienteId, onReload, canEdit, proximosPassos }: {
                                       <Calendar size={9} /> {overdue ? '⚠ ' : ''}{fmtDateBr(pp.data_vencimento)}
                                     </span>
                                   )}
+                                  {pp.concluido && pp.concluido_at && (
+                                    <span style={{ fontSize: 10, color: '#16A34A', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                      <Check size={9} /> Concluída em {fmtDateBr(pp.concluido_at.split('T')[0])}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
-                              {canEdit && !pp.concluido && (
-                                <button onClick={() => deleteAcaoPP(pp.id)} style={{ padding: 2, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, flexShrink: 0 }}
-                                  onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
-                                  <X size={11} />
-                                </button>
-                              )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                {pp.concluido ? (
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, background: '#DCFCE7', border: '1px solid #BBF7D0', fontSize: 11, fontWeight: 700, color: '#16A34A' }}>
+                                    <Check size={11} /> Concluída
+                                  </span>
+                                ) : canEdit ? (
+                                  <button onClick={() => toggleAcao(pp)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 6, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#065F46', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                    <Check size={11} /> Concluir
+                                  </button>
+                                ) : null}
+                                {canEdit && !pp.concluido && (
+                                  <button onClick={() => deleteAcaoPP(pp.id)} style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: GRAY3, display: 'flex' }}
+                                    onMouseEnter={ev => (ev.currentTarget.style.color = R)} onMouseLeave={ev => (ev.currentTarget.style.color = GRAY3)}>
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           )
                         })}
