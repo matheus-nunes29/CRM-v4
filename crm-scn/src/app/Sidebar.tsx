@@ -154,7 +154,7 @@ export default function Sidebar({ activeView, onNavigate }: SidebarProps) {
                 {collapsed
                   ? <div style={{ width: '100%', height: 1, background: BORDER }} />
                   : <>
-                      <span style={{ fontSize: 9, fontWeight: 700, color: TEXT_MUT, letterSpacing: '0.12em', textTransform: 'uppercase' as const, whiteSpace: 'nowrap' as const, opacity: 0.7 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(237,232,225,0.75)', letterSpacing: '0.10em', textTransform: 'uppercase' as const, whiteSpace: 'nowrap' as const }}>
                         {entry.label}
                       </span>
                       {isOpen
