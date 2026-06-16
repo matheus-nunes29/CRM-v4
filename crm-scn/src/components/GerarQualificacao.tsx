@@ -9,6 +9,7 @@ interface QualificacaoData {
   links: { site: string; instagram: string; bibAnunciosMeta: string; bibAnunciosGoogle: string }
   bant: { budget: string; authority: string; need: string; timing: string }
   spiced: { situation: string; pain: string; impact: string; criticalEvent: string; decision: string }
+  estruturaComercial: { canal_aquisicao: string; investimento_midia: string; agencias_ferramentas: string; equipe_comercial: string; faturamento: string; ticket_medio: string; volume_clientes: string; meta_crescimento: string }
   insights: { termometro: string; gatilhoDeOuro: string; sugestaoAbordagem: string }
   informacoesExtras: { nicho: string; historico: string; pontoRapport: string; produtos: string; regiao: string; tempoAtiva: string; nivelConsciencia: string; importanciaMarketing: string; objecoes: string[] }
   personalidade: string[]
@@ -73,7 +74,21 @@ ${Object.entries(d.bant).map(([k, v]) => item(bantLabel[k] || k, v)).join('')}
 ${secTitle('3. Metodologia SPICED (Contexto e Urgência)')}
 ${Object.entries(d.spiced).map(([k, v]) => item(spicedLabel[k] || k, v)).join('')}
 
-${secTitle('4. Insights para o Closer (A Cereja do Bolo)')}
+${d.estruturaComercial ? `
+${secTitle('4. Estrutura Comercial e de Marketing')}
+<div class="grid2">
+  ${item('Canal de Aquisição Principal', d.estruturaComercial.canal_aquisicao)}
+  ${item('Investimento em Mídia', d.estruturaComercial.investimento_midia)}
+  ${item('Faturamento', d.estruturaComercial.faturamento)}
+  ${item('Ticket Médio', d.estruturaComercial.ticket_medio)}
+  ${item('Volume de Clientes', d.estruturaComercial.volume_clientes)}
+  ${item('Meta de Crescimento', d.estruturaComercial.meta_crescimento)}
+</div>
+${item('Agências e Ferramentas', d.estruturaComercial.agencias_ferramentas)}
+${item('Equipe Comercial', d.estruturaComercial.equipe_comercial)}
+` : ''}
+
+${secTitle('5. Insights para o Closer (A Cereja do Bolo)')}
 ${item('Termômetro do Lead', d.insights.termometro)}
 ${item('Gatilho de Ouro', d.insights.gatilhoDeOuro)}
 ${item('Sugestão de Abordagem', d.insights.sugestaoAbordagem)}
@@ -198,6 +213,7 @@ export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
   const inp = { padding: '9px 12px', background: GRAY4, border: `1px solid ${GRAY5}`, borderRadius: 8, color: GRAY1, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' as const }
   const bantLabel: Record<string, string> = { budget: 'Budget', authority: 'Authority', need: 'Need', timing: 'Timeline' }
   const spicedLabel: Record<string, string> = { situation: 'Situation', pain: 'Pain', impact: 'Impact', criticalEvent: 'Critical Event', decision: 'Decision' }
+  const comercialLabel: Record<string, string> = { canal_aquisicao: 'Canal de Aquisição', investimento_midia: 'Investimento em Mídia', agencias_ferramentas: 'Agências e Ferramentas', equipe_comercial: 'Equipe Comercial', faturamento: 'Faturamento', ticket_medio: 'Ticket Médio', volume_clientes: 'Volume de Clientes', meta_crescimento: 'Meta de Crescimento' }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -291,6 +307,7 @@ export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
           {[
             { title: 'BANT', items: Object.entries(resultado.bant).map(([k,v]) => ({ l: bantLabel[k]||k, v })) },
             { title: 'SPICED', items: Object.entries(resultado.spiced).map(([k,v]) => ({ l: spicedLabel[k]||k, v })) },
+            ...(resultado.estruturaComercial ? [{ title: 'Estrutura Comercial e de Marketing', items: Object.entries(resultado.estruturaComercial).map(([k,v]) => ({ l: comercialLabel[k]||k, v })) }] : []),
             { title: 'Insights para o Closer', items: [
               { l: 'Termômetro', v: resultado.insights.termometro },
               { l: 'Gatilho de Ouro', v: resultado.insights.gatilhoDeOuro },

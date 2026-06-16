@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import CRMLayout from '../_components/CRMLayout'
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Plus, Users } from 'lucide-react'
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Plus, Users, Sparkles, RotateCcw } from 'lucide-react'
 import {
   R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GREEN, YELLOW, BLUE,
   inputCls, labelCls,
@@ -47,6 +47,101 @@ export default function ConfiguracoesPageRoute() {
     <CRMLayout>
       <ConfiguracoesContent onImport={importLeads} userEmail={userEmail} />
     </CRMLayout>
+  )
+}
+
+function PromptQualificacaoCard({ isAdmin }: { isAdmin: boolean }) {
+  const [prompt, setPrompt] = useState('')
+  const [original, setOriginal] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/gerar-qualificacao')
+      .then(r => r.json())
+      .then(({ prompt: p }) => { setPrompt(p || ''); setOriginal(p || '') })
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function salvar() {
+    setSaving(true); setSaved(false)
+    const { error } = await supabase.from('configuracoes_sistema').upsert(
+      { chave: 'prompt_qualificacao', valor: prompt, updated_at: new Date().toISOString() },
+      { onConflict: 'chave' }
+    )
+    if (!error) { setOriginal(prompt); setSaved(true); setTimeout(() => setSaved(false), 3000) }
+    else toast.error('Erro ao salvar: ' + error.message)
+    setSaving(false)
+  }
+
+  async function restaurarPadrao() {
+    await supabase.from('configuracoes_sistema').delete().eq('chave', 'prompt_qualificacao')
+    const res = await fetch('/api/gerar-qualificacao').then(r => r.json())
+    setPrompt(res.prompt); setOriginal(res.prompt)
+    toast.info('Prompt restaurado para o padrão.')
+  }
+
+  const dirty = prompt !== original
+
+  return (
+    <div style={{ background: WHITE, borderRadius: 14, border: '1px solid #E5E7EB', boxShadow: '0 1px 6px rgba(0,0,0,.07)', overflow: 'hidden' }}>
+      <div style={{ padding: '20px 24px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 40, height: 40, background: `${R}12`, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Sparkles size={20} color={R} />
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: GRAY1 }}>Prompt de Qualificação IA</div>
+            <div style={{ fontSize: 12, color: GRAY2, marginTop: 2 }}>Instrução enviada ao modelo para analisar transcrições de ligações</div>
+          </div>
+        </div>
+        {!isAdmin && (
+          <span style={{ fontSize: 11, fontWeight: 700, background: GRAY4, color: GRAY3, padding: '4px 10px', borderRadius: 20 }}>Somente admin</span>
+        )}
+      </div>
+
+      <div style={{ padding: 24 }}>
+        {loading ? (
+          <div style={{ height: 200, background: GRAY4, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: GRAY3 }}>
+            Carregando prompt...
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 8 }}>
+              Conteúdo do prompt — edite para personalizar o que a IA extrai de cada ligação
+            </div>
+            <textarea
+              value={prompt}
+              onChange={e => { setPrompt(e.target.value); setSaved(false) }}
+              disabled={!isAdmin}
+              rows={22}
+              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1px solid ${dirty ? R : '#D1D5DB'}`, fontSize: 12, color: GRAY1, background: isAdmin ? WHITE : GRAY4, fontFamily: 'monospace', lineHeight: 1.6, resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'border-color .15s' }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+              <button
+                onClick={restaurarPadrao}
+                disabled={!isAdmin || saving}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid #D1D5DB`, background: WHITE, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: isAdmin ? 'pointer' : 'not-allowed' }}
+              >
+                <RotateCcw size={13} /> Restaurar padrão
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {saved && <span style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>✓ Salvo</span>}
+                {dirty && !saved && <span style={{ fontSize: 11, color: GRAY3 }}>Alterações não salvas</span>}
+                <button
+                  onClick={salvar}
+                  disabled={!isAdmin || saving || !dirty}
+                  style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: dirty && isAdmin ? R : GRAY4, color: dirty && isAdmin ? WHITE : GRAY3, fontSize: 13, fontWeight: 700, cursor: dirty && isAdmin ? 'pointer' : 'not-allowed', transition: 'all .15s' }}
+                >
+                  {saving ? 'Salvando...' : 'Salvar prompt'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -636,6 +731,9 @@ function ConfiguracoesContent({ onImport, userEmail }: { onImport: (leads: any[]
 
       {/* CARD USUÁRIOS — admin vê e gerencia, outros só visualizam */}
       <UsuariosCard currentEmail={userEmail} />
+
+      {/* CARD PROMPT DE QUALIFICAÇÃO */}
+      <PromptQualificacaoCard isAdmin={userEmail === ADMIN_EMAIL} />
 
       {/* CARD INFO */}
       <div style={{ background: WHITE, borderRadius: 14, border: '1px solid #E5E7EB', boxShadow: '0 1px 6px rgba(0,0,0,.07)', padding: 24 }}>

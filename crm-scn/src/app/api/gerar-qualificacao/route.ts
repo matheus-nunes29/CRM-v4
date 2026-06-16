@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { createClient } from '@supabase/supabase-js'
 
 export const maxDuration = 120
 
 const GROQ_MAX = 25 * 1024 * 1024 // 25 MB — Groq hard limit
 
-const PROMPT = `Você é um especialista em qualificação de leads comerciais da V4 Company.
+export const DEFAULT_PROMPT = `Você é um especialista em qualificação de leads comerciais da V4 Company.
 Analise a transcrição desta ligação de qualificação e extraia as informações estruturadas.
 
 Retorne APENAS um JSON válido, sem markdown nem explicações, com exatamente este formato:
@@ -36,6 +37,16 @@ Retorne APENAS um JSON válido, sem markdown nem explicações, com exatamente e
     "impact": "",
     "criticalEvent": "",
     "decision": ""
+  },
+  "estruturaComercial": {
+    "canal_aquisicao": "",
+    "investimento_midia": "",
+    "agencias_ferramentas": "",
+    "equipe_comercial": "",
+    "faturamento": "",
+    "ticket_medio": "",
+    "volume_clientes": "",
+    "meta_crescimento": ""
   },
   "insights": {
     "termometro": "",
@@ -71,6 +82,16 @@ SPICED — preencha cada campo com um parágrafo rico e completo:
 - criticalEvent: Evento, prazo ou situação externa que está gerando urgência (lançamento de produto, data comemorativa, meta de crescimento, renovação de contrato, concorrente avançando). Quando ocorre. Qual a consequência concreta de perder esse prazo.
 - decision: Como funciona o processo de decisão (etapas, aprovações necessárias). Quem além do lead precisa aprovar. Quais os critérios de escolha (preço, metodologia, cases, equipe). Se estão avaliando outras soluções ou concorrentes. Timeline esperado para tomar a decisão.
 
+ESTRUTURA COMERCIAL — preencha cada campo com detalhes objetivos:
+- canal_aquisicao: Principal(is) canal(is) de aquisição de clientes hoje (ex: indicação, Google Ads, Meta Ads, orgânico, prospecção ativa, eventos, parceiros). Qual canal traz mais resultado atualmente.
+- investimento_midia: Valor mensal investido em mídia paga (Google Ads, Meta Ads, TikTok Ads, etc.). Se não souber o total, detalhe por plataforma. Se não investe, mencione.
+- agencias_ferramentas: Agências de marketing/publicidade com quem trabalham hoje. Ferramentas de CRM (ex: RD Station, HubSpot, Salesforce, Pipedrive). Ferramentas de automação, analytics, gestão (ex: Hotmart, Active Campaign, Google Analytics, ERP).
+- equipe_comercial: Estrutura do time de vendas: quantidade de SDRs, closers, representantes, inside/field sales. Como é feita a prospecção. Se há script ou processo estruturado.
+- faturamento: Faturamento mensal ou anual mencionado. Se for por faixa (ex: "entre 200k e 400k por mês"), registre a faixa. Inclua se está crescendo ou estagnado.
+- ticket_medio: Ticket médio por venda ou por cliente. Se há variação entre produtos/serviços, detalhe os principais. Recorrência ou pontual.
+- volume_clientes: Quantidade de clientes ativos ou operações ativas no momento. Se há sazonalidade no volume.
+- meta_crescimento: Meta de crescimento ou resultado esperado para os próximos 3-6 meses. O que precisa acontecer para considerar a parceria um sucesso.
+
 INSIGHTS:
 - termometro: Nível de interesse e prontidão de compra do lead (Frio / Morno / Quente / Pronto para fechar), com justificativa baseada nos sinais da conversa.
 - gatilhoDeOuro: O principal motivador emocional ou racional que pode acelerar o fechamento — a coisa que mais incomoda o lead ou o maior sonho que ele quer realizar.
@@ -79,6 +100,22 @@ INSIGHTS:
 Personalidade deve ser um array com os perfis identificados entre: "Executor", "Comunicador", "Analista", "Planejador".
 Objeções deve ser um array de strings com as objeções exatas ou prováveis do lead.
 Use as palavras exatas do lead quando possível. Se uma informação não foi mencionada, deixe como string vazia ou array vazio.`
+
+async function getActivePrompt(): Promise<string> {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    const { data } = await supabase
+      .from('configuracoes_sistema')
+      .select('valor')
+      .eq('chave', 'prompt_qualificacao')
+      .single()
+    if (data?.valor) return data.valor
+  } catch { /* fallback to default */ }
+  return DEFAULT_PROMPT
+}
 
 async function transcreverComGroq(blob: Blob, filename: string): Promise<string> {
   const groqKey = process.env.GROQ_API_KEY
@@ -103,7 +140,6 @@ async function transcreverComGroq(blob: Blob, filename: string): Promise<string>
 async function transcreverComGemini(blob: Blob, mimeType: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY!
 
-  // Step 1: start resumable upload
   const startRes = await fetch(
     `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
     {
@@ -129,7 +165,6 @@ async function transcreverComGemini(blob: Blob, mimeType: string): Promise<strin
   const uploadUrl = startRes.headers.get('X-Goog-Upload-URL')
   if (!uploadUrl) throw new Error('Gemini não retornou URL de upload')
 
-  // Step 2: upload the binary data
   const uploadRes = await fetch(uploadUrl, {
     method: 'POST',
     headers: {
@@ -145,7 +180,6 @@ async function transcreverComGemini(blob: Blob, mimeType: string): Promise<strin
   const fileUri = fileInfo.file?.uri
   if (!fileUri) throw new Error('Gemini não retornou URI do arquivo')
 
-  // Step 3: transcribe using the uploaded file
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
@@ -162,6 +196,11 @@ async function transcreverComGemini(blob: Blob, mimeType: string): Promise<strin
   return result.response.text().trim()
 }
 
+export async function GET() {
+  const prompt = await getActivePrompt()
+  return NextResponse.json({ prompt })
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { audioUrl, transcricao } = await req.json()
@@ -173,7 +212,6 @@ export async function POST(req: NextRequest) {
     let texto: string
 
     if (audioUrl) {
-      // Fetch the audio file server-side
       const audioRes = await fetch(audioUrl)
       if (!audioRes.ok) throw new Error('Falha ao buscar áudio')
       const blob = await audioRes.blob()
@@ -184,7 +222,6 @@ export async function POST(req: NextRequest) {
       if (blob.size <= GROQ_MAX) {
         texto = await transcreverComGroq(blob, filename)
       } else {
-        // File too large for Groq (>25 MB) — use Gemini Files API as fallback
         if (!process.env.GEMINI_API_KEY) {
           throw new Error(`Arquivo muito grande (${(blob.size / 1024 / 1024).toFixed(1)} MB). O limite é 25 MB. Comprima o áudio e tente novamente.`)
         }
@@ -194,7 +231,8 @@ export async function POST(req: NextRequest) {
       texto = transcricao
     }
 
-    // Analyze with Groq LLaMA
+    const activePrompt = await getActivePrompt()
+
     const groqKey = process.env.GROQ_API_KEY
     if (!groqKey) throw new Error('GROQ_API_KEY não configurada')
     const analysisRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -202,7 +240,7 @@ export async function POST(req: NextRequest) {
       headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: `Transcrição da ligação de qualificação:\n\n${texto}\n\n${PROMPT}` }],
+        messages: [{ role: 'user', content: `Transcrição da ligação de qualificação:\n\n${texto}\n\n${activePrompt}` }],
         temperature: 0.1,
       }),
     })
