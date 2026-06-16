@@ -56,8 +56,28 @@ Retorne APENAS um JSON válido, sem markdown nem explicações, com exatamente e
   "personalidade": []
 }
 
+INSTRUÇÕES DETALHADAS POR CAMPO:
+
+BANT — preencha cada campo com um parágrafo rico e completo:
+- budget: Valor ou faixa de investimento mencionada. Se o orçamento está aprovado ou precisa de aprovação interna. Quem tem poder de liberar o dinheiro. Histórico de quanto já investiram em marketing digital. Comparação com o que gastam hoje (agência, mídia, equipe interna).
+- authority: Nome e cargo do decisor final. Se o lead tem autonomia para decidir sozinho ou precisa consultar sócios/diretoria. Quem mais está envolvido no processo de compra. Se há um comitê ou alguém que pode travar a decisão.
+- need: Principais dores e necessidades em ordem de prioridade, com exemplos concretos citados pelo lead. O que já foi tentado anteriormente (outras agências, estratégias, ferramentas). Qual resultado específico esperam alcançar. Grau de urgência percebido.
+- timing: Prazo desejado para início. O que está gerando pressão de tempo (sazonalidade, evento, meta interna, concorrência). Possíveis obstáculos que podem atrasar o fechamento. Condições necessárias para avançar.
+
+SPICED — preencha cada campo com um parágrafo rico e completo:
+- situation: Situação atual do negócio (faturamento aproximado, fase de crescimento, tamanho do time). Quais ferramentas, plataformas e agências utilizam hoje. Como estão investindo em marketing (canais, verba, equipe interna). Principal canal de aquisição de clientes atual.
+- pain: Dores específicas identificadas em ordem de intensidade, com exemplos concretos e falas do lead. Frequência e recorrência de cada problema. O que o lead já tentou para resolver e por que não funcionou.
+- impact: Impacto financeiro estimado dos problemas (vendas perdidas, CAC alto, churn). Consequências operacionais (time sobrecarregado, processos travados). O que acontece se continuar sem resolver — risco da inação. Oportunidade que está deixando na mesa.
+- criticalEvent: Evento, prazo ou situação externa que está gerando urgência (lançamento de produto, data comemorativa, meta de crescimento, renovação de contrato, concorrente avançando). Quando ocorre. Qual a consequência concreta de perder esse prazo.
+- decision: Como funciona o processo de decisão (etapas, aprovações necessárias). Quem além do lead precisa aprovar. Quais os critérios de escolha (preço, metodologia, cases, equipe). Se estão avaliando outras soluções ou concorrentes. Timeline esperado para tomar a decisão.
+
+INSIGHTS:
+- termometro: Nível de interesse e prontidão de compra do lead (Frio / Morno / Quente / Pronto para fechar), com justificativa baseada nos sinais da conversa.
+- gatilhoDeOuro: O principal motivador emocional ou racional que pode acelerar o fechamento — a coisa que mais incomoda o lead ou o maior sonho que ele quer realizar.
+- sugestaoAbordagem: Como o closer deve conduzir a próxima conversa: qual ângulo explorar, que argumento usar, como contornar possíveis objeções, qual case ou prova social apresentar.
+
 Personalidade deve ser um array com os perfis identificados entre: "Executor", "Comunicador", "Analista", "Planejador".
-Objeções deve ser um array de strings.
+Objeções deve ser um array de strings com as objeções exatas ou prováveis do lead.
 Use as palavras exatas do lead quando possível. Se uma informação não foi mencionada, deixe como string vazia ou array vazio.`
 
 async function transcreverComGroq(blob: Blob, filename: string): Promise<string> {

@@ -299,11 +299,11 @@ export default function GerarQualificacao({ leadId, empresa, onSaved }: Props) {
           ].map(sec => (
             <div key={sec.title} style={{ background: GRAY4, borderRadius: 10, padding: '14px 16px', border: `1px solid ${GRAY5}` }}>
               <div style={{ fontSize: 9, fontWeight: 800, color: R, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 10 }}>{sec.title}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {sec.items.filter(i => i.v).map(i => (
-                  <div key={i.l}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: GRAY3, marginBottom: 2 }}>{i.l}</div>
-                    <div style={{ fontSize: 12, color: GRAY1, lineHeight: 1.5 }}>{i.v}</div>
+                  <div key={i.l} style={{ background: WHITE, borderRadius: 8, padding: '10px 12px', border: `1px solid ${GRAY5}` }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: R, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{i.l}</div>
+                    <div style={{ fontSize: 12, color: GRAY1, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{i.v}</div>
                   </div>
                 ))}
               </div>
