@@ -433,60 +433,53 @@ export default function PipelinePage() {
   `
 
   if (loading) {
-    const Sk = ({ w, h = 14, r = 6 }: { w: number | string; h?: number; r?: number }) => (
-      <div style={{ width: w, height: h, borderRadius: r, background: 'linear-gradient(90deg, #F3F4F6 25%, #FEE2E2 50%, #F3F4F6 75%)', backgroundSize: '200% 100%', animation: 'shimmer-red 1.4s ease-in-out infinite' }} />
-    )
+    const skStyle = (w: number | string, h = 14, r = 6): React.CSSProperties => ({
+      width: w, height: h, borderRadius: r, flexShrink: 0,
+      background: 'linear-gradient(90deg, #F3F4F6 25%, #FEE2E2 50%, #F3F4F6 75%)',
+      backgroundSize: '200% 100%', animation: 'shimmer-red 1.4s ease-in-out infinite',
+    })
     return (
       <CRMLayout>
         <style>{`
-          @keyframes shimmer-red {
-            0%   { background-position: 200% 0 }
-            100% { background-position: -200% 0 }
-          }
+          @keyframes shimmer-red { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+          @keyframes pulse-dot { 0%,100%{opacity:.3;transform:scale(.8)} 50%{opacity:1;transform:scale(1.2)} }
         `}</style>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* Header skeleton */}
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Sk w={90} h={10} />
-              <Sk w={160} h={30} r={8} />
+              <div style={skStyle(90, 10)} />
+              <div style={skStyle(160, 30, 8)} />
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <Sk w={240} h={38} r={10} />
-              <Sk w={220} h={38} r={12} />
-              <Sk w={120} h={38} r={10} />
+              <div style={skStyle(240, 38, 10)} />
+              <div style={skStyle(220, 38, 12)} />
+              <div style={skStyle(120, 38, 10)} />
             </div>
           </div>
-          {/* Stats bar skeleton */}
           <div style={{ display: 'flex', gap: 12 }}>
-            {[160, 130, 130, 130].map((w, i) => <Sk key={i} w={w} h={64} r={12} />)}
+            {[160, 130, 130, 130].map((w, i) => <div key={i} style={skStyle(w, 64, 12)} />)}
           </div>
-          {/* Table header skeleton */}
           <div style={{ background: '#FFF', borderRadius: 12, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
             <div style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: '1px solid #F9FAFB' }}>
-              {[200, 100, 80, 100, 80, 60].map((w, i) => <Sk key={i} w={w} h={10} />)}
+              {[200, 100, 80, 100, 80, 60].map((w, i) => <div key={i} style={skStyle(w, 10)} />)}
             </div>
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} style={{ display: 'flex', gap: 12, padding: '14px 16px', borderBottom: '1px solid #F9FAFB', alignItems: 'center' }}>
-                <Sk w={20} h={20} r={10} />
-                <Sk w={160 + (i % 3) * 20} h={12} />
-                <Sk w={70} h={20} r={6} />
-                <Sk w={60} h={12} />
-                <Sk w={80} h={12} />
-                <Sk w={50} h={12} />
+                <div style={skStyle(20, 20, 10)} />
+                <div style={skStyle(160 + (i % 3) * 20, 12)} />
+                <div style={skStyle(70, 20, 6)} />
+                <div style={skStyle(60, 12)} />
+                <div style={skStyle(80, 12)} />
+                <div style={skStyle(50, 12)} />
               </div>
             ))}
           </div>
-          {/* Label */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: R, animation: 'pulse-dot 1s ease-in-out infinite' }} />
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: R, animation: 'pulse-dot 1s ease-in-out .2s infinite' }} />
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: R, animation: 'pulse-dot 1s ease-in-out .4s infinite' }} />
+            {[0, .2, .4].map((delay, i) => (
+              <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: R, animation: `pulse-dot 1s ease-in-out ${delay}s infinite` }} />
+            ))}
           </div>
         </div>
-        <style>{`
-          @keyframes pulse-dot { 0%,100%{opacity:.3;transform:scale(.8)} 50%{opacity:1;transform:scale(1.2)} }
-        `}</style>
       </CRMLayout>
     )
   }
