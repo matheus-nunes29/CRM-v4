@@ -301,10 +301,7 @@ export default function PipelinePage() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.push('/login'); return }
-      fetchLeads()
-    })
+    fetchLeads()
   }, [])
 
   useEffect(() => {
