@@ -4,6 +4,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao, ObjetivoMensal, ResultadoSemanal, RegistroEntrega, ServicoProjeto, CatalogoServico, NpsCsat, ProximoPasso } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE, SEGMENTOS } from '@/lib/crm-constants'
+import { HS_TRAFEGO_ITEMS, HS_ENTREGAS_ITEMS, HS_QUALIDADE_ITEMS, HS_RELACIONAMENTO_ITEMS } from '@/lib/health-score-defaults'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
   LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine,
@@ -1796,39 +1797,7 @@ function TabProjetos({ projetos, clienteId, onReload, canEdit, catalogoServicos 
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: HEALTH SCORE
 // ══════════════════════════════════════════════════════════════════════════════
-// ── Health Score checklist definitions ────────────────────────────────────────
-const HS_TRAFEGO_ITEMS = [
-  'Growthpack atualizado: indicadores (metas, funil, verba) preenchidos e revisados?',
-  'Campanhas subiram corretamente: lançadas conforme o combinado na Sprint?',
-  'Campanhas pausadas corretamente: ações especiais e temporárias pausadas no prazo?',
-  'Verba de mídia controlada: gasto alinhado com o planejado, sem estouros?',
-  'Público e criativos corretos: segmentações e anúncios conferem com a estratégia?',
-  'UTMs mapeadas: campanhas têm rastreamento correto?',
-  'Otimização e acompanhamento: houve acompanhamento ativo com ajustes relevantes?',
-  'Regras de investimento: limites e parâmetros operacionais aplicados?',
-]
-const HS_ENTREGAS_ITEMS = [
-  'Backlog (tarefas do mês) projetado, visível e atualizado?',
-  'As entregas do mês foram concluídas dentro do SLA acordado?',
-  'Itens planejados na Sprint/Sprint Planning executados conforme combinado?',
-  'Solicitações do cliente feitas durante a semana atendidas no prazo?',
-  'Não houve reclamações do cliente quanto ao prazo ou atrasos recorrentes?',
-]
-const HS_QUALIDADE_ITEMS = [
-  'O CSAT mais recente está disponível e registrado?',
-  'Houve solicitações de refação por parte do cliente na última semana?',
-  'As refações foram ajustes mínimos (não estruturais)?',
-  'UCM e DCC utilizados nas entregas?',
-  'Coordenador validou se a entrega está aderente ao briefing e padrões?',
-  'Cliente demonstrou satisfação nas interações sobre entregas recentes?',
-]
-const HS_RELACIONAMENTO_ITEMS = [
-  'Houve reunião 1:1 ou contato direto do coordenador esta semana?',
-  'O cliente demonstrou engajamento, alinhamento e otimismo?',
-  'Não foram identificados sinais de insatisfação ou reclamações recorrentes?',
-  'O time percebe que o stakeholder principal entende o que é entregue?',
-  'Nenhuma demanda foi levada à ouvidoria ou liderança nesta semana?',
-]
+// ── Health Score checklist definitions — see @/lib/health-score-defaults ──────
 
 function calcWeightedScore(resultado: number, trafego: number, entregas: number, qualidade: number, relacionamento: number) {
   return (resultado * 10 + trafego * 7 + entregas * 5 + qualidade * 5 + relacionamento * 3) / 30
@@ -1915,11 +1884,30 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
     return Math.min(10, parseFloat((avg / 10).toFixed(2)))
   }, [objetivos, resultados, metas, semanaAtual, mesAtual])
 
+  const [customChecklist, setCustomChecklist] = useState<Record<string, string[]> | null>(null)
+  useEffect(() => {
+    supabase.from('configuracoes_sistema').select('valor').eq('chave', 'health_score_checklists').single()
+      .then(({ data }) => {
+        if (data?.valor) try { setCustomChecklist(JSON.parse(data.valor)) } catch {}
+      })
+  }, [])
+  const trafegoItems   = customChecklist?.trafego       ?? HS_TRAFEGO_ITEMS
+  const entregasItems  = customChecklist?.entregas      ?? HS_ENTREGAS_ITEMS
+  const qualidadeItems = customChecklist?.qualidade     ?? HS_QUALIDADE_ITEMS
+  const relacionItems  = customChecklist?.relacionamento ?? HS_RELACIONAMENTO_ITEMS
+
   const initChecks = (n: number) => Array(n).fill(false)
   const [trafegoChecks,      setTrafegoChecks]      = useState<boolean[]>(initChecks(HS_TRAFEGO_ITEMS.length))
   const [entregasChecks,     setEntregasChecks]     = useState<boolean[]>(initChecks(HS_ENTREGAS_ITEMS.length))
   const [qualidadeChecks,    setQualidadeChecks]    = useState<boolean[]>(initChecks(HS_QUALIDADE_ITEMS.length))
   const [relacionChecks,     setRelacionChecks]     = useState<boolean[]>(initChecks(HS_RELACIONAMENTO_ITEMS.length))
+  useEffect(() => {
+    if (!customChecklist) return
+    setTrafegoChecks(initChecks(trafegoItems.length))
+    setEntregasChecks(initChecks(entregasItems.length))
+    setQualidadeChecks(initChecks(qualidadeItems.length))
+    setRelacionChecks(initChecks(relacionItems.length))
+  }, [customChecklist])
   const [observacoes,        setObservacoes]        = useState('')
   const [saving,             setSaving]             = useState(false)
   const [showForm,           setShowForm]           = useState(false)
@@ -2156,7 +2144,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
               {/* Tráfego */}
               <ChecklistSection
                 title="Operação Tráfego" weight={7}
-                items={HS_TRAFEGO_ITEMS} checks={trafegoChecks}
+                items={trafegoItems} checks={trafegoChecks}
                 onToggle={i => toggleCheck(setTrafegoChecks, i)}
                 expanded={expandedSection === 'trafego'} onToggleExpand={() => setExpandedSection(p => p === 'trafego' ? null : 'trafego')}
                 score={trafegoScore} />
@@ -2164,7 +2152,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
               {/* Entregas no Prazo */}
               <ChecklistSection
                 title="Entregas no Prazo" weight={5}
-                items={HS_ENTREGAS_ITEMS} checks={entregasChecks}
+                items={entregasItems} checks={entregasChecks}
                 onToggle={i => toggleCheck(setEntregasChecks, i)}
                 expanded={expandedSection === 'entregas'} onToggleExpand={() => setExpandedSection(p => p === 'entregas' ? null : 'entregas')}
                 score={entregasScore} />
@@ -2172,7 +2160,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
               {/* Qualidade */}
               <ChecklistSection
                 title="Qualidade das Entregas" weight={5}
-                items={HS_QUALIDADE_ITEMS} checks={qualidadeChecks}
+                items={qualidadeItems} checks={qualidadeChecks}
                 onToggle={i => toggleCheck(setQualidadeChecks, i)}
                 expanded={expandedSection === 'qualidade'} onToggleExpand={() => setExpandedSection(p => p === 'qualidade' ? null : 'qualidade')}
                 score={qualidadeScore} />
@@ -2180,7 +2168,7 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
               {/* Relacionamento */}
               <ChecklistSection
                 title="Relacionamento com o Cliente" weight={3}
-                items={HS_RELACIONAMENTO_ITEMS} checks={relacionChecks}
+                items={relacionItems} checks={relacionChecks}
                 onToggle={i => toggleCheck(setRelacionChecks, i)}
                 expanded={expandedSection === 'relacionamento'} onToggleExpand={() => setExpandedSection(p => p === 'relacionamento' ? null : 'relacionamento')}
                 score={relacionScore} />

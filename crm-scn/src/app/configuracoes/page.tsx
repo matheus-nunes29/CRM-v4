@@ -6,12 +6,13 @@ import { supabase } from '@/lib/supabase'
 import CRMLayout from '../_components/CRMLayout'
 import {
   Upload, FileSpreadsheet, CheckCircle, AlertCircle, Plus, Users,
-  Sparkles, RotateCcw, Trash2, ChevronDown, Check,
+  Sparkles, RotateCcw, Trash2, ChevronDown, Check, Activity,
 } from 'lucide-react'
 import {
   R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, YELLOW, BLUE,
   inputCls, labelCls,
 } from '@/lib/crm-constants'
+import { HS_TRAFEGO_ITEMS, HS_ENTREGAS_ITEMS, HS_QUALIDADE_ITEMS, HS_RELACIONAMENTO_ITEMS } from '@/lib/health-score-defaults'
 import { PAPEL_LABELS, PAPEL_COLORS, type Papel } from '@/lib/useUserRole'
 import { confirmDialog } from '@/lib/confirmDialog'
 import { toast } from '@/lib/toast'
@@ -19,7 +20,7 @@ import { toast } from '@/lib/toast'
 const ADMIN_EMAIL = 'matheus.nunes@v4company.com'
 const PAPEIS: Papel[] = ['admin', 'sdr', 'closer', 'viewer', 'financeiro', 'designer', 'analista_midia', 'gestor_projetos', 'coordenador_peg']
 
-type Tab = 'usuarios' | 'importacao' | 'ia'
+type Tab = 'usuarios' | 'importacao' | 'ia' | 'healthscore'
 
 // ─── Page route ─────────────────────────────────────────────────────────────
 
@@ -66,9 +67,10 @@ function ConfiguracoesShell({ onImport, userEmail }: {
   const isAdmin = userEmail === ADMIN_EMAIL
 
   const TABS: { key: Tab; label: string; Icon: React.FC<any>; subtitle: string }[] = [
-    { key: 'usuarios',   label: 'Usuários',        Icon: Users,           subtitle: 'Gerencie quem pode acessar o CRM e suas permissões' },
-    { key: 'importacao', label: 'Importação',       Icon: FileSpreadsheet, subtitle: 'Importe leads em massa a partir de planilhas .xlsx ou .csv' },
-    { key: 'ia',         label: 'Inteligência IA',  Icon: Sparkles,        subtitle: 'Configure o comportamento da qualificação automática com IA' },
+    { key: 'usuarios',    label: 'Usuários',        Icon: Users,           subtitle: 'Gerencie quem pode acessar o CRM e suas permissões' },
+    { key: 'importacao',  label: 'Importação',       Icon: FileSpreadsheet, subtitle: 'Importe leads em massa a partir de planilhas .xlsx ou .csv' },
+    { key: 'ia',          label: 'Inteligência IA',  Icon: Sparkles,        subtitle: 'Configure o comportamento da qualificação automática com IA' },
+    { key: 'healthscore', label: 'Health Score',     Icon: Activity,        subtitle: 'Personalize os critérios de avaliação de cada dimensão do Health Score' },
   ]
 
   const current = TABS.find(t => t.key === activeTab)!
@@ -121,9 +123,10 @@ function ConfiguracoesShell({ onImport, userEmail }: {
 
         {/* Tab content */}
         <div style={{ padding: 28 }}>
-          {activeTab === 'usuarios'   && <TabUsuarios currentEmail={userEmail} />}
-          {activeTab === 'importacao' && <TabImportacao onImport={onImport} />}
-          {activeTab === 'ia'         && <TabIA isAdmin={isAdmin} />}
+          {activeTab === 'usuarios'    && <TabUsuarios currentEmail={userEmail} />}
+          {activeTab === 'importacao'  && <TabImportacao onImport={onImport} />}
+          {activeTab === 'ia'          && <TabIA isAdmin={isAdmin} />}
+          {activeTab === 'healthscore' && <TabHealthScoreConfig isAdmin={isAdmin} />}
         </div>
       </div>
     </div>
@@ -847,6 +850,159 @@ function TabIA({ isAdmin }: { isAdmin: boolean }) {
               }}
             >
               {saving ? 'Salvando...' : 'Salvar instruções'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Tab: Health Score Config ────────────────────────────────────────────────
+
+type HSChecklist = { trafego: string[]; entregas: string[]; qualidade: string[]; relacionamento: string[] }
+
+const HS_SECTIONS = [
+  { key: 'trafego'       as const, label: 'Operação Tráfego',             subtitle: 'Verifica se a operação de mídia paga está correta e monitorada', weight: 7, defaults: HS_TRAFEGO_ITEMS },
+  { key: 'entregas'      as const, label: 'Entregas no Prazo',             subtitle: 'Verifica se o backlog e SLA de entregas estão sendo cumpridos',   weight: 5, defaults: HS_ENTREGAS_ITEMS },
+  { key: 'qualidade'     as const, label: 'Qualidade das Entregas',        subtitle: 'Verifica satisfação do cliente com a qualidade do trabalho',      weight: 5, defaults: HS_QUALIDADE_ITEMS },
+  { key: 'relacionamento'as const, label: 'Relacionamento com o Cliente',  subtitle: 'Verifica engajamento, comunicação e satisfação geral do cliente', weight: 3, defaults: HS_RELACIONAMENTO_ITEMS },
+]
+
+function TabHealthScoreConfig({ isAdmin }: { isAdmin: boolean }) {
+  const [items, setItems] = useState({ trafego: '', entregas: '', qualidade: '', relacionamento: '' })
+  const [original, setOriginal] = useState({ trafego: '', entregas: '', qualidade: '', relacionamento: '' })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => { loadConfig() }, [])
+
+  async function loadConfig() {
+    const { data } = await supabase.from('configuracoes_sistema').select('valor').eq('chave', 'health_score_checklists').single()
+    const raw: Partial<HSChecklist> | null = data?.valor ? (() => { try { return JSON.parse(data.valor) } catch { return null } })() : null
+    const d = {
+      trafego:        (raw?.trafego        ?? HS_TRAFEGO_ITEMS).join('\n'),
+      entregas:       (raw?.entregas       ?? HS_ENTREGAS_ITEMS).join('\n'),
+      qualidade:      (raw?.qualidade      ?? HS_QUALIDADE_ITEMS).join('\n'),
+      relacionamento: (raw?.relacionamento ?? HS_RELACIONAMENTO_ITEMS).join('\n'),
+    }
+    setItems(d); setOriginal(d); setLoading(false)
+  }
+
+  async function salvar() {
+    setSaving(true); setSaved(false)
+    const parsed: HSChecklist = {
+      trafego:        items.trafego.split('\n').map(s => s.trim()).filter(Boolean),
+      entregas:       items.entregas.split('\n').map(s => s.trim()).filter(Boolean),
+      qualidade:      items.qualidade.split('\n').map(s => s.trim()).filter(Boolean),
+      relacionamento: items.relacionamento.split('\n').map(s => s.trim()).filter(Boolean),
+    }
+    const { error } = await supabase.from('configuracoes_sistema').upsert(
+      { chave: 'health_score_checklists', valor: JSON.stringify(parsed), updated_at: new Date().toISOString() },
+      { onConflict: 'chave' }
+    )
+    if (!error) { setOriginal(items); setSaved(true); setTimeout(() => setSaved(false), 3000) }
+    else toast.error('Erro ao salvar: ' + error.message)
+    setSaving(false)
+  }
+
+  async function restaurar() {
+    await supabase.from('configuracoes_sistema').delete().eq('chave', 'health_score_checklists')
+    const d = {
+      trafego:        HS_TRAFEGO_ITEMS.join('\n'),
+      entregas:       HS_ENTREGAS_ITEMS.join('\n'),
+      qualidade:      HS_QUALIDADE_ITEMS.join('\n'),
+      relacionamento: HS_RELACIONAMENTO_ITEMS.join('\n'),
+    }
+    setItems(d); setOriginal(d)
+    toast.info('Critérios restaurados para o padrão.')
+  }
+
+  const dirty = JSON.stringify(items) !== JSON.stringify(original)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Formula + instructions */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12 }}>
+        <div style={{ padding: '12px 16px', background: `${R}06`, borderRadius: 10, border: `1px solid ${R}18` }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: R, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Fórmula do Score Total (fixa no banco)</div>
+          <div style={{ fontSize: 12, color: GRAY2, fontFamily: 'monospace' }}>
+            (Resultados×10 + Tráfego×7 + Entregas×5 + Qualidade×5 + Relacionamento×3) ÷ 30
+          </div>
+        </div>
+        <div style={{ padding: '12px 16px', background: GRAY4, borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 12, color: GRAY2, lineHeight: 1.6, whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: GRAY1, marginBottom: 3 }}>Formato</div>
+          Um critério por linha.<br />Linhas em branco são ignoradas.
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: GRAY3, fontSize: 13 }}>Carregando critérios...</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {HS_SECTIONS.map(({ key, label, subtitle, weight }) => {
+            const count = items[key].split('\n').filter(s => s.trim()).length
+            const changed = items[key] !== original[key]
+            return (
+              <div key={key} style={{ border: `1px solid ${changed ? R : '#E5E7EB'}`, borderRadius: 10, overflow: 'hidden', transition: 'border-color .15s' }}>
+                <div style={{ padding: '12px 16px', background: GRAY4, borderBottom: '1px solid #F3F4F6' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: GRAY1 }}>{label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: GRAY3, background: GRAY5, padding: '2px 7px', borderRadius: 20 }}>Peso {weight}</span>
+                    <span style={{ fontSize: 10, color: GRAY3, marginLeft: 'auto' }}>{count} critério{count !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: GRAY3, marginTop: 3 }}>{subtitle}</div>
+                </div>
+                <div style={{ padding: 14 }}>
+                  <textarea
+                    value={items[key]}
+                    onChange={e => { setItems(prev => ({ ...prev, [key]: e.target.value })); setSaved(false) }}
+                    disabled={!isAdmin}
+                    rows={9}
+                    style={{
+                      width: '100%', padding: '10px 12px', borderRadius: 8,
+                      border: `1px solid #E5E7EB`,
+                      fontSize: 12, color: GRAY1,
+                      background: isAdmin ? WHITE : GRAY4,
+                      fontFamily: 'inherit', lineHeight: 1.7,
+                      resize: 'vertical', outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                    placeholder="Um critério por linha..."
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {!loading && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button
+            onClick={restaurar} disabled={!isAdmin || saving}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: WHITE, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: isAdmin ? 'pointer' : 'not-allowed', opacity: isAdmin ? 1 : 0.5 }}
+          >
+            <RotateCcw size={13} /> Restaurar padrão
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {saved && <span style={{ fontSize: 12, color: GREEN, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><Check size={13} /> Salvo</span>}
+            {dirty && !saved && <span style={{ fontSize: 11, color: GRAY3 }}>Alterações não salvas</span>}
+            <button
+              onClick={salvar}
+              disabled={!isAdmin || saving || !dirty}
+              style={{
+                padding: '9px 24px', borderRadius: 8, border: 'none',
+                background: dirty && isAdmin ? R : GRAY4,
+                color: dirty && isAdmin ? WHITE : GRAY3,
+                fontSize: 13, fontWeight: 700,
+                cursor: dirty && isAdmin ? 'pointer' : 'not-allowed',
+                transition: 'all .15s',
+              }}
+            >
+              {saving ? 'Salvando...' : 'Salvar critérios'}
             </button>
           </div>
         </div>
