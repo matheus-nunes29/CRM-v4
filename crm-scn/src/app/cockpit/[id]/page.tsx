@@ -4,7 +4,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { supabase, Cliente, Contato, Projeto, HealthScoreEntry, MetaSemanal, Oportunidade, FcaEntry, Reuniao, ObjetivoMensal, ResultadoSemanal, RegistroEntrega, ServicoProjeto, CatalogoServico, NpsCsat, ProximoPasso } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, PURPLE, SEGMENTOS } from '@/lib/crm-constants'
-import { HS_TRAFEGO_ITEMS, HS_ENTREGAS_ITEMS, HS_QUALIDADE_ITEMS, HS_RELACIONAMENTO_ITEMS } from '@/lib/health-score-defaults'
+import { HS_TRAFEGO_ITEMS, HS_ENTREGAS_ITEMS, HS_QUALIDADE_ITEMS, HS_RELACIONAMENTO_ITEMS, type HSChecklist } from '@/lib/health-score-defaults'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
   LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine,
@@ -14,7 +14,7 @@ import {
   Link2, Layers, TrendingUp, TrendingDown, Target, AlertTriangle, Users,
   Calendar, Package, Clock, Trash2, Globe, Info,
   Building2, Phone, Mail, ExternalLink, Video, FileText, Upload, BarChart2, Zap, Award,
-  CheckSquare, GitBranch, Star, MessageSquare, ChevronRight,
+  CheckSquare, GitBranch, Star, MessageSquare, ChevronRight, Settings,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
@@ -292,6 +292,10 @@ export default function ClienteCockpitPage() {
   const [proximosPassos, setProximos] = useState<ProximoPasso[]>([])
   const [loading, setLoading]         = useState(true)
   const [leadContrato, setLeadContrato] = useState<string | null>(null)
+  const [resolvedChecklists, setResolvedChecklists] = useState<{ items: HSChecklist; clienteHasCustom: boolean }>({
+    items: { trafego: HS_TRAFEGO_ITEMS, entregas: HS_ENTREGAS_ITEMS, qualidade: HS_QUALIDADE_ITEMS, relacionamento: HS_RELACIONAMENTO_ITEMS },
+    clienteHasCustom: false,
+  })
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -317,7 +321,7 @@ export default function ClienteCockpitPage() {
       setLeadContrato(null)
     }
 
-    const [ct, pr, hs, mt, op, fc, re, obj, res, reg, svc, cat, est, nps, pp] = await Promise.all([
+    const [ct, pr, hs, mt, op, fc, re, obj, res, reg, svc, cat, est, nps, pp, clienteCkl, globalCkl] = await Promise.all([
       supabase.from('contatos').select('*').eq('cliente_id', actualId).order('is_primary', { ascending: false }),
       supabase.from('projetos').select('*').eq('cliente_id', actualId).order('created_at'),
       supabase.from('health_score_entries').select('*').eq('cliente_id', actualId).order('semana', { ascending: false }).limit(20),
@@ -333,7 +337,24 @@ export default function ClienteCockpitPage() {
       supabase.from('estrategias_projeto').select('*').eq('cliente_id', actualId).order('created_at'),
       supabase.from('nps_csat').select('*').eq('cliente_id', actualId).order('created_at', { ascending: false }),
       supabase.from('proximos_passos').select('*').eq('cliente_id', actualId).order('created_at', { ascending: false }),
+      supabase.from('health_score_checklists_cliente').select('*').eq('cliente_id', actualId).maybeSingle(),
+      supabase.from('configuracoes_sistema').select('valor').eq('chave', 'health_score_checklists').single(),
     ])
+
+    // Resolve 3-level checklist chain: cliente → global → code defaults
+    const globalParsed: Partial<HSChecklist> | null = globalCkl.data?.valor
+      ? (() => { try { return JSON.parse(globalCkl.data.valor) } catch { return null } })()
+      : null
+    const cli = clienteCkl.data
+    setResolvedChecklists({
+      clienteHasCustom: !!cli,
+      items: {
+        trafego:        cli?.trafego        ?? globalParsed?.trafego        ?? HS_TRAFEGO_ITEMS,
+        entregas:       cli?.entregas       ?? globalParsed?.entregas       ?? HS_ENTREGAS_ITEMS,
+        qualidade:      cli?.qualidade      ?? globalParsed?.qualidade      ?? HS_QUALIDADE_ITEMS,
+        relacionamento: cli?.relacionamento ?? globalParsed?.relacionamento ?? HS_RELACIONAMENTO_ITEMS,
+      },
+    })
     setContatos(ct.data || [])
     setProjetos(pr.data || [])
     setHealth(hs.data || [])
@@ -437,7 +458,7 @@ export default function ClienteCockpitPage() {
       <div>
         {tab === 'visao-geral'   && <TabVisaoGeral   cliente={cliente} contatos={contatos} projetos={projetos} lt={lt} onSaveCliente={saveCliente} onReload={loadAll} clienteId={clienteRealId} canEdit={canEditCockpit} leadContrato={leadContrato} npsCsat={npsCsat} />}
         {tab === 'projetos'      && <TabProjetos      projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} catalogoServicos={catalogoServicos} />}
-        {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
+        {tab === 'health-score'  && <TabHealthScore   entries={healthEntries} metas={metas} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} resolvedChecklists={resolvedChecklists.items} clienteHasCustomChecklists={resolvedChecklists.clienteHasCustom} />}
         {tab === 'metas'         && <TabMetas         metas={metas} projetos={projetos} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} objetivos={objetivos} resultados={resultados} />}
         {tab === 'reunioes'      && <TabReunioes      reunioes={reunioes} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
         {tab === 'entregas'      && <TabEntregas      registros={registrosEntrega} projetos={projetos} servicosProjeto={servicosProjeto} clienteId={clienteRealId} onReload={loadAll} canEdit={canEditCockpit} />}
@@ -1841,7 +1862,7 @@ function ChecklistSection({ title, weight, items, checks, onToggle, expanded, on
   )
 }
 
-function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivos, resultados }: { entries: HealthScoreEntry[]; metas: MetaSemanal[]; clienteId: string; onReload: () => void; canEdit: boolean; objetivos: ObjetivoMensal[]; resultados: ResultadoSemanal[] }) {
+function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivos, resultados, resolvedChecklists, clienteHasCustomChecklists }: { entries: HealthScoreEntry[]; metas: MetaSemanal[]; clienteId: string; onReload: () => void; canEdit: boolean; objetivos: ObjetivoMensal[]; resultados: ResultadoSemanal[]; resolvedChecklists: HSChecklist; clienteHasCustomChecklists: boolean }) {
   const semanaAtual = startOfWeek()
   const mesAtual = semanaAtual.slice(0, 7)
   const jaTemSemana = entries.some(e => e.semana === semanaAtual)
@@ -1884,30 +1905,52 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
     return Math.min(10, parseFloat((avg / 10).toFixed(2)))
   }, [objetivos, resultados, metas, semanaAtual, mesAtual])
 
-  const [customChecklist, setCustomChecklist] = useState<Record<string, string[]> | null>(null)
-  useEffect(() => {
-    supabase.from('configuracoes_sistema').select('valor').eq('chave', 'health_score_checklists').single()
-      .then(({ data }) => {
-        if (data?.valor) try { setCustomChecklist(JSON.parse(data.valor)) } catch {}
-      })
-  }, [])
-  const trafegoItems   = customChecklist?.trafego       ?? HS_TRAFEGO_ITEMS
-  const entregasItems  = customChecklist?.entregas      ?? HS_ENTREGAS_ITEMS
-  const qualidadeItems = customChecklist?.qualidade     ?? HS_QUALIDADE_ITEMS
-  const relacionItems  = customChecklist?.relacionamento ?? HS_RELACIONAMENTO_ITEMS
+  const trafegoItems   = resolvedChecklists.trafego
+  const entregasItems  = resolvedChecklists.entregas
+  const qualidadeItems = resolvedChecklists.qualidade
+  const relacionItems  = resolvedChecklists.relacionamento
 
   const initChecks = (n: number) => Array(n).fill(false)
-  const [trafegoChecks,      setTrafegoChecks]      = useState<boolean[]>(initChecks(HS_TRAFEGO_ITEMS.length))
-  const [entregasChecks,     setEntregasChecks]     = useState<boolean[]>(initChecks(HS_ENTREGAS_ITEMS.length))
-  const [qualidadeChecks,    setQualidadeChecks]    = useState<boolean[]>(initChecks(HS_QUALIDADE_ITEMS.length))
-  const [relacionChecks,     setRelacionChecks]     = useState<boolean[]>(initChecks(HS_RELACIONAMENTO_ITEMS.length))
-  useEffect(() => {
-    if (!customChecklist) return
-    setTrafegoChecks(initChecks(trafegoItems.length))
-    setEntregasChecks(initChecks(entregasItems.length))
-    setQualidadeChecks(initChecks(qualidadeItems.length))
-    setRelacionChecks(initChecks(relacionItems.length))
-  }, [customChecklist])
+  const [trafegoChecks,   setTrafegoChecks]   = useState<boolean[]>(() => initChecks(trafegoItems.length))
+  const [entregasChecks,  setEntregasChecks]  = useState<boolean[]>(() => initChecks(entregasItems.length))
+  const [qualidadeChecks, setQualidadeChecks] = useState<boolean[]>(() => initChecks(qualidadeItems.length))
+  const [relacionChecks,  setRelacionChecks]  = useState<boolean[]>(() => initChecks(relacionItems.length))
+
+  // Painel de personalização por cliente
+  const [showCustomize,  setShowCustomize]  = useState(false)
+  const [editItems, setEditItems] = useState({ trafego: '', entregas: '', qualidade: '', relacionamento: '' })
+  const [savingCustom,   setSavingCustom]   = useState(false)
+
+  function openCustomize() {
+    setEditItems({
+      trafego:        trafegoItems.join('\n'),
+      entregas:       entregasItems.join('\n'),
+      qualidade:      qualidadeItems.join('\n'),
+      relacionamento: relacionItems.join('\n'),
+    })
+    setShowCustomize(true)
+  }
+
+  async function saveCustom() {
+    setSavingCustom(true)
+    const payload = {
+      cliente_id:     clienteId,
+      trafego:        editItems.trafego.split('\n').map(s => s.trim()).filter(Boolean),
+      entregas:       editItems.entregas.split('\n').map(s => s.trim()).filter(Boolean),
+      qualidade:      editItems.qualidade.split('\n').map(s => s.trim()).filter(Boolean),
+      relacionamento: editItems.relacionamento.split('\n').map(s => s.trim()).filter(Boolean),
+      updated_at:     new Date().toISOString(),
+    }
+    const { error } = await supabase.from('health_score_checklists_cliente').upsert(payload, { onConflict: 'cliente_id' })
+    if (error) toast.error('Erro ao salvar: ' + error.message)
+    else { setShowCustomize(false); await onReload() }
+    setSavingCustom(false)
+  }
+
+  async function removeCustom() {
+    await supabase.from('health_score_checklists_cliente').delete().eq('cliente_id', clienteId)
+    await onReload()
+  }
   const [observacoes,        setObservacoes]        = useState('')
   const [saving,             setSaving]             = useState(false)
   const [showForm,           setShowForm]           = useState(false)
@@ -2182,6 +2225,70 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
                   </div>
                 </div>
                 <span style={{ fontSize: 32, fontWeight: 900, color: healthColor(estScore) }}>{estScore.toFixed(1)}</span>
+              </div>
+
+              {/* Personalizar critérios deste cliente */}
+              <div style={{ border: `1px solid ${GRAY5}`, borderRadius: 10, overflow: 'hidden' }}>
+                <button
+                  onClick={() => showCustomize ? setShowCustomize(false) : openCustomize()}
+                  style={{ width: '100%', padding: '11px 16px', background: GRAY4, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                >
+                  <Settings size={13} color={GRAY3} />
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: GRAY2, textAlign: 'left' }}>
+                    Personalizar critérios deste cliente
+                  </span>
+                  {clienteHasCustomChecklists && (
+                    <span style={{ fontSize: 10, fontWeight: 700, color: R, background: `${R}12`, padding: '2px 8px', borderRadius: 20, border: `1px solid ${R}25` }}>
+                      Personalizado
+                    </span>
+                  )}
+                  <ChevronDown size={13} color={GRAY3} style={{ transform: showCustomize ? 'rotate(180deg)' : 'none', transition: '0.2s', flexShrink: 0 }} />
+                </button>
+
+                {showCustomize && (
+                  <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ fontSize: 11, color: GRAY3, lineHeight: 1.5 }}>
+                      {clienteHasCustomChecklists
+                        ? 'Este cliente tem critérios personalizados. Edite abaixo ou remova a personalização para voltar ao padrão global.'
+                        : 'Defina critérios exclusivos para este cliente. Um item por linha. Não afeta o padrão global.'}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      {([
+                        { key: 'trafego'       as const, label: 'Operação Tráfego' },
+                        { key: 'entregas'      as const, label: 'Entregas no Prazo' },
+                        { key: 'qualidade'     as const, label: 'Qualidade das Entregas' },
+                        { key: 'relacionamento'as const, label: 'Relacionamento' },
+                      ]).map(({ key, label }) => (
+                        <div key={key}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: GRAY2, display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</label>
+                          <textarea
+                            value={editItems[key]}
+                            onChange={e => setEditItems(prev => ({ ...prev, [key]: e.target.value }))}
+                            rows={6}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${GRAY5}`, fontSize: 11, color: GRAY1, fontFamily: 'inherit', lineHeight: 1.6, resize: 'vertical', outline: 'none', boxSizing: 'border-box' as const }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      {clienteHasCustomChecklists
+                        ? <button onClick={removeCustom} style={{ fontSize: 12, color: R, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}>
+                            Remover personalização
+                          </button>
+                        : <span />}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => setShowCustomize(false)}
+                          style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: 'white', color: GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                          Cancelar
+                        </button>
+                        <button onClick={saveCustom} disabled={savingCustom}
+                          style={{ padding: '7px 18px', borderRadius: 8, border: 'none', background: R, color: 'white', fontSize: 12, fontWeight: 700, cursor: savingCustom ? 'not-allowed' : 'pointer' }}>
+                          {savingCustom ? 'Salvando...' : 'Salvar para este cliente'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)}

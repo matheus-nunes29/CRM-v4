@@ -1,3 +1,10 @@
+export type HSChecklist = {
+  trafego: string[]
+  entregas: string[]
+  qualidade: string[]
+  relacionamento: string[]
+}
+
 export const HS_TRAFEGO_ITEMS = [
   'Growthpack atualizado: indicadores (metas, funil, verba) preenchidos e revisados?',
   'Campanhas subiram corretamente: lançadas conforme o combinado na Sprint?',
