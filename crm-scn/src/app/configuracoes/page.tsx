@@ -13,6 +13,7 @@ import {
   inputCls, labelCls,
 } from '@/lib/crm-constants'
 import { HS_TRAFEGO_ITEMS, HS_ENTREGAS_ITEMS, HS_QUALIDADE_ITEMS, HS_RELACIONAMENTO_ITEMS } from '@/lib/health-score-defaults'
+import { DEFAULT_CHURN_CONFIG, type ChurnRiskConfig } from '@/lib/churn-risk-defaults'
 import { PAPEL_LABELS, PAPEL_COLORS, type Papel } from '@/lib/useUserRole'
 import { confirmDialog } from '@/lib/confirmDialog'
 import { toast } from '@/lib/toast'
@@ -1006,6 +1007,230 @@ function TabHealthScoreConfig({ isAdmin }: { isAdmin: boolean }) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Divider */}
+      <div style={{ borderTop: '1px solid #E5E7EB', marginTop: 8 }} />
+
+      <TabChurnRiskConfig isAdmin={isAdmin} />
+    </div>
+  )
+}
+
+// ─── Churn Risk Config (renderizado dentro da aba Health Score) ──────────────
+
+function TabChurnRiskConfig({ isAdmin }: { isAdmin: boolean }) {
+  const [cfg, setCfg] = useState<ChurnRiskConfig>(DEFAULT_CHURN_CONFIG)
+  const [original, setOriginal] = useState<ChurnRiskConfig>(DEFAULT_CHURN_CONFIG)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => { loadConfig() }, [])
+
+  async function loadConfig() {
+    const { data } = await supabase.from('configuracoes_sistema').select('valor').eq('chave', 'churn_risk_config').single()
+    const loaded: ChurnRiskConfig = data?.valor
+      ? (() => { try { return { ...DEFAULT_CHURN_CONFIG, ...JSON.parse(data.valor) } } catch { return DEFAULT_CHURN_CONFIG } })()
+      : DEFAULT_CHURN_CONFIG
+    setCfg(loaded); setOriginal(loaded); setLoading(false)
+  }
+
+  async function salvar() {
+    setSaving(true); setSaved(false)
+    const { error } = await supabase.from('configuracoes_sistema').upsert(
+      { chave: 'churn_risk_config', valor: JSON.stringify(cfg), updated_at: new Date().toISOString() },
+      { onConflict: 'chave' }
+    )
+    if (!error) { setOriginal(cfg); setSaved(true); setTimeout(() => setSaved(false), 3000) }
+    else toast.error('Erro ao salvar: ' + error.message)
+    setSaving(false)
+  }
+
+  async function restaurar() {
+    await supabase.from('configuracoes_sistema').delete().eq('chave', 'churn_risk_config')
+    setCfg(DEFAULT_CHURN_CONFIG); setOriginal(DEFAULT_CHURN_CONFIG)
+    toast.info('Regras de risco restauradas para o padrão.')
+  }
+
+  function setField(key: keyof ChurnRiskConfig, val: number) {
+    setCfg(prev => ({ ...prev, [key]: val })); setSaved(false)
+  }
+
+  const dirty = JSON.stringify(cfg) !== JSON.stringify(original)
+
+  const numInput = (key: keyof ChurnRiskConfig, min = 0, max = 99) => (
+    <input
+      type="number" min={min} max={max}
+      value={cfg[key]}
+      disabled={!isAdmin}
+      onChange={e => setField(key, Number(e.target.value))}
+      style={{
+        width: 60, padding: '5px 8px', borderRadius: 6, textAlign: 'center',
+        border: `1px solid ${cfg[key] !== original[key] ? R : '#D1D5DB'}`,
+        fontSize: 13, fontWeight: 700, color: GRAY1,
+        background: isAdmin ? WHITE : GRAY4, outline: 'none',
+      }}
+    />
+  )
+
+  const ptsBadge = (pts: number) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 22, borderRadius: 6, background: pts > 1 ? `${R}18` : `${YELLOW}20`, color: pts > 1 ? R : '#92400E', fontSize: 11, fontWeight: 800 }}>
+      +{pts}
+    </span>
+  )
+
+  const ROW: React.CSSProperties = { display: 'flex', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid #F3F4F6', gap: 12 }
+  const LABEL: React.CSSProperties = { flex: 1, fontSize: 12, color: GRAY1, lineHeight: 1.4 }
+  const PARAM: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: GRAY3 }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: GRAY1, marginBottom: 2 }}>
+          Regras de Risco de Churn
+          {!isAdmin && <span style={{ marginLeft: 10, fontSize: 11, fontWeight: 600, background: GRAY4, color: GRAY3, padding: '3px 8px', borderRadius: 20 }}>Somente admin</span>}
+        </div>
+        <div style={{ fontSize: 12, color: GRAY3 }}>
+          Cada condição soma pontos ao score de risco. Nível de alerta é definido pelo total de pontos acumulados.
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: GRAY3, fontSize: 13 }}>Carregando...</div>
+      ) : (
+        <>
+          {/* Thresholds de nível */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {([
+              { label: 'Risco Alto — pontos ≥', key: 'altoLimite'  as const, color: R },
+              { label: 'Risco Médio — pontos ≥', key: 'medioLimite' as const, color: YELLOW },
+            ] as const).map(({ label, key, color }) => (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: GRAY4, borderRadius: 10, border: `1px solid ${cfg[key] !== original[key] ? R : '#E5E7EB'}` }}>
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color }}>{label}</span>
+                {numInput(key, 1, 20)}
+                <span style={{ fontSize: 11, color: GRAY3 }}>pts</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabela de condições */}
+          <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '10px 16px', background: GRAY4, borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Condição</span>
+              <span style={{ width: 120, fontSize: 11, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center' }}>Parâmetro</span>
+              <span style={{ width: 48, fontSize: 11, fontWeight: 700, color: GRAY2, textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center' }}>Pts</span>
+            </div>
+
+            <div style={ROW}>
+              <span style={LABEL}>HS em queda consecutiva por N semanas seguidas</span>
+              <div style={{ ...PARAM, width: 120, justifyContent: 'center' }}>
+                {numInput('quedaConsecutivaSemanas', 2, 8)} <span>sem.</span>
+              </div>
+              <div style={{ width: 48, display: 'flex', justifyContent: 'center' }}>{numInput('quedaConsecutivaPontos', 0, 5)}</div>
+            </div>
+
+            <div style={ROW}>
+              <span style={LABEL}>HS em queda (semana anterior era maior)</span>
+              <div style={{ ...PARAM, width: 120, justifyContent: 'center' }}>
+                <span style={{ color: GRAY3, fontSize: 11 }}>—</span>
+              </div>
+              <div style={{ width: 48, display: 'flex', justifyContent: 'center' }}>{numInput('quedaPontos', 0, 5)}</div>
+            </div>
+
+            <div style={{ ...ROW, background: `${R}04` }}>
+              <span style={LABEL}>HS crítico — score abaixo de:</span>
+              <div style={{ ...PARAM, width: 120, justifyContent: 'center' }}>
+                {numInput('hsCriticoLimite', 1, 9)}
+              </div>
+              <div style={{ width: 48, display: 'flex', justifyContent: 'center' }}>{numInput('hsCriticoPontos', 0, 5)}</div>
+            </div>
+
+            <div style={{ ...ROW, background: `${YELLOW}06` }}>
+              <span style={LABEL}>HS baixo — score abaixo de:</span>
+              <div style={{ ...PARAM, width: 120, justifyContent: 'center' }}>
+                {numInput('hsBaixoLimite', 1, 10)}
+              </div>
+              <div style={{ width: 48, display: 'flex', justifyContent: 'center' }}>{numInput('hsBaixoPontos', 0, 5)}</div>
+            </div>
+
+            <div style={ROW}>
+              <span style={LABEL}>Sem health score registrado (nenhuma entrada)</span>
+              <div style={{ ...PARAM, width: 120, justifyContent: 'center' }}>
+                <span style={{ color: GRAY3, fontSize: 11 }}>—</span>
+              </div>
+              <div style={{ width: 48, display: 'flex', justifyContent: 'center' }}>{numInput('semHsPontos', 0, 5)}</div>
+            </div>
+
+            <div style={ROW}>
+              <span style={LABEL}>Sem atualização há mais de N dias — crítico</span>
+              <div style={{ ...PARAM, width: 120, justifyContent: 'center' }}>
+                {'> '}{numInput('semAtualizacaoCriticoDias', 1, 365)} <span>dias</span>
+              </div>
+              <div style={{ width: 48, display: 'flex', justifyContent: 'center' }}>{numInput('semAtualizacaoCriticoPontos', 0, 5)}</div>
+            </div>
+
+            <div style={{ ...ROW, borderBottom: 'none' }}>
+              <span style={LABEL}>Sem atualização há mais de N dias — atenção</span>
+              <div style={{ ...PARAM, width: 120, justifyContent: 'center' }}>
+                {'> '}{numInput('semAtualizacaoAtencaoDias', 1, 365)} <span>dias</span>
+              </div>
+              <div style={{ width: 48, display: 'flex', justifyContent: 'center' }}>{numInput('semAtualizacaoAtencaoPontos', 0, 5)}</div>
+            </div>
+
+            <div style={{ ...ROW, borderBottom: 'none', borderTop: '1px solid #F3F4F6' }}>
+              <span style={LABEL}>Sem projetos ativos (mas possui contratos cadastrados)</span>
+              <div style={{ ...PARAM, width: 120, justifyContent: 'center' }}>
+                <span style={{ color: GRAY3, fontSize: 11 }}>—</span>
+              </div>
+              <div style={{ width: 48, display: 'flex', justifyContent: 'center' }}>{numInput('semProjetosPontos', 0, 5)}</div>
+            </div>
+          </div>
+
+          {/* Preview de pontuação */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {[
+              { label: 'Alto', pts: cfg.altoLimite, bg: `${R}12`, color: R, border: `${R}30` },
+              { label: 'Médio', pts: cfg.medioLimite, bg: `${YELLOW}15`, color: '#92400E', border: `${YELLOW}40` },
+              { label: 'Baixo', pts: 0, bg: `${GREEN}12`, color: '#065F46', border: `${GREEN}30` },
+            ].map(({ label, pts, bg, color, border }) => (
+              <div key={label} style={{ padding: '10px 16px', background: bg, border: `1px solid ${border}`, borderRadius: 10, flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</div>
+                <div style={{ fontSize: 12, color, marginTop: 3 }}>
+                  {label === 'Alto' ? `≥ ${pts} pts` : label === 'Médio' ? `≥ ${pts} pts` : `< ${cfg.medioLimite} pts`}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <button
+              onClick={restaurar} disabled={!isAdmin || saving}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: WHITE, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: isAdmin ? 'pointer' : 'not-allowed', opacity: isAdmin ? 1 : 0.5 }}
+            >
+              <RotateCcw size={13} /> Restaurar padrão
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {saved && <span style={{ fontSize: 12, color: GREEN, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><Check size={13} /> Salvo</span>}
+              {dirty && !saved && <span style={{ fontSize: 11, color: GRAY3 }}>Alterações não salvas</span>}
+              <button
+                onClick={salvar}
+                disabled={!isAdmin || saving || !dirty}
+                style={{
+                  padding: '9px 24px', borderRadius: 8, border: 'none',
+                  background: dirty && isAdmin ? R : GRAY4,
+                  color: dirty && isAdmin ? WHITE : GRAY3,
+                  fontSize: 13, fontWeight: 700,
+                  cursor: dirty && isAdmin ? 'pointer' : 'not-allowed',
+                  transition: 'all .15s',
+                }}
+              >
+                {saving ? 'Salvando...' : 'Salvar regras'}
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

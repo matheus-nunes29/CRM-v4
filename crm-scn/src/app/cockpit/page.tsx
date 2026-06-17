@@ -7,6 +7,7 @@ import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, SEGME
 import { Plus, Search, Building2, TrendingUp, Layers, Users, ArrowUp, ArrowDown, Minus, AlertTriangle, BarChart2, X } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
+import { computeChurnRisk, DEFAULT_CHURN_CONFIG, type ChurnRiskConfig } from '@/lib/churn-risk-defaults'
 
 type RiskLevel = 'baixo' | 'medio' | 'alto'
 
@@ -19,38 +20,6 @@ type ClienteEnriquecido = Cliente & {
   risk: { level: RiskLevel; reasons: string[] }
 }
 
-function computeChurnRisk(entries: HealthScoreEntry[], projetos: Projeto[]): { level: RiskLevel; reasons: string[] } {
-  let score = 0
-  const reasons: string[] = []
-  const scores = entries.slice(0, 4).map(e => Number(e.score_total))
-
-  if (scores.length >= 3 && scores[0] < scores[1] && scores[1] < scores[2]) {
-    score += 2; reasons.push('HS em queda por 3 semanas')
-  } else if (scores.length >= 2 && scores[0] < scores[1]) {
-    score += 1; reasons.push('HS em queda')
-  }
-
-  if (scores.length > 0 && scores[0] < 5) {
-    score += 2; reasons.push('HS crítico')
-  } else if (scores.length > 0 && scores[0] < 7) {
-    score += 1; reasons.push('HS abaixo de 7.0')
-  }
-
-  if (entries.length === 0) {
-    score += 2; reasons.push('Sem health score')
-  } else {
-    const days = Math.floor((Date.now() - new Date(entries[0].semana).getTime()) / 86400000)
-    if (days > 30) { score += 2; reasons.push(`Sem atualização há ${days}d`) }
-    else if (days > 14) { score += 1; reasons.push(`Sem atualização há ${days}d`) }
-  }
-
-  const activeProjects = projetos.filter(p => p.status === 'ativo')
-  if (projetos.length > 0 && activeProjects.length === 0) {
-    score += 1; reasons.push('Sem projetos ativos')
-  }
-
-  return { level: score >= 4 ? 'alto' : score >= 2 ? 'medio' : 'baixo', reasons }
-}
 
 function healthColor(score: number) {
   return score >= 7 ? GREEN : score >= 5 ? YELLOW : R
@@ -100,12 +69,17 @@ export default function CockpitPage() {
 
   async function loadClientes() {
     setLoading(true)
-    const [{ data: cl }, { data: proj }, { data: hs }, { data: fca }] = await Promise.all([
+    const [{ data: cl }, { data: proj }, { data: hs }, { data: fca }, { data: cfgRow }] = await Promise.all([
       supabase.from('clientes').select('*').order('created_at', { ascending: false }),
       supabase.from('projetos').select('*'),
       supabase.from('health_score_entries').select('*').order('semana', { ascending: false }),
       supabase.from('fca_entries').select('id,cliente_id'),
+      supabase.from('configuracoes_sistema').select('valor').eq('chave', 'churn_risk_config').single(),
     ])
+
+    const churnCfg: ChurnRiskConfig = cfgRow?.valor
+      ? (() => { try { return { ...DEFAULT_CHURN_CONFIG, ...JSON.parse(cfgRow.valor) } } catch { return DEFAULT_CHURN_CONFIG } })()
+      : DEFAULT_CHURN_CONFIG
 
     const fcaClienteIds = new Set((fca || []).map((f: any) => f.cliente_id))
 
@@ -114,12 +88,12 @@ export default function CockpitPage() {
       const clienteProj = (proj || []).filter(p => p.cliente_id === c.id)
       return {
         ...c,
-        projetos:     clienteProj,
-        latestHealth: clienteHs[0] ?? null,
-        prevHealth:   clienteHs[1] ?? null,
+        projetos:      clienteProj,
+        latestHealth:  clienteHs[0] ?? null,
+        prevHealth:    clienteHs[1] ?? null,
         healthEntries: clienteHs.slice(0, 4),
-        hasFca:       fcaClienteIds.has(c.id),
-        risk:         computeChurnRisk(clienteHs, clienteProj),
+        hasFca:        fcaClienteIds.has(c.id),
+        risk:          computeChurnRisk(clienteHs, clienteProj, churnCfg),
       }
     })
     setClientes(enriched)
