@@ -60,14 +60,14 @@ function PromptQualificacaoCard({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     fetch('/api/gerar-qualificacao')
       .then(r => r.json())
-      .then(({ prompt: p }) => { setPrompt(p || ''); setOriginal(p || '') })
+      .then(({ instructions }) => { setPrompt(instructions || ''); setOriginal(instructions || '') })
       .finally(() => setLoading(false))
   }, [])
 
   async function salvar() {
     setSaving(true); setSaved(false)
     const { error } = await supabase.from('configuracoes_sistema').upsert(
-      { chave: 'prompt_qualificacao', valor: prompt, updated_at: new Date().toISOString() },
+      { chave: 'instrucoes_qualificacao', valor: prompt, updated_at: new Date().toISOString() },
       { onConflict: 'chave' }
     )
     if (!error) { setOriginal(prompt); setSaved(true); setTimeout(() => setSaved(false), 3000) }
@@ -76,10 +76,10 @@ function PromptQualificacaoCard({ isAdmin }: { isAdmin: boolean }) {
   }
 
   async function restaurarPadrao() {
-    await supabase.from('configuracoes_sistema').delete().eq('chave', 'prompt_qualificacao')
+    await supabase.from('configuracoes_sistema').delete().eq('chave', 'instrucoes_qualificacao')
     const res = await fetch('/api/gerar-qualificacao').then(r => r.json())
-    setPrompt(res.prompt); setOriginal(res.prompt)
-    toast.info('Prompt restaurado para o padrão.')
+    setPrompt(res.instructions); setOriginal(res.instructions)
+    toast.info('Instruções restauradas para o padrão.')
   }
 
   const dirty = prompt !== original
@@ -92,8 +92,8 @@ function PromptQualificacaoCard({ isAdmin }: { isAdmin: boolean }) {
             <Sparkles size={20} color={R} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: GRAY1 }}>Prompt de Qualificação IA</div>
-            <div style={{ fontSize: 12, color: GRAY2, marginTop: 2 }}>Instrução enviada ao modelo para analisar transcrições de ligações</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: GRAY1 }}>Instruções de Qualificação IA</div>
+            <div style={{ fontSize: 12, color: GRAY2, marginTop: 2 }}>O que a IA deve extrair de cada campo — edite em texto simples, sem código</div>
           </div>
         </div>
         {!isAdmin && (
@@ -109,14 +109,14 @@ function PromptQualificacaoCard({ isAdmin }: { isAdmin: boolean }) {
         ) : (
           <>
             <div style={{ fontSize: 11, fontWeight: 600, color: GRAY2, marginBottom: 8 }}>
-              Conteúdo do prompt — edite para personalizar o que a IA extrai de cada ligação
+              Escreva em linguagem natural o que a IA deve observar em cada campo. O schema JSON é gerenciado automaticamente pelo sistema.
             </div>
             <textarea
               value={prompt}
               onChange={e => { setPrompt(e.target.value); setSaved(false) }}
               disabled={!isAdmin}
               rows={22}
-              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1px solid ${dirty ? R : '#D1D5DB'}`, fontSize: 12, color: GRAY1, background: isAdmin ? WHITE : GRAY4, fontFamily: 'monospace', lineHeight: 1.6, resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'border-color .15s' }}
+              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1px solid ${dirty ? R : '#D1D5DB'}`, fontSize: 13, color: GRAY1, background: isAdmin ? WHITE : GRAY4, fontFamily: 'inherit', lineHeight: 1.7, resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'border-color .15s' }}
             />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
               <button

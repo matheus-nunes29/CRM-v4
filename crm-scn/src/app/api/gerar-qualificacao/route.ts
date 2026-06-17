@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createClient } from '@supabase/supabase-js'
-import { DEFAULT_PROMPT } from '@/lib/qualificacao-prompt'
+import { PROMPT_HEADER, DEFAULT_INSTRUCTIONS } from '@/lib/qualificacao-prompt'
 
 export const maxDuration = 120
 
 const GROQ_MAX = 25 * 1024 * 1024 // 25 MB — Groq hard limit
 
-async function getActivePrompt(): Promise<string> {
+async function getActiveInstructions(): Promise<string> {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,11 +16,11 @@ async function getActivePrompt(): Promise<string> {
     const { data } = await supabase
       .from('configuracoes_sistema')
       .select('valor')
-      .eq('chave', 'prompt_qualificacao')
+      .eq('chave', 'instrucoes_qualificacao')
       .single()
     if (data?.valor) return data.valor
   } catch { /* fallback to default */ }
-  return DEFAULT_PROMPT
+  return DEFAULT_INSTRUCTIONS
 }
 
 async function transcreverComGroq(blob: Blob, filename: string): Promise<string> {
@@ -103,8 +103,8 @@ async function transcreverComGemini(blob: Blob, mimeType: string): Promise<strin
 }
 
 export async function GET() {
-  const prompt = await getActivePrompt()
-  return NextResponse.json({ prompt })
+  const instructions = await getActiveInstructions()
+  return NextResponse.json({ instructions })
 }
 
 export async function POST(req: NextRequest) {
@@ -137,7 +137,8 @@ export async function POST(req: NextRequest) {
       texto = transcricao
     }
 
-    const activePrompt = await getActivePrompt()
+    const instructions = await getActiveInstructions()
+    const fullPrompt = PROMPT_HEADER + '\n\n' + instructions
 
     const groqKey = process.env.GROQ_API_KEY
     if (!groqKey) throw new Error('GROQ_API_KEY não configurada')
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest) {
       headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: `Transcrição da ligação de qualificação:\n\n${texto}\n\n${activePrompt}` }],
+        messages: [{ role: 'user', content: `Transcrição da ligação de qualificação:\n\n${texto}\n\n${fullPrompt}` }],
         temperature: 0.1,
       }),
     })

@@ -1,4 +1,6 @@
-export const DEFAULT_PROMPT = `Você é um especialista em qualificação de leads comerciais da V4 Company.
+// Cabeçalho fixo — define o papel da IA e o schema JSON obrigatório.
+// Nunca editável pelo usuário: o modelo precisa dessa estrutura para retornar JSON válido.
+export const PROMPT_HEADER = `Você é um especialista em qualificação de leads comerciais da V4 Company.
 Analise a transcrição desta ligação de qualificação e extraia as informações estruturadas.
 
 Retorne APENAS um JSON válido, sem markdown nem explicações, com exatamente este formato:
@@ -57,9 +59,11 @@ Retorne APENAS um JSON válido, sem markdown nem explicações, com exatamente e
     "objecoes": []
   },
   "personalidade": []
-}
+}`
 
-INSTRUÇÕES DETALHADAS POR CAMPO:
+// Instruções editáveis — explica o que extrair em cada campo.
+// O usuário pode personalizar via Configurações sem tocar no schema acima.
+export const DEFAULT_INSTRUCTIONS = `INSTRUÇÕES DETALHADAS POR CAMPO:
 
 BANT — preencha cada campo com um parágrafo rico e completo:
 - budget: Valor ou faixa de investimento mencionada. Se o orçamento está aprovado ou precisa de aprovação interna. Quem tem poder de liberar o dinheiro. Histórico de quanto já investiram em marketing digital. Comparação com o que gastam hoje (agência, mídia, equipe interna).
@@ -92,3 +96,6 @@ INSIGHTS:
 Personalidade deve ser um array com os perfis identificados entre: "Executor", "Comunicador", "Analista", "Planejador".
 Objeções deve ser um array de strings com as objeções exatas ou prováveis do lead.
 Use as palavras exatas do lead quando possível. Se uma informação não foi mencionada, deixe como string vazia ou array vazio.`
+
+// Prompt completo = header fixo + instruções (padrão ou customizadas)
+export const DEFAULT_PROMPT = PROMPT_HEADER + '\n\n' + DEFAULT_INSTRUCTIONS
