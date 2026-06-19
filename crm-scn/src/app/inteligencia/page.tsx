@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import type { Lead } from '@/lib/supabase'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import CRMLayout from '../_components/CRMLayout'
+import { TractorLoader } from '@/components/tractor-loader'
 import { getPipelineStage } from '@/lib/crm-pipeline'
 import { useCloserUsers } from '@/lib/useCloserUsers'
 import {
@@ -309,9 +310,7 @@ export default function InteligenciaPage() {
   if (loading) {
     return (
       <CRMLayout>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
-          <div style={{ width: 32, height: 32, border: `3px solid ${GRAY3}`, borderTopColor: R, borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
-        </div>
+        <TractorLoader />
       </CRMLayout>
     )
   }

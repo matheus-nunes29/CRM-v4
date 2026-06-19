@@ -9,6 +9,7 @@ import { toast } from '@/lib/toast'
 import { Toaster } from '@/components/Toaster'
 import { UserSelect } from '@/components/UserSelect'
 import { useUserRole } from '@/lib/useUserRole'
+import { TractorLoader } from '@/components/tractor-loader'
 import { useCloserUsers } from '@/lib/useCloserUsers'
 import { getPipelineStage, PIPELINE_STAGES } from '@/lib/crm-pipeline'
 import { SEGMENTOS } from '@/lib/crm-constants'
@@ -531,7 +532,7 @@ function LeadPageInner() {
   if (pageLoading) {
     return (
       <div style={{ minHeight: '100vh', background: PANEL_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: 14, color: GRAY2 }}>Carregando lead...</div>
+        <TractorLoader text="Carregando lead..." />
       </div>
     )
   }

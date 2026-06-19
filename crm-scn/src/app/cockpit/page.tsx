@@ -8,6 +8,7 @@ import { Plus, Search, Building2, TrendingUp, Layers, Users, ArrowUp, ArrowDown,
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
 import { computeChurnRisk, DEFAULT_CHURN_CONFIG, type ChurnRiskConfig } from '@/lib/churn-risk-defaults'
+import { TractorLoader } from '@/components/tractor-loader'
 
 type RiskLevel = 'baixo' | 'medio' | 'alto'
 
@@ -297,7 +298,7 @@ export default function CockpitPage() {
       {/* Tabela */}
       <div style={{ background: WHITE, border: `1px solid ${GRAY5}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
         {loading ? (
-          <div style={{ padding: '48px 0', textAlign: 'center', color: GRAY3, fontSize: 13 }}>Carregando...</div>
+          <TractorLoader />
         ) : filtered.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '56px 0', gap: 12 }}>
             <Building2 size={36} color={GRAY3} />

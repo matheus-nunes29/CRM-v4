@@ -19,6 +19,7 @@ import {
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
 import { confirmDialog } from '@/lib/confirmDialog'
+import { TractorLoader } from '@/components/tractor-loader'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(v: number) { return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` }
@@ -389,7 +390,7 @@ export default function ClienteCockpitPage() {
 
   if (loading) return (
     <CRMLayout title="Cockpit">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: GRAY3, fontSize: 14 }}>Carregando...</div>
+      <TractorLoader />
     </CRMLayout>
   )
 

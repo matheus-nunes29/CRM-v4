@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import type { Lead } from '@/lib/supabase'
 import { Users, Search, Edit2, Trash2, X, ChevronDown } from 'lucide-react'
 import CRMLayout from '../_components/CRMLayout'
+import { TractorLoader } from '@/components/tractor-loader'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
 import { SpvBadge, SitBadge } from '@/lib/crm-badges'
@@ -245,10 +246,7 @@ export default function LeadsPage() {
   if (loading) {
     return (
       <CRMLayout>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, flexDirection: 'column', gap: 12 }}>
-          <div style={{ width: 36, height: 36, border: `3px solid ${GRAY3}`, borderTopColor: '#7C3AED', borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
-          <span style={{ fontSize: 13, color: GRAY2 }}>Carregando...</span>
-        </div>
+        <TractorLoader />
       </CRMLayout>
     )
   }

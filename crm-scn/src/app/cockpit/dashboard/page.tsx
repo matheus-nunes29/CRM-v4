@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, Cliente, Projeto, HealthScoreEntry, Reuniao, FcaEntry, NpsCsat, ProximoPasso, Oportunidade, RegistroEntrega, ServicoProjeto } from '@/lib/supabase'
 import CRMLayout from '../../_components/CRMLayout'
+import { TractorLoader } from '@/components/tractor-loader'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW } from '@/lib/crm-constants'
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
 import {
@@ -292,7 +293,7 @@ export default function CSDashboard() {
 
   if (loading) return (
     <CRMLayout title="CS Dashboard">
-      <div style={{ padding: 80, textAlign: 'center', color: GRAY3 }}>Carregando...</div>
+      <TractorLoader />
     </CRMLayout>
   )
 
