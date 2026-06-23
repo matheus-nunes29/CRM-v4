@@ -10,6 +10,7 @@ import { Toaster } from '@/components/Toaster'
 import { UserSelect } from '@/components/UserSelect'
 import { useUserRole } from '@/lib/useUserRole'
 import { TractorLoader } from '@/components/tractor-loader'
+import TranscricaoModal from '@/components/TranscricaoModal'
 import { useCloserUsers } from '@/lib/useCloserUsers'
 import { getPipelineStage, PIPELINE_STAGES } from '@/lib/crm-pipeline'
 import { SEGMENTOS } from '@/lib/crm-constants'
@@ -265,6 +266,7 @@ function LeadPageInner() {
   const formRef = useRef<any>(initForm)
   const [cockpitClienteId, setCockpitClienteId] = useState<string | null | 'loading'>('loading')
   const [showQaModal, setShowQaModal] = useState(false)
+  const [showTranscricaoModal, setShowTranscricaoModal] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -1243,6 +1245,39 @@ function LeadPageInner() {
                         <ChevronRight size={14} color={GRAY3} />
                       </div>
                     </button>
+                  )
+                })()}
+
+                {/* ── Botão Ver Transcrição ── */}
+                {form.qualificacao_ia && (() => {
+                  const qa = form.qualificacao_ia as any
+                  if (!qa._transcricao) return null
+                  const wordCount = (qa._transcricao as string).split(/\s+/).filter(Boolean).length
+                  return (
+                    <button onClick={() => setShowTranscricaoModal(true)}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '12px 16px', borderRadius: 10, border: `1.5px solid ${BORDER}`, background: WHITE, cursor: 'pointer', textAlign: 'left' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 16 }}>📝</span>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: GRAY1 }}>Ver Transcrição da Chamada</div>
+                          <div style={{ fontSize: 11, color: GRAY2, marginTop: 1 }}>{wordCount.toLocaleString('pt-BR')} palavras · busca inteligente por interlocutor</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={14} color={GRAY3} />
+                    </button>
+                  )
+                })()}
+
+                {/* ── Modal Transcrição ── */}
+                {showTranscricaoModal && form.qualificacao_ia && (() => {
+                  const qa = form.qualificacao_ia as any
+                  if (!qa._transcricao) return null
+                  return (
+                    <TranscricaoModal
+                      transcricao={qa._transcricao}
+                      empresa={(qa.dadosBasicos?.empresa) || form.empresa || undefined}
+                      onClose={() => setShowTranscricaoModal(false)}
+                    />
                   )
                 })()}
 
