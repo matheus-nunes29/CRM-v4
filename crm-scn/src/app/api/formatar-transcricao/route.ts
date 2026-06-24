@@ -1,23 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 export const maxDuration = 60
 
-export async function POST(req: NextRequest) {
-  try {
-    const { transcricao } = await req.json()
-    if (!transcricao) return NextResponse.json({ error: 'transcricao obrigatória' }, { status: 400 })
-
-    const groqKey = process.env.GROQ_API_KEY
-    if (!groqKey) return NextResponse.json({ error: 'GROQ_API_KEY não configurada' }, { status: 500 })
-
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [{
-          role: 'user',
-          content: `Formate a transcrição abaixo identificando os interlocutores: o SDR (pré-vendedor da V4 Company — faz perguntas de qualificação, fala sobre marketing, resultados e investimento) e o Lead (empresário prospectado — fala sobre seu negócio, dores, orçamento).
+const PROMPT = (transcricao: string) => `Formate a transcrição abaixo identificando os interlocutores: o SDR (pré-vendedor da V4 Company — faz perguntas de qualificação, fala sobre marketing, resultados e investimento) e o Lead (empresário prospectado — fala sobre seu negócio, dores, orçamento).
 
 Use EXATAMENTE este formato, uma fala por linha:
 SDR: [fala completa]
@@ -29,16 +15,20 @@ Regras:
 - Não adicione explicações, comentários ou texto fora do formato acima
 
 Transcrição:
-${transcricao}`,
-        }],
-        temperature: 0.1,
-        max_tokens: 8192,
-      }),
-    })
+${transcricao}`
 
-    if (!res.ok) throw new Error('Groq error: ' + await res.text())
-    const data = await res.json()
-    const formatada = data.choices[0]?.message?.content?.trim()
+export async function POST(req: NextRequest) {
+  try {
+    const { transcricao } = await req.json()
+    if (!transcricao) return NextResponse.json({ error: 'transcricao obrigatória' }, { status: 400 })
+
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
+
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const result = await model.generateContent(PROMPT(transcricao))
+    const formatada = result.response.text().trim()
 
     return NextResponse.json({ transcricao: formatada || transcricao })
   } catch (e: any) {

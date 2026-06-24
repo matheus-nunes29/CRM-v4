@@ -43,16 +43,14 @@ async function transcreverComGroq(blob: Blob, filename: string): Promise<string>
   return (await res.text()).trim()
 }
 
-async function formatarComInterlocutores(texto: string, groqKey: string): Promise<string> {
+async function formatarComInterlocutores(texto: string): Promise<string> {
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [{
-          role: 'user',
-          content: `Formate a transcrição abaixo identificando os dois interlocutores: o SDR (pré-vendedor da V4 Company — faz perguntas de qualificação, fala sobre investimento em marketing, resultados) e o Lead (empresário prospectado — fala sobre seu negócio, dores, orçamento).
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) return texto
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const result = await model.generateContent(
+      `Formate a transcrição abaixo identificando os dois interlocutores: o SDR (pré-vendedor da V4 Company — faz perguntas de qualificação, fala sobre investimento em marketing, resultados) e o Lead (empresário prospectado — fala sobre seu negócio, dores, orçamento).
 
 Use EXATAMENTE este formato, uma fala por linha:
 SDR: [fala completa]
@@ -64,15 +62,9 @@ Regras:
 - Não adicione comentários ou texto fora do formato acima
 
 Transcrição:
-${texto}`,
-        }],
-        temperature: 0.1,
-        max_tokens: 8192,
-      }),
-    })
-    if (!res.ok) return texto
-    const data = await res.json()
-    return data.choices[0]?.message?.content?.trim() || texto
+${texto}`
+    )
+    return result.response.text().trim() || texto
   } catch {
     return texto
   }
@@ -189,7 +181,7 @@ export async function POST(req: NextRequest) {
           temperature: 0.1,
         }),
       }),
-      formatarComInterlocutores(texto, groqKey),
+      formatarComInterlocutores(texto),
     ])
 
     if (!analysisRes.ok) throw new Error('Groq analysis error: ' + await analysisRes.text())
