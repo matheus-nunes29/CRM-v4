@@ -43,37 +43,59 @@ async function transcreverComGroq(blob: Blob, filename: string): Promise<string>
   return (await res.text()).trim()
 }
 
-const GEMINI_MODELS_FALLBACK = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash']
+const CHUNK_CHARS = 25000
 
-async function formatarComInterlocutores(texto: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) return texto
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const prompt = `Formate a transcrição abaixo identificando os dois interlocutores: o SDR (pré-vendedor da V4 Company — faz perguntas de qualificação, fala sobre investimento em marketing, resultados) e o Lead (empresário prospectado — fala sobre seu negócio, dores, orçamento).
-
-Use EXATAMENTE este formato, uma fala por linha:
-SDR: [fala completa]
-Lead: [fala completa]
-
-Regras:
-- Preserve as falas na íntegra, sem resumir
-- Se houver terceira pessoa, use o nome ou "Outro:"
-- Não adicione comentários ou texto fora do formato acima
-
-Transcrição:
-${texto}`
-
-  for (const modelName of GEMINI_MODELS_FALLBACK) {
-    try {
-      const model = genAI.getGenerativeModel({ model: modelName })
-      const result = await model.generateContent(prompt)
-      return result.response.text().trim() || texto
-    } catch (e: any) {
-      const msg: string = e.message ?? ''
-      if (!msg.includes('503') && !msg.includes('RESOURCE_EXHAUSTED') && !msg.includes('high demand')) break
-    }
+function splitChunks(texto: string): string[] {
+  const chunks: string[] = []
+  let rest = texto.trim()
+  while (rest.length > 0) {
+    if (rest.length <= CHUNK_CHARS) { chunks.push(rest); break }
+    const slice = rest.slice(0, CHUNK_CHARS)
+    const cut = Math.max(slice.lastIndexOf('\n'), slice.lastIndexOf('. '), slice.lastIndexOf('? '), slice.lastIndexOf('! '))
+    const pos = cut > CHUNK_CHARS * 0.6 ? cut + 1 : CHUNK_CHARS
+    chunks.push(rest.slice(0, pos).trim())
+    rest = rest.slice(pos).trim()
   }
-  return texto
+  return chunks
+}
+
+function lastSpeakerOf(formatted: string): string | undefined {
+  const lines = formatted.split('\n').filter(l => /^[^:]{1,40}:\s/.test(l))
+  return lines[lines.length - 1]?.match(/^([^:]+):/)?.[1].trim()
+}
+
+async function formatarChunkGroq(chunk: string, groqKey: string, lastSpeaker?: string): Promise<string> {
+  const ctx = lastSpeaker ? `(Continuação — última fala era do "${lastSpeaker}")\n\n` : ''
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [{ role: 'user', content: `Formate a transcrição identificando SDR (pré-vendedor V4 Company) e Lead (empresário prospectado). Formato exato:\nSDR: [fala]\nLead: [fala]\nSem comentários.\n\n${ctx}Transcrição:\n${chunk}` }],
+      temperature: 0.1,
+      max_tokens: 8192,
+    }),
+  })
+  if (!res.ok) return chunk
+  const data = await res.json()
+  return data.choices[0]?.message?.content?.trim() ?? chunk
+}
+
+async function formatarComInterlocutores(texto: string, groqKey: string): Promise<string> {
+  try {
+    const chunks = splitChunks(texto)
+    const results: string[] = []
+    let lastSpeaker: string | undefined
+    for (let i = 0; i < chunks.length; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, 600))
+      const formatted = await formatarChunkGroq(chunks[i], groqKey, lastSpeaker)
+      results.push(formatted)
+      lastSpeaker = lastSpeakerOf(formatted)
+    }
+    return results.join('\n')
+  } catch {
+    return texto
+  }
 }
 
 async function transcreverComGemini(blob: Blob, mimeType: string): Promise<string> {
@@ -187,7 +209,7 @@ export async function POST(req: NextRequest) {
           temperature: 0.1,
         }),
       }),
-      formatarComInterlocutores(texto),
+      formatarComInterlocutores(texto, groqKey),
     ])
 
     if (!analysisRes.ok) throw new Error('Groq analysis error: ' + await analysisRes.text())
