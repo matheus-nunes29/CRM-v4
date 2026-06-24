@@ -17,6 +17,8 @@ Regras:
 Transcrição:
 ${transcricao}`
 
+const MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash']
+
 export async function POST(req: NextRequest) {
   try {
     const { transcricao } = await req.json()
@@ -26,11 +28,24 @@ export async function POST(req: NextRequest) {
     if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-    const result = await model.generateContent(PROMPT(transcricao))
-    const formatada = result.response.text().trim()
+    let lastErr = ''
 
-    return NextResponse.json({ transcricao: formatada || transcricao })
+    for (const modelName of MODELS) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName })
+        const result = await model.generateContent(PROMPT(transcricao))
+        const formatada = result.response.text().trim()
+        return NextResponse.json({ transcricao: formatada || transcricao })
+      } catch (e: any) {
+        lastErr = e.message
+        // 503 ou RESOURCE_EXHAUSTED → tenta próximo modelo
+        if (!e.message?.includes('503') && !e.message?.includes('RESOURCE_EXHAUSTED') && !e.message?.includes('high demand')) {
+          throw e
+        }
+      }
+    }
+
+    throw new Error(lastErr)
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

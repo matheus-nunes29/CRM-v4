@@ -43,14 +43,13 @@ async function transcreverComGroq(blob: Blob, filename: string): Promise<string>
   return (await res.text()).trim()
 }
 
+const GEMINI_MODELS_FALLBACK = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash']
+
 async function formatarComInterlocutores(texto: string): Promise<string> {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY
-    if (!apiKey) return texto
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-    const result = await model.generateContent(
-      `Formate a transcrição abaixo identificando os dois interlocutores: o SDR (pré-vendedor da V4 Company — faz perguntas de qualificação, fala sobre investimento em marketing, resultados) e o Lead (empresário prospectado — fala sobre seu negócio, dores, orçamento).
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) return texto
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const prompt = `Formate a transcrição abaixo identificando os dois interlocutores: o SDR (pré-vendedor da V4 Company — faz perguntas de qualificação, fala sobre investimento em marketing, resultados) e o Lead (empresário prospectado — fala sobre seu negócio, dores, orçamento).
 
 Use EXATAMENTE este formato, uma fala por linha:
 SDR: [fala completa]
@@ -63,11 +62,18 @@ Regras:
 
 Transcrição:
 ${texto}`
-    )
-    return result.response.text().trim() || texto
-  } catch {
-    return texto
+
+  for (const modelName of GEMINI_MODELS_FALLBACK) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName })
+      const result = await model.generateContent(prompt)
+      return result.response.text().trim() || texto
+    } catch (e: any) {
+      const msg: string = e.message ?? ''
+      if (!msg.includes('503') && !msg.includes('RESOURCE_EXHAUSTED') && !msg.includes('high demand')) break
+    }
   }
+  return texto
 }
 
 async function transcreverComGemini(blob: Blob, mimeType: string): Promise<string> {
