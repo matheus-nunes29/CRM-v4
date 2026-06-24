@@ -43,56 +43,36 @@ async function transcreverComGroq(blob: Blob, filename: string): Promise<string>
   return (await res.text()).trim()
 }
 
-const CHUNK_CHARS = 25000
-
-function splitChunks(texto: string): string[] {
-  const chunks: string[] = []
-  let rest = texto.trim()
-  while (rest.length > 0) {
-    if (rest.length <= CHUNK_CHARS) { chunks.push(rest); break }
-    const slice = rest.slice(0, CHUNK_CHARS)
-    const cut = Math.max(slice.lastIndexOf('\n'), slice.lastIndexOf('. '), slice.lastIndexOf('? '), slice.lastIndexOf('! '))
-    const pos = cut > CHUNK_CHARS * 0.6 ? cut + 1 : CHUNK_CHARS
-    chunks.push(rest.slice(0, pos).trim())
-    rest = rest.slice(pos).trim()
-  }
-  return chunks
-}
-
-function lastSpeakerOf(formatted: string): string | undefined {
-  const lines = formatted.split('\n').filter(l => /^[^:]{1,40}:\s/.test(l))
-  return lines[lines.length - 1]?.match(/^([^:]+):/)?.[1].trim()
-}
-
-async function formatarChunkGroq(chunk: string, groqKey: string, lastSpeaker?: string): Promise<string> {
-  const ctx = lastSpeaker ? `(Continuação — última fala era do "${lastSpeaker}")\n\n` : ''
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
-      messages: [{ role: 'user', content: `Formate a transcrição identificando SDR (pré-vendedor V4 Company) e Lead (empresário prospectado). Formato exato:\nSDR: [fala]\nLead: [fala]\nSem comentários.\n\n${ctx}Transcrição:\n${chunk}` }],
-      temperature: 0.1,
-      max_tokens: 8192,
-    }),
-  })
-  if (!res.ok) return chunk
-  const data = await res.json()
-  return data.choices[0]?.message?.content?.trim() ?? chunk
-}
+// llama-3.3-70b-versatile: limite 12.000 tokens/min
+// 22.000 chars ÷ 2 chars/token ≈ 11.000 tokens + ~200 de prompt = 11.200 total → seguro
+const MAX_FORMAT_CHARS = 22000
 
 async function formatarComInterlocutores(texto: string, groqKey: string): Promise<string> {
   try {
-    const chunks = splitChunks(texto)
-    const results: string[] = []
-    let lastSpeaker: string | undefined
-    for (let i = 0; i < chunks.length; i++) {
-      if (i > 0) await new Promise(r => setTimeout(r, 600))
-      const formatted = await formatarChunkGroq(chunks[i], groqKey, lastSpeaker)
-      results.push(formatted)
-      lastSpeaker = lastSpeakerOf(formatted)
+    let toFormat = texto
+    let remainder = ''
+    if (toFormat.length > MAX_FORMAT_CHARS) {
+      const slice = toFormat.slice(0, MAX_FORMAT_CHARS)
+      const cut = Math.max(slice.lastIndexOf('\n'), slice.lastIndexOf('. '), slice.lastIndexOf('? '))
+      const pos = cut > MAX_FORMAT_CHARS * 0.75 ? cut + 1 : MAX_FORMAT_CHARS
+      remainder = toFormat.slice(pos).trim()
+      toFormat = toFormat.slice(0, pos).trim()
     }
-    return results.join('\n')
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: `Formate a transcrição identificando SDR (pré-vendedor V4 Company) e Lead (empresário prospectado). Formato exato, uma fala por linha:\nSDR: [fala]\nLead: [fala]\nSem comentários.\n\nTranscrição:\n${toFormat}` }],
+        temperature: 0.1,
+        max_tokens: 4096,
+      }),
+    })
+    if (!res.ok) return texto
+    const data = await res.json()
+    const formatted: string = data.choices[0]?.message?.content?.trim() ?? toFormat
+    return remainder ? `${formatted}\n\n---\n${remainder}` : formatted
   } catch {
     return texto
   }
