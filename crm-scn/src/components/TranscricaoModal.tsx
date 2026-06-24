@@ -1,6 +1,7 @@
 'use client'
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { X, Search, ChevronUp, ChevronDown, FileText } from 'lucide-react'
+import { X, Search, ChevronUp, ChevronDown, FileText, Loader2, Users } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 const R = '#E8001C'
 const GRAY1 = '#1A1A1A'
@@ -86,15 +87,47 @@ const SPEAKER_PALETTES = [
 interface Props {
   transcricao: string
   empresa?: string
+  leadId?: string
+  qualificacaoData?: Record<string, unknown>
   onClose: () => void
 }
 
-export default function TranscricaoModal({ transcricao, empresa, onClose }: Props) {
+export default function TranscricaoModal({ transcricao, empresa, leadId, qualificacaoData, onClose }: Props) {
   const [query, setQuery] = useState('')
   const [activeIdx, setActiveIdx] = useState(0)
+  const [rawText, setRawText] = useState(transcricao)
+  const [formatting, setFormatting] = useState(false)
+  const [formatErr, setFormatErr] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const { turns, hasSpeakers } = useMemo(() => parseTurns(transcricao), [transcricao])
+  const { turns, hasSpeakers } = useMemo(() => parseTurns(rawText), [rawText])
+
+  async function identificarInterlocutores() {
+    setFormatting(true)
+    setFormatErr('')
+    try {
+      const res = await fetch('/api/formatar-transcricao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcricao: rawText }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erro na API')
+      const formatada: string = json.transcricao
+      setRawText(formatada)
+      // Salva de volta no lead se leadId disponível
+      if (leadId && qualificacaoData) {
+        await supabase
+          .from('leads')
+          .update({ qualificacao_ia: { ...qualificacaoData, _transcricao: formatada } })
+          .eq('id', leadId)
+      }
+    } catch (e: any) {
+      setFormatErr(e.message)
+    } finally {
+      setFormatting(false)
+    }
+  }
 
   const matchCount = useMemo(() => {
     if (!query) return 0
@@ -220,6 +253,26 @@ export default function TranscricaoModal({ transcricao, empresa, onClose }: Prop
             </div>
           )}
         </div>
+
+        {/* ── Banner: identificar interlocutores ── */}
+        {!hasSpeakers && (
+          <div style={{ padding: '10px 16px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <Users size={14} color="#92400E" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: '#92400E', flex: 1 }}>
+              Transcrição sem interlocutores identificados.
+            </span>
+            {formatErr && <span style={{ fontSize: 11, color: R }}>{formatErr}</span>}
+            <button
+              onClick={identificarInterlocutores}
+              disabled={formatting}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: 'none', background: '#F59E0B', color: WHITE, fontSize: 12, fontWeight: 700, cursor: formatting ? 'default' : 'pointer', opacity: formatting ? 0.7 : 1, flexShrink: 0 }}
+            >
+              {formatting
+                ? <><Loader2 size={12} style={{ animation: 'spin .7s linear infinite' }} />Identificando...</>
+                : '🤖 Identificar interlocutores'}
+            </button>
+          </div>
+        )}
 
         {/* ── Transcript ── */}
         <div ref={containerRef} style={{ flex: 1, overflowY: 'auto', padding: hasSpeakers ? '20px 24px' : '20px', display: 'flex', flexDirection: 'column', gap: hasSpeakers ? 14 : 0 }}>

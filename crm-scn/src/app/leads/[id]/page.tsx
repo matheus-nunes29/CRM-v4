@@ -1276,6 +1276,8 @@ function LeadPageInner() {
                     <TranscricaoModal
                       transcricao={qa._transcricao}
                       empresa={(qa.dadosBasicos?.empresa) || form.empresa || undefined}
+                      leadId={id}
+                      qualificacaoData={qa}
                       onClose={() => setShowTranscricaoModal(false)}
                     />
                   )
