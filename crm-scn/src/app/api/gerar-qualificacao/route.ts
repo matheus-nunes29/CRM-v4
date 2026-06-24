@@ -43,7 +43,7 @@ async function transcreverComGroq(blob: Blob, filename: string): Promise<string>
   return (await res.text()).trim()
 }
 
-const GEMINI_MODELS_FALLBACK = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash']
+const GEMINI_MODELS_FALLBACK = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash']
 
 async function formatarComInterlocutores(texto: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
