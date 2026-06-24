@@ -1278,6 +1278,9 @@ function LeadPageInner() {
                       empresa={(qa.dadosBasicos?.empresa) || form.empresa || undefined}
                       leadId={id}
                       qualificacaoData={qa}
+                      onTranscricaoFormatada={formatada =>
+                        set('qualificacao_ia', { ...qa, _transcricao: formatada })
+                      }
                       onClose={() => setShowTranscricaoModal(false)}
                     />
                   )
