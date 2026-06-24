@@ -49,7 +49,7 @@ async function formatarComInterlocutores(texto: string, groqKey: string): Promis
       method: 'POST',
       headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         messages: [{
           role: 'user',
           content: `Formate a transcrição abaixo identificando os dois interlocutores: o SDR (pré-vendedor da V4 Company — faz perguntas de qualificação, fala sobre investimento em marketing, resultados) e o Lead (empresário prospectado — fala sobre seu negócio, dores, orçamento).
