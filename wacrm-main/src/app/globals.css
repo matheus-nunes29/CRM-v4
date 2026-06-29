@@ -106,10 +106,10 @@ html[data-mode="light"] {
   --radius: 0.625rem;
   /* Sidebar always dark — split layout */
   --sidebar: oklch(0.207 0.033 151);      /* #1F3A26 */
-  --sidebar-foreground: oklch(0.939 0.022 82);
-  --sidebar-accent: oklch(0.207 0.033 151);
-  --sidebar-accent-foreground: oklch(0.939 0.022 82);
-  --sidebar-border: oklch(0.271 0.033 151);
+  --sidebar-foreground: oklch(0.715 0.058 78);   /* #BBA878 areia dourada */
+  --sidebar-accent: oklch(0.235 0.034 151);      /* #243C2A ativo */
+  --sidebar-accent-foreground: oklch(0.727 0.073 75); /* ouro */
+  --sidebar-border: oklch(0.280 0.040 151);      /* #2A4A31 separador */
   /* Primary — Floresta #1F3A26 */
   --primary: oklch(0.207 0.033 151);      /* #1F3A26 */
   --primary-foreground: oklch(0.939 0.022 82);

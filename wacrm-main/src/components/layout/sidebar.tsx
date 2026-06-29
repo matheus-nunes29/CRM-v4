@@ -48,7 +48,7 @@ const ROLE_CHIP: Record<
   viewer: {
     icon: User,
     label: "Visualizador",
-    className: "border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground/60",
+    className: "border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground",
   },
 };
 
@@ -170,7 +170,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             type="button"
             onClick={onClose}
             aria-label="Fechar menu"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground lg:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary lg:hidden"
           >
             <X className="h-5 w-5" />
           </button>
@@ -195,7 +195,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       "flex items-center gap-3 border-l-2 px-4 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
                         ? "border-sidebar-primary bg-sidebar-accent text-sidebar-primary"
-                        : "border-transparent text-sidebar-foreground/75 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
+                        : "border-transparent text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary",
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
@@ -236,7 +236,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       "flex items-center gap-3 border-l-2 px-4 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
                         ? "border-sidebar-primary bg-sidebar-accent text-sidebar-primary"
-                        : "border-transparent text-sidebar-foreground/75 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
+                        : "border-transparent text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary",
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
@@ -251,7 +251,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* User section */}
         <div className="shrink-0 border-t border-sidebar-border p-3">
           {showAccountStrip && account?.name ? (
-            <div className="mb-2 flex items-center gap-2 px-3 text-xs text-sidebar-foreground/60">
+            <div className="mb-2 flex items-center gap-2 px-3 text-xs text-sidebar-foreground">
               <UsersRound className="size-3.5 shrink-0" />
               <span className="truncate" title={account.name}>
                 {account.name}
@@ -291,7 +291,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 <p className="truncate text-sm font-medium text-sidebar-foreground">
                   {profile?.full_name ?? "Usuário"}
                 </p>
-                <p className="truncate text-xs text-sidebar-foreground/60">
+                <p className="truncate text-xs text-sidebar-foreground">
                   {profile?.email ?? ""}
                 </p>
               </div>
