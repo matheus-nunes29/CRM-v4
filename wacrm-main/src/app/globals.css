@@ -76,48 +76,48 @@
  *   Space Grotesk  — headings da interface (--font-space-grotesk)
  *   DM Sans        — corpo / interface (--font-sans)
  *
- * Modo padrão: LIGHT (cream)
+ * Modo padrão: LIGHT (floresta #1F3A26) · DARK (folha #14241A)
  * ============================================================ */
 
-/* ---- LIGHT MODE (default / cream) ---- */
+/* ---- LIGHT MODE (floresta #1F3A26) ---- */
 
 :root,
 html[data-mode="light"] {
-  --background: oklch(0.939 0.022 82);
-  --foreground: oklch(0.115 0.007 58);
-  --card: oklch(1 0 0);
-  --card-2: oklch(0.918 0.020 82);
-  --card-foreground: oklch(0.115 0.007 58);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.115 0.007 58);
-  --secondary: oklch(0.918 0.020 82);
-  --secondary-foreground: oklch(0.18 0.014 82);
-  --muted: oklch(0.918 0.020 82);
-  --muted-foreground: oklch(0.50 0.022 74);
-  --accent: oklch(0.895 0.026 80);
-  --accent-foreground: oklch(0.18 0.014 82);
+  --background: oklch(0.207 0.033 151);   /* #1F3A26 floresta */
+  --foreground: oklch(0.939 0.022 82);    /* cream */
+  --card: oklch(0.230 0.036 151);
+  --card-2: oklch(0.250 0.038 151);
+  --card-foreground: oklch(0.939 0.022 82);
+  --popover: oklch(0.230 0.036 151);
+  --popover-foreground: oklch(0.939 0.022 82);
+  --secondary: oklch(0.250 0.038 151);
+  --secondary-foreground: oklch(0.939 0.022 82);
+  --muted: oklch(0.250 0.038 151);
+  --muted-foreground: oklch(0.826 0.030 80);  /* areia */
+  --accent: oklch(0.271 0.033 151);
+  --accent-foreground: oklch(0.939 0.022 82);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.826 0.030 80);
-  --input: oklch(0.826 0.030 80);
-  --chart-2: oklch(0.727 0.073 75);
+  --border: oklch(0.271 0.033 151);
+  --input: oklch(0.271 0.033 151);
+  --chart-2: oklch(0.939 0.022 82 / 0.65);
   --chart-3: oklch(0.600 0.035 151);
-  --chart-4: oklch(0.826 0.030 80);
+  --chart-4: oklch(0.826 0.030 80 / 0.5);
   --chart-5: oklch(0.370 0.035 151);
   --radius: 0.625rem;
-  /* Sidebar always dark — mixed layout (dark sidebar + light content) */
-  --sidebar: oklch(0.147 0.026 151);
+  /* Sidebar — slightly darker than content for visual split */
+  --sidebar: oklch(0.147 0.026 151);      /* #14241A */
   --sidebar-foreground: oklch(0.939 0.022 82);
   --sidebar-accent: oklch(0.207 0.033 151);
   --sidebar-accent-foreground: oklch(0.939 0.022 82);
   --sidebar-border: oklch(0.271 0.033 151);
-  /* Primary — Floresta #1F3A26 on cream bg */
-  --primary: oklch(0.207 0.033 151);
-  --primary-foreground: oklch(0.939 0.022 82);
-  --primary-hover: oklch(0.250 0.038 151);
-  --primary-soft: oklch(0.207 0.033 151 / 0.10);
-  --primary-soft-2: oklch(0.207 0.033 151 / 0.20);
-  --ring: oklch(0.207 0.033 151);
-  --chart-1: oklch(0.207 0.033 151);
+  /* Primary — Ouro Claro #C9A35E on dark green */
+  --primary: oklch(0.727 0.073 75);
+  --primary-foreground: oklch(0.147 0.026 151);
+  --primary-hover: oklch(0.680 0.080 75);
+  --primary-soft: oklch(0.727 0.073 75 / 0.12);
+  --primary-soft-2: oklch(0.727 0.073 75 / 0.22);
+  --ring: oklch(0.727 0.073 75);
+  --chart-1: oklch(0.727 0.073 75);
   --sidebar-primary: oklch(0.727 0.073 75);
   --sidebar-primary-foreground: oklch(0.147 0.026 151);
   --sidebar-ring: oklch(0.727 0.073 75);
