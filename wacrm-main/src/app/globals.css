@@ -104,11 +104,12 @@ html[data-mode="light"] {
   --chart-4: oklch(0.826 0.030 80);
   --chart-5: oklch(0.370 0.035 151);
   --radius: 0.625rem;
-  --sidebar: oklch(0.939 0.022 82);
-  --sidebar-foreground: oklch(0.115 0.007 58);
-  --sidebar-accent: oklch(0.895 0.026 80);
-  --sidebar-accent-foreground: oklch(0.18 0.014 82);
-  --sidebar-border: oklch(0.826 0.030 80);
+  /* Sidebar always dark — mixed layout (dark sidebar + light content) */
+  --sidebar: oklch(0.147 0.026 151);
+  --sidebar-foreground: oklch(0.939 0.022 82);
+  --sidebar-accent: oklch(0.207 0.033 151);
+  --sidebar-accent-foreground: oklch(0.939 0.022 82);
+  --sidebar-border: oklch(0.271 0.033 151);
   /* Primary — Floresta #1F3A26 on cream bg */
   --primary: oklch(0.207 0.033 151);
   --primary-foreground: oklch(0.939 0.022 82);
@@ -117,9 +118,9 @@ html[data-mode="light"] {
   --primary-soft-2: oklch(0.207 0.033 151 / 0.20);
   --ring: oklch(0.207 0.033 151);
   --chart-1: oklch(0.207 0.033 151);
-  --sidebar-primary: oklch(0.207 0.033 151);
-  --sidebar-primary-foreground: oklch(0.939 0.022 82);
-  --sidebar-ring: oklch(0.207 0.033 151);
+  --sidebar-primary: oklch(0.727 0.073 75);
+  --sidebar-primary-foreground: oklch(0.147 0.026 151);
+  --sidebar-ring: oklch(0.727 0.073 75);
 }
 
 /* ---- DARK MODE ---- */
