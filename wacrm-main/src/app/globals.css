@@ -105,7 +105,7 @@ html[data-mode="light"] {
   --chart-5: oklch(0.370 0.035 151);
   --radius: 0.625rem;
   /* Sidebar always dark — split layout */
-  --sidebar: oklch(0.147 0.026 151);      /* #14241A */
+  --sidebar: oklch(0.207 0.033 151);      /* #1F3A26 */
   --sidebar-foreground: oklch(0.939 0.022 82);
   --sidebar-accent: oklch(0.207 0.033 151);
   --sidebar-accent-foreground: oklch(0.939 0.022 82);
