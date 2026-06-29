@@ -68,17 +68,15 @@ function PyvoLogo({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 720 240"
-      aria-label="PYVO CRM"
+      viewBox="0 0 220 56"
+      aria-label="PYVO"
       className={className}
       style={{ color: "var(--sidebar-primary)" }}
     >
-      <polygon points="140,40 220,120 140,200 60,120" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <polygon points="140,55 205,120 140,185 75,120" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.45" />
-      <text x="140" y="148" textAnchor="middle" fill="currentColor" fontFamily="Italiana, 'Didot', serif" fontSize="86">Y</text>
-      <text x="260" y="130" fill="currentColor" fontFamily="Italiana, 'Didot', serif" fontSize="48" letterSpacing="15">PYVO</text>
-      <line x1="260" y1="154" x2="560" y2="154" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
-      <text x="260" y="180" fill="currentColor" fontFamily="Italiana, 'Didot', serif" fontSize="11" letterSpacing="3.7">ESTÉTICA · GESTÃO · MARKETING</text>
+      <polygon points="28,3 53,28 28,53 3,28" fill="none" stroke="currentColor" strokeWidth="2.2" />
+      <polygon points="28,11 45,28 28,45 11,28" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.45" />
+      <text x="28" y="37" textAnchor="middle" fill="currentColor" fontFamily="Italiana, serif" fontSize="28">Y</text>
+      <text x="70" y="37" fill="currentColor" fontFamily="Italiana, serif" fontSize="30" letterSpacing="6">PYVO</text>
     </svg>
   );
 }
@@ -177,8 +175,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         </div>
 
         {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="flex flex-col gap-1">
+        <nav className="flex-1 overflow-y-auto py-4">
+          <ul className="flex flex-col gap-0.5">
             {navItems.map((item) => {
               const isActive =
                 pathname === item.href ||
@@ -192,13 +190,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-3 border-l-2 px-4 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                        ? "border-sidebar-primary bg-sidebar-accent text-sidebar-primary"
+                        : "border-transparent text-sidebar-foreground/75 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
                     )}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon className="h-4 w-4 shrink-0" />
                     <span className="flex-1">{item.label}</span>
                     {item.beta && (
                       <span
@@ -223,9 +221,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             })}
           </ul>
 
-          <div className="my-4 border-t border-sidebar-border" />
+          <div className="my-3 mx-4 border-t border-sidebar-border" />
 
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-0.5">
             {bottomNavItems.map((item) => {
               const isActive = pathname.startsWith(item.href);
               return (
@@ -233,13 +231,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-3 border-l-2 px-4 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                        ? "border-sidebar-primary bg-sidebar-accent text-sidebar-primary"
+                        : "border-transparent text-sidebar-foreground/75 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
                     )}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon className="h-4 w-4 shrink-0" />
                     {item.label}
                   </Link>
                 </li>
