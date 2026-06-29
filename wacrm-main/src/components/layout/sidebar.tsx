@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
+  Briefcase,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -92,6 +93,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/inbox", label: "Caixa de entrada", icon: MessageSquare },
   { href: "/contacts", label: "Contatos", icon: Users },
+  { href: "/negocios", label: "Negócios", icon: Briefcase },
   { href: "/pipelines", label: "Pipelines", icon: GitBranch },
   { href: "/broadcasts", label: "Disparos", icon: Radio },
   { href: "/automations", label: "Automações", icon: Zap },
