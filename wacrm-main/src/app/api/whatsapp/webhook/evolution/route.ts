@@ -154,6 +154,14 @@ async function handleOutboundEcho(
     if (existing) return
   }
 
+  // Bail out before creating any contact/conversation rows for message types
+  // we don't persist (stickers, polls, location, view-once, etc.) — otherwise
+  // we leave behind an empty "ghost" conversation with no message.
+  if (!event.text && !event.mediaType) {
+    console.warn('[evolution-webhook] echo: unsupported messageType, skipping:', event.messageType)
+    return
+  }
+
   const rawPhone = event.phone
   if (!rawPhone) return
   const phone = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`
@@ -265,6 +273,14 @@ async function handleInboundMessage(
 ) {
   // Skip group messages
   if (event.remoteJid.endsWith('@g.us')) return
+
+  // Bail out before creating any contact/conversation rows for message types
+  // we don't persist (stickers, polls, location, view-once, etc.) — otherwise
+  // we leave behind an empty "ghost" conversation with no message.
+  if (!event.text && !event.mediaType) {
+    console.warn('[evolution-webhook] unsupported messageType, skipping:', event.messageType)
+    return
+  }
 
   const rawPhone = event.phone
   if (!rawPhone) return
