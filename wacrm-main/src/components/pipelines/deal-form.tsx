@@ -468,20 +468,8 @@ export function DealForm({
 
         {/* ── Contato tab ─────────────────────────────────── */}
         {outerTab === "contact" && deal && contactId ? (
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            <div className="shrink-0 flex justify-end px-4 pt-3">
-              <button
-                type="button"
-                onClick={openInboxForContact}
-                className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-500/20 transition-colors"
-              >
-                <MessageCircle className="h-3.5 w-3.5" />
-                Abrir no WhatsApp
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <ContactDetailContent contactId={contactId} onUpdated={onSaved} />
-            </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <ContactDetailContent contactId={contactId} onUpdated={onSaved} onWhatsApp={openInboxForContact} />
           </div>
         ) : (
         <>{/* ── Scrollable body ─────────────────────────────── */}
