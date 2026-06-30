@@ -43,6 +43,15 @@ export function ResponseTimeChart({
       samples: b.samples,
     })) ?? []
 
+  // Recharts v3 broke "auto" domain calculation when used with the vendored
+  // Tremor BarChart — the Redux store context doesn't resolve data max,
+  // yielding domain [0, 0] and all tick labels at "0". Pass an explicit max.
+  const dataMax = chartData.reduce(
+    (m, row) => Math.max(m, (row[CATEGORY] as number) ?? 0),
+    0,
+  )
+  const yMax = dataMax > 0 ? Math.ceil(dataMax * 1.15) : 10
+
   return (
     <section className="rounded-xl border border-border bg-card">
       <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
@@ -93,11 +102,10 @@ export function ResponseTimeChart({
             index="day"
             categories={[CATEGORY]}
             colors={['emerald']}
-            valueFormatter={(value) => `${value.toFixed(1)}min`}
+            valueFormatter={fmt}
+            maxValue={yMax}
             showLegend={false}
-            yAxisWidth={48}
-            // Compact height so the chart sits well inside the card
-            // without dominating the row alongside the donut + activity feed.
+            yAxisWidth={56}
             className="h-[260px]"
           />
         )}
