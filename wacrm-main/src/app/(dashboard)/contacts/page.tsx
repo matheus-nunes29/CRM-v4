@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag } from '@/types';
+import type { Contact, Tag, ContactTag, TrackingLink } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -50,6 +50,7 @@ import {
   Filter,
   X,
   Tags,
+  Megaphone,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
@@ -79,6 +80,9 @@ export default function ContactsPage() {
   const [totalCount, setTotalCount] = useState(0);
   // Tag filter — contacts shown must have ANY of these tags (OR).
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  // Campaign filter — contacts from a specific tracking link.
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [trackingLinks, setTrackingLinks] = useState<TrackingLink[]>([]);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -134,6 +138,11 @@ export default function ContactsPage() {
     }
   }, [supabase]);
 
+  const fetchTrackingLinks = useCallback(async () => {
+    const { data } = await supabase.from('tracking_links').select('*').order('created_at', { ascending: false });
+    setTrackingLinks(data ?? []);
+  }, [supabase]);
+
   const fetchContacts = useCallback(async () => {
     const seq = ++fetchSeq.current;
     setLoading(true);
@@ -167,7 +176,10 @@ export default function ContactsPage() {
         return;
       }
       const rows = (data ?? []) as { contact: Contact; total_count: number }[];
-      contactRows = rows.map((r) => r.contact);
+      let allRows = rows.map((r) => r.contact);
+      // Apply campaign filter client-side when both active
+      if (selectedCampaignId) allRows = allRows.filter((c) => c.tracking_link_id === selectedCampaignId);
+      contactRows = allRows;
       count = rows.length > 0 ? Number(rows[0].total_count) : 0;
     } else {
       let query = supabase
@@ -179,6 +191,10 @@ export default function ContactsPage() {
       if (term) {
         const like = `%${term}%`;
         query = query.or(`name.ilike.${like},phone.ilike.${like},email.ilike.${like}`);
+      }
+
+      if (selectedCampaignId) {
+        query = query.eq('tracking_link_id', selectedCampaignId);
       }
 
       const { data, count: exactCount, error } = await query;
@@ -223,7 +239,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, selectedTagIds, tagsMap]);
+  }, [supabase, page, search, selectedTagIds, selectedCampaignId, tagsMap]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -233,6 +249,10 @@ export default function ContactsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTags();
   }, [fetchTags]);
+
+  useEffect(() => {
+    fetchTrackingLinks();
+  }, [fetchTrackingLinks]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -398,7 +418,9 @@ export default function ContactsPage() {
   const allTags = Object.values(tagsMap).sort((a, b) =>
     a.name.localeCompare(b.name)
   );
-  const hasActiveFilters = search.trim().length > 0 || selectedTagIds.length > 0;
+  const hasActiveFilters = search.trim().length > 0 || selectedTagIds.length > 0 || !!selectedCampaignId;
+  const trackingLinksMap = Object.fromEntries(trackingLinks.map((l) => [l.id, l]));
+  const selectedCampaign = selectedCampaignId ? trackingLinksMap[selectedCampaignId] : null;
 
   function toggleTagFilter(tagId: string) {
     setSelectedTagIds((prev) =>
@@ -580,10 +602,68 @@ export default function ContactsPage() {
               )}
             </PopoverContent>
           </Popover>
+
+          {/* Campaign filter */}
+          <Popover>
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="outline"
+                  className="border-border text-muted-foreground hover:bg-muted shrink-0"
+                />
+              }
+            >
+              <Megaphone className="size-4" />
+              Campanha
+              {selectedCampaignId && (
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                  1
+                </span>
+              )}
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-72 p-0">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="text-sm font-medium text-popover-foreground">Filtrar por campanha</span>
+                {selectedCampaignId && (
+                  <button
+                    onClick={() => { setSelectedCampaignId(null); setPage(0); }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+              {trackingLinks.length === 0 ? (
+                <p className="px-3 py-4 text-sm text-muted-foreground text-center">Nenhuma campanha criada.</p>
+              ) : (
+                <div className="max-h-64 overflow-y-auto py-1">
+                  {trackingLinks.map((link) => (
+                    <label
+                      key={link.id}
+                      className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-muted/50"
+                    >
+                      <Checkbox
+                        checked={selectedCampaignId === link.id}
+                        onCheckedChange={() => {
+                          setSelectedCampaignId((prev) => (prev === link.id ? null : link.id));
+                          setPage(0);
+                        }}
+                        aria-label={`Filtrar por ${link.name}`}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm text-popover-foreground truncate">{link.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{link.click_count} cliques · /{link.code}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
 
-        {/* Active tag-filter chips */}
-        {selectedTagIds.length > 0 && (
+        {/* Active filter chips */}
+        {(selectedTagIds.length > 0 || !!selectedCampaignId) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {selectedTagIds.map((id) => {
               const tag = tagsMap[id];
@@ -608,8 +688,21 @@ export default function ContactsPage() {
                 </span>
               );
             })}
+            {selectedCampaign && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                <Megaphone className="size-2.5" />
+                {selectedCampaign.name}
+                <button
+                  onClick={() => { setSelectedCampaignId(null); setPage(0); }}
+                  aria-label="Remover filtro de campanha"
+                  className="hover:opacity-70"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
             <button
-              onClick={clearTagFilters}
+              onClick={() => { clearTagFilters(); setSelectedCampaignId(null); setPage(0); }}
               className="text-xs text-muted-foreground hover:text-foreground px-1"
             >
               Limpar tudo
@@ -703,16 +796,21 @@ export default function ContactsPage() {
                     {contact.company || <span className="text-muted-foreground">-</span>}
                   </TableCell>
                   <TableCell className="hidden xl:table-cell">
-                    {contact.utm_source ? (
+                    {contact.tracking_link_id && trackingLinksMap[contact.tracking_link_id] ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        <Megaphone className="size-2.5" />
+                        {trackingLinksMap[contact.tracking_link_id].name}
+                      </span>
+                    ) : contact.utm_source ? (
                       <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                         {contact.utm_source}
                       </span>
                     ) : contact.gclid ? (
                       <span className="rounded-full bg-yellow-500/10 px-2 py-0.5 text-[10px] font-medium text-yellow-600 dark:text-yellow-400">
-                        gclid
+                        Google Ads
                       </span>
                     ) : (
-                      <span className="text-[11px] text-muted-foreground">orgânico</span>
+                      <span className="text-[11px] text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">

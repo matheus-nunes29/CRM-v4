@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
-import type { Contact, ContactNote, CustomField, Deal } from '@/types';
+import type { Contact, ContactNote, CustomField, Deal, TrackingLink } from '@/types';
 import { CustomFieldInput } from '@/components/shared/custom-field-input';
 import {
   Sheet,
@@ -38,6 +38,7 @@ import {
   TrendingDown,
   Tag as TagIcon,
   CalendarDays,
+  Megaphone,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -90,6 +91,7 @@ export function ContactDetailContent({ contactId, onUpdated, onWhatsApp }: Conta
   const { accountId, defaultCurrency } = useAuth();
 
   const [contact, setContact] = useState<Contact | null>(null);
+  const [trackingLink, setTrackingLink] = useState<TrackingLink | null>(null);
   const [loading, setLoading] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
 
@@ -127,6 +129,12 @@ export function ContactDetailContent({ contactId, onUpdated, onWhatsApp }: Conta
       setEditPhone(data.phone);
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
+      if (data.tracking_link_id) {
+        const { data: tlData } = await supabase.from('tracking_links').select('*').eq('id', data.tracking_link_id).single();
+        setTrackingLink(tlData ?? null);
+      } else {
+        setTrackingLink(null);
+      }
     }
     setLoading(false);
   }, [contactId, supabase]);
@@ -334,6 +342,12 @@ export function ContactDetailContent({ contactId, onUpdated, onWhatsApp }: Conta
                 <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Building2 className="size-3 shrink-0" />
                   <span className="truncate max-w-[140px]">{contact.company}</span>
+                </span>
+              )}
+              {trackingLink && (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                  <Megaphone className="size-3 shrink-0" />
+                  <span className="truncate max-w-[160px]">{trackingLink.name}</span>
                 </span>
               )}
             </div>

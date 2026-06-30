@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Deal, DealStatus, Pipeline, PipelineStage } from '@/types'
+import type { Deal, DealStatus, Pipeline, PipelineStage, TrackingLink } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -27,6 +27,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Megaphone,
   Pencil,
   Search,
 } from 'lucide-react'
@@ -42,7 +43,7 @@ const STATUS_META: Record<DealStatus, { label: string; className: string }> = {
 }
 
 interface DealRow extends Omit<Deal, 'contact' | 'stage' | 'assignee'> {
-  contact?: { id: string; name: string; phone?: string | null } | null
+  contact?: { id: string; name: string; phone?: string | null; tracking_link_id?: string | null; utm_source?: string | null } | null
   stage?: { id: string; name: string } | null
   assignee?: { id: string; full_name: string | null } | null
 }
@@ -64,6 +65,7 @@ export default function NegociosPage() {
   const [statusFilter, setStatusFilter] = useState<DealStatus | 'all'>('all')
 
   const [pipelinesMap, setPipelinesMap] = useState<Record<string, PipelineWithStages>>({})
+  const [trackingLinksMap, setTrackingLinksMap] = useState<Record<string, TrackingLink>>({})
 
   const [formOpen, setFormOpen] = useState(false)
   const [editDeal, setEditDeal] = useState<DealRow | null>(null)
@@ -109,7 +111,7 @@ export default function NegociosPage() {
     let query = supabase
       .from('deals')
       .select(
-        '*, contact:contacts(id, name, phone), stage:pipeline_stages(id, name), assignee:profiles!deals_assigned_to_fkey(id, full_name)',
+        '*, contact:contacts(id, name, phone, tracking_link_id, utm_source), stage:pipeline_stages(id, name), assignee:profiles!deals_assigned_to_fkey(id, full_name)',
         { count: 'exact' },
       )
       .order('created_at', { ascending: false })
@@ -134,7 +136,12 @@ export default function NegociosPage() {
 
   useEffect(() => {
     fetchPipelines()
-  }, [fetchPipelines])
+    supabase.from('tracking_links').select('*').then(({ data }) => {
+      const map: Record<string, TrackingLink> = {}
+      for (const l of data ?? []) map[l.id] = l
+      setTrackingLinksMap(map)
+    })
+  }, [fetchPipelines, supabase])
 
   useEffect(() => {
     setPage(0)
@@ -264,6 +271,7 @@ export default function NegociosPage() {
               <TableHead>Data de criação</TableHead>
               <TableHead>Etapa · Pipeline</TableHead>
               <TableHead>Contato</TableHead>
+              <TableHead className="hidden xl:table-cell">Origem</TableHead>
               <TableHead>Responsável</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-10" />
@@ -317,6 +325,20 @@ export default function NegociosPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {deal.contact?.name ?? '—'}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      {deal.contact?.tracking_link_id && trackingLinksMap[deal.contact.tracking_link_id] ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                          <Megaphone className="size-2.5" />
+                          {trackingLinksMap[deal.contact.tracking_link_id].name}
+                        </span>
+                      ) : deal.contact?.utm_source ? (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                          {deal.contact.utm_source}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {deal.assignee?.full_name ?? '—'}
