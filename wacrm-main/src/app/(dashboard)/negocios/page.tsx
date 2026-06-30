@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Deal, DealStatus, Pipeline, PipelineStage } from '@/types'
@@ -52,6 +53,8 @@ interface PipelineWithStages extends Pipeline {
 
 export default function NegociosPage() {
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [deals, setDeals] = useState<DealRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -141,6 +144,17 @@ export default function NegociosPage() {
   }, [fetchDeals])
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+
+  // Open form from ?open=id (search results, external links)
+  useEffect(() => {
+    const id = searchParams.get('open')
+    if (!id || !deals.length) return
+    const deal = deals.find((d) => d.id === id)
+    if (deal) {
+      setEditDeal(deal)
+      setFormOpen(true)
+    }
+  }, [searchParams, deals])
 
   function formatValue(value: number, currency?: string) {
     return new Intl.NumberFormat('pt-BR', {
@@ -350,7 +364,14 @@ export default function NegociosPage() {
           open={formOpen}
           onOpenChange={(o) => {
             setFormOpen(o)
-            if (!o) setEditDeal(null)
+            if (!o) {
+              setEditDeal(null)
+              if (searchParams.get('open')) {
+                const params = new URLSearchParams(searchParams.toString())
+                params.delete('open')
+                router.replace(`/negocios${params.size ? `?${params}` : ''}`)
+              }
+            }
           }}
           deal={editDeal as Deal}
           pipelineId={editDeal.pipeline_id}

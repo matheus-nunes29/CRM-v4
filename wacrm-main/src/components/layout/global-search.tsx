@@ -57,7 +57,7 @@ export function GlobalSearch() {
           id: c.id,
           label: c.name ?? c.phone ?? "Contato",
           sub: c.phone ?? undefined,
-          href: `/contacts/${c.id}`,
+          href: `/contacts?open=${c.id}`,
         }),
       );
 
@@ -71,7 +71,7 @@ export function GlobalSearch() {
             : d.status === "lost"
               ? "Perdido"
               : "Aberto",
-        href: `/negocios/${d.id}`,
+        href: `/negocios?open=${d.id}`,
       }));
 
       setResults([...contactResults, ...dealResults]);
