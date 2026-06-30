@@ -107,6 +107,7 @@ export function ResponseTimeChart({
             valueFormatter={axisLabel}
             maxValue={yMax}
             yAxisTicks={yTicks}
+            yAxisFontSize={8}
             showLegend={false}
             yAxisWidth={56}
             className="h-[260px]"

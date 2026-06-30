@@ -561,6 +561,7 @@ interface BarChartProps extends React.HTMLAttributes<HTMLDivElement> {
   tooltipCallback?: (tooltipCallbackContent: TooltipProps) => void
   customTooltip?: React.ComponentType<TooltipProps>
   yAxisTicks?: number[]
+  yAxisFontSize?: number
 }
 
 const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
@@ -596,6 +597,7 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
       tooltipCallback,
       customTooltip,
       yAxisTicks,
+      yAxisFontSize,
       ...other
     } = props
     const CustomTooltip = customTooltip
@@ -754,6 +756,7 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
                   layout !== "vertical"
                     ? "translate(-3, 0)"
                     : "translate(0, 0)",
+                ...(yAxisFontSize ? { fontSize: yAxisFontSize } : {}),
               }}
               {...(layout !== "vertical"
                 ? {
