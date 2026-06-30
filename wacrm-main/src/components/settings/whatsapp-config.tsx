@@ -77,19 +77,9 @@ export function WhatsAppConfig() {
   const [registrationProbe, setRegistrationProbe] = useState<RegistrationProbe | null>(null);
 
   // ── Evolution fields ─────────────────────────────────────────────────
-  const [evoServerUrl, setEvoServerUrl] = useState('');
-  const [evoInstanceName, setEvoInstanceName] = useState('');
-  const [evoApiKey, setEvoApiKey] = useState('');
-  const [showEvoKey, setShowEvoKey] = useState(false);
-  const [evoKeyEdited, setEvoKeyEdited] = useState(false);
   const [evoQrCode, setEvoQrCode] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
   const [instanceState, setInstanceState] = useState<string | null>(null);
-
-  const webhookUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/api/whatsapp/webhook/evolution`
-      : '';
 
   const metaWebhookUrl =
     typeof window !== 'undefined'
@@ -115,10 +105,7 @@ export function WhatsAppConfig() {
         setProvider(savedProvider);
 
         if (savedProvider === 'evolution') {
-          setEvoServerUrl(data.evolution_server_url ?? '');
-          setEvoInstanceName(data.evolution_instance_name ?? '');
-          setEvoApiKey(data.evolution_api_key ? MASKED_TOKEN : '');
-          setEvoKeyEdited(false);
+          // credentials managed server-side via env vars
         } else {
           setPhoneNumberId(data.phone_number_id || '');
           setWabaId(data.waba_id || '');
@@ -135,10 +122,6 @@ export function WhatsAppConfig() {
         setVerifyToken('');
         setPin('');
         setTokenEdited(false);
-        setEvoServerUrl('');
-        setEvoInstanceName('');
-        setEvoApiKey('');
-        setEvoKeyEdited(false);
         setEvoQrCode(null);
       }
       setRegistrationProbe(null);
@@ -281,26 +264,10 @@ export function WhatsAppConfig() {
   }
 
   async function handleSaveEvolution() {
-    if (!evoServerUrl.trim() || !evoInstanceName.trim()) {
-      toast.error('URL do servidor e nome da instância são obrigatórios');
-      return;
-    }
-    if (!config && !evoApiKey.trim()) {
-      toast.error('A API Key é obrigatória para a configuração inicial');
-      return;
-    }
-    if (config && !evoKeyEdited && evoApiKey === MASKED_TOKEN) {
-      toast.error('Por favor, insira novamente a API Key para salvar as alterações');
-      return;
-    }
-
     try {
       setSaving(true);
       const payload: Record<string, unknown> = {
         provider: 'evolution',
-        evolution_server_url: evoServerUrl.trim(),
-        evolution_instance_name: evoInstanceName.trim(),
-        evolution_api_key: evoApiKey.trim(),
       };
 
       const res = await fetch('/api/whatsapp/config', {
@@ -407,8 +374,7 @@ export function WhatsAppConfig() {
       toast.success('Configuração apagada.');
       setConfig(null);
       setPhoneNumberId(''); setWabaId(''); setAccessToken(''); setVerifyToken('');
-      setTokenEdited(false); setEvoServerUrl(''); setEvoInstanceName('');
-      setEvoApiKey(''); setEvoKeyEdited(false); setEvoQrCode(null);
+      setTokenEdited(false); setEvoQrCode(null);
       setConnectionStatus('disconnected'); setResetReason(null); setStatusMessage('');
       setInstanceState(null);
     } catch (err) {
@@ -521,7 +487,7 @@ export function WhatsAppConfig() {
                   : 'Seu token de acesso autentica com o Meta.'
                 : statusMessage ||
                   (provider === 'evolution'
-                    ? 'Configure as credenciais da Evolution API abaixo para conectar.'
+                    ? 'Clique em "Conectar WhatsApp" para gerar o QR code.'
                     : 'Configure suas credenciais da API do Meta abaixo.')}
             </AlertDescription>
           </Alert>
@@ -662,130 +628,57 @@ export function WhatsAppConfig() {
                     <div className="flex-1">
                       <AlertTitle className="text-blue-200 mb-2">Escaneie o QR code para conectar</AlertTitle>
                       <AlertDescription className="text-blue-100/80 text-sm mb-3">
-                        Abra o WhatsApp no seu celular → Aparelhos conectados → Conectar um aparelho → escaneie o código.
+                        Abra o WhatsApp → Aparelhos conectados → Conectar um aparelho → escaneie o código abaixo.
                       </AlertDescription>
-                      {evoQrCode && (
+                      {evoQrCode ? (
                         <div className="mb-3 inline-block rounded-lg border border-blue-700/40 bg-white p-2">
-                          <img src={evoQrCode} alt="QR code Evolution" className="h-48 w-48" />
+                          <img src={evoQrCode} alt="QR code" className="h-48 w-48" />
+                        </div>
+                      ) : (
+                        <div className="mb-3 flex h-48 w-48 items-center justify-center rounded-lg border border-blue-700/40 bg-blue-950/40">
+                          <Loader2 className="size-6 animate-spin text-blue-400" />
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={fetchEvolutionQr}
-                          disabled={loadingQr}
-                          className="border-blue-700/50 text-blue-300 hover:bg-blue-950/40"
-                        >
+                        <Button variant="outline" size="sm" onClick={fetchEvolutionQr} disabled={loadingQr} className="border-blue-700/50 text-blue-300 hover:bg-blue-950/40">
                           {loadingQr ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
                           Atualizar QR
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleTestConnection}
-                          disabled={testing}
-                          className="border-blue-700/50 text-blue-300 hover:bg-blue-950/40"
-                        >
+                        <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={testing} className="border-blue-700/50 text-blue-300 hover:bg-blue-950/40">
                           {testing ? <Loader2 className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
-                          Verificar conexão
+                          Já escaniei
                         </Button>
                       </div>
                     </div>
                   </div>
                 </Alert>
               )}
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-foreground">Credenciais Evolution API</CardTitle>
-                  <CardDescription className="text-muted-foreground">
-                    Conecte via Evolution API — sem aprovação do Meta, autenticação por QR code.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-muted-foreground">URL do servidor Evolution</Label>
-                    <Input
-                      placeholder="ex.: https://evo.seuservidor.com.br"
-                      value={evoServerUrl}
-                      onChange={(e) => setEvoServerUrl(e.target.value)}
-                      className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-                    />
-                    <p className="text-xs text-muted-foreground">URL base da sua instância Evolution API (sem barra no final).</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-muted-foreground">Nome da instância</Label>
-                    <Input
-                      placeholder="ex.: minha-empresa"
-                      value={evoInstanceName}
-                      onChange={(e) => setEvoInstanceName(e.target.value)}
-                      className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-                    />
-                    <p className="text-xs text-muted-foreground">Nome único da instância criada no painel Evolution API.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-muted-foreground">API Key global</Label>
-                    <div className="relative">
-                      <Input
-                        type={showEvoKey ? 'text' : 'password'}
-                        placeholder="Insira a API key do Evolution"
-                        value={evoApiKey}
-                        onChange={(e) => { setEvoApiKey(e.target.value); setEvoKeyEdited(true); }}
-                        onFocus={() => { if (evoApiKey === MASKED_TOKEN) { setEvoApiKey(''); setEvoKeyEdited(true); } }}
-                        className="bg-muted border-border text-foreground placeholder:text-muted-foreground pr-10"
-                      />
-                      <button type="button" onClick={() => setShowEvoKey(!showEvoKey)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                        {showEvoKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                      </button>
-                    </div>
-                    {config?.provider === 'evolution' && !evoKeyEdited && (
-                      <p className="text-xs text-muted-foreground">API key oculta por segurança. Insira novamente para atualizar.</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-foreground">Webhook Evolution</CardTitle>
-                  <CardDescription className="text-muted-foreground">
-                    Configure esta URL no painel Evolution para receber mensagens.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-muted-foreground">URL do Webhook</Label>
-                    <div className="flex gap-2">
-                      <Input readOnly value={webhookUrl} className="bg-muted border-border text-muted-foreground font-mono text-sm" />
-                      <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success('URL copiada'); }} className="shrink-0 border-border text-muted-foreground hover:text-foreground hover:bg-muted">
-                        <Copy className="size-4" />
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      No painel Evolution API, vá em Webhooks → configure esta URL com os eventos{' '}
-                      <code className="text-muted-foreground bg-muted px-1 rounded">messages.upsert</code> e{' '}
-                      <code className="text-muted-foreground bg-muted px-1 rounded">messages.update</code>.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
             </>
           )}
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3">
-            <Button onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              {saving ? <><Loader2 className="size-4 animate-spin" />Salvando...</> : 'Salvar Configuração'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleTestConnection}
-              disabled={testing || !config}
-              className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-            >
-              {testing ? <><Loader2 className="size-4 animate-spin" />Testando...</> : <><Zap className="size-4" />Testar Conexão</>}
-            </Button>
+            {provider === 'evolution' ? (
+              <Button onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                {saving
+                  ? <><Loader2 className="size-4 animate-spin" />Conectando...</>
+                  : <><QrCode className="size-4" />{evoConnected ? 'Reconectar WhatsApp' : 'Conectar WhatsApp'}</>}
+              </Button>
+            ) : (
+              <Button onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                {saving ? <><Loader2 className="size-4 animate-spin" />Salvando...</> : 'Salvar Configuração'}
+              </Button>
+            )}
+            {provider === 'meta' && (
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testing || !config}
+                className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                {testing ? <><Loader2 className="size-4 animate-spin" />Testando...</> : <><Zap className="size-4" />Testar Conexão</>}
+              </Button>
+            )}
             {config && (
               <Button variant="outline" onClick={handleReset} disabled={resetting} className="border-red-900 text-red-400 hover:text-red-300 hover:bg-red-950/40">
                 {resetting ? <><Loader2 className="size-4 animate-spin" />Redefinindo...</> : <><RotateCcw className="size-4" />Redefinir Configuração</>}
@@ -867,71 +760,38 @@ export function WhatsAppConfig() {
             </Card>
           ) : (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-foreground text-base">Instruções Evolution API</CardTitle>
-                <CardDescription className="text-muted-foreground">Como configurar a conexão não oficial.</CardDescription>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-foreground text-base">Como conectar</CardTitle>
+                <CardDescription className="text-muted-foreground text-xs">Sem senha, sem aprovação — só escanear o QR.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <Accordion>
-                  <AccordionItem className="border-border">
-                    <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                      <span className="flex items-center gap-2">
-                        <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
-                        Instalar Evolution API
+              <CardContent className="space-y-5">
+                <ol className="space-y-4">
+                  {[
+                    { n: 1, text: 'Clique no botão', highlight: 'Conectar WhatsApp', after: '.' },
+                    { n: 2, text: 'O QR code aparece aqui. Abra o', highlight: 'WhatsApp', after: 'no celular.' },
+                    { n: 3, text: 'Toque em', highlight: 'Aparelhos conectados → Conectar um aparelho', after: 'e aponte a câmera para o QR.' },
+                    { n: 4, text: 'Clique em', highlight: 'Já escaniei', after: 'para confirmar a conexão.' },
+                  ].map(({ n, text, highlight, after }) => (
+                    <li key={n} className="flex items-start gap-3">
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground mt-0.5">
+                        {n}
                       </span>
-                    </AccordionTrigger>
-                    <AccordionContent className="text-muted-foreground text-sm space-y-1">
-                      <p>Instale a Evolution API em um servidor próprio via Docker:</p>
-                      <code className="block rounded bg-muted px-2 py-1 text-xs">docker run -d --name evolution -p 8080:8080 atendai/evolution-api</code>
-                      <p>Ou use um serviço de hospedagem gerenciado compatível.</p>
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem className="border-border">
-                    <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                      <span className="flex items-center gap-2">
-                        <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
-                        Preencher credenciais
-                      </span>
-                    </AccordionTrigger>
-                    <AccordionContent className="text-muted-foreground text-sm space-y-1">
-                      <p><strong className="text-foreground">URL do servidor:</strong> endereço público do seu servidor Evolution (ex.: https://evo.empresa.com).</p>
-                      <p><strong className="text-foreground">Nome da instância:</strong> identificador único (letras, números, hífens).</p>
-                      <p><strong className="text-foreground">API Key:</strong> chave global definida nas variáveis de ambiente do Evolution.</p>
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem className="border-border">
-                    <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                      <span className="flex items-center gap-2">
-                        <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">3</span>
-                        Conectar via QR code
-                      </span>
-                    </AccordionTrigger>
-                    <AccordionContent className="text-muted-foreground text-sm space-y-1">
-                      <p>Após salvar a configuração, o QR code aparece. Escaneie com o WhatsApp:</p>
-                      <p>WhatsApp → Aparelhos conectados → Conectar um aparelho.</p>
-                      <p>O QR expira em ~30 segundos. Clique em &quot;Atualizar QR&quot; se necessário.</p>
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem className="border-border">
-                    <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                      <span className="flex items-center gap-2">
-                        <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">4</span>
-                        Configurar Webhook
-                      </span>
-                    </AccordionTrigger>
-                    <AccordionContent className="text-muted-foreground text-sm space-y-1">
-                      <p>No painel Evolution ou via API, configure o webhook da instância apontando para a URL exibida ao lado.</p>
-                      <p>Eventos necessários: <code className="bg-muted px-1 rounded">messages.upsert</code>, <code className="bg-muted px-1 rounded">messages.update</code>.</p>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-                <div className="mt-4 pt-4 border-t border-border">
-                  <Alert className="border-amber-600/40 bg-amber-950/20">
-                    <AlertTitle className="text-amber-300 text-xs font-semibold">Aviso de uso</AlertTitle>
-                    <AlertDescription className="text-amber-200/70 text-xs leading-relaxed mt-1">
-                      A Evolution API usa o protocolo não oficial do WhatsApp Web. O Meta pode bloquear o número. Use com consciência e preferencialmente em números secundários.
-                    </AlertDescription>
-                  </Alert>
+                      <p className="text-sm text-muted-foreground leading-snug">
+                        {text} <span className="font-semibold text-foreground">{highlight}</span> {after}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+
+                <p className="text-xs text-muted-foreground border-t border-border pt-3">
+                  O QR expira em ~30 s — clique em <span className="text-foreground font-medium">Atualizar QR</span> se precisar de um novo.
+                </p>
+
+                <div className="rounded-lg border border-amber-600/30 bg-amber-950/20 px-3 py-2.5">
+                  <p className="text-xs font-semibold text-amber-400 mb-1">Aviso</p>
+                  <p className="text-xs text-amber-200/70 leading-relaxed">
+                    Usa o protocolo não oficial do WhatsApp Web. O Meta pode suspender o número. Use preferencialmente em números secundários.
+                  </p>
                 </div>
               </CardContent>
             </Card>

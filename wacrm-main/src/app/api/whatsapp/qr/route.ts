@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { decrypt } from '@/lib/whatsapp/encryption'
-import { getQrCode, type EvolutionConfig } from '@/lib/whatsapp/evolution-api'
+import { getQrCode, getSystemEvolutionConfig } from '@/lib/whatsapp/evolution-api'
 
 async function resolveAccountId(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -34,20 +33,11 @@ export async function GET() {
       .eq('account_id', accountId)
       .maybeSingle()
 
-    if (!config || config.provider !== 'evolution') {
+    if (!config || config.provider !== 'evolution' || !config.evolution_instance_name) {
       return NextResponse.json({ error: 'Evolution API not configured' }, { status: 400 })
     }
 
-    if (!config.evolution_server_url || !config.evolution_instance_name || !config.evolution_api_key) {
-      return NextResponse.json({ error: 'Evolution credentials incomplete' }, { status: 400 })
-    }
-
-    const apiKey = decrypt(config.evolution_api_key)
-    const evoCfg: EvolutionConfig = {
-      serverUrl: config.evolution_server_url,
-      instanceName: config.evolution_instance_name,
-      apiKey,
-    }
+    const evoCfg = getSystemEvolutionConfig(config.evolution_instance_name)
 
     const qr = await getQrCode(evoCfg)
     if (!qr) {

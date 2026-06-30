@@ -38,8 +38,10 @@ import {
   TrendingDown,
   Tag as TagIcon,
   CalendarDays,
+  CalendarPlus,
   Megaphone,
 } from 'lucide-react';
+import { ScheduleEventModal } from '@/components/calendar/schedule-event-modal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -94,6 +96,7 @@ export function ContactDetailContent({ contactId, onUpdated, onWhatsApp }: Conta
   const [trackingLink, setTrackingLink] = useState<TrackingLink | null>(null);
   const [loading, setLoading] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
+const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -319,6 +322,14 @@ export function ContactDetailContent({ contactId, onUpdated, onWhatsApp }: Conta
                   </svg>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setShowScheduleModal(true)}
+                title="Agendar evento"
+                className="shrink-0 flex items-center justify-center rounded-full p-1 text-primary hover:bg-primary/10 transition-colors"
+              >
+                <CalendarPlus className="h-4 w-4" />
+              </button>
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
               <button
@@ -572,6 +583,13 @@ export function ContactDetailContent({ contactId, onUpdated, onWhatsApp }: Conta
           )}
         </TabsContent>
       </Tabs>
+
+      <ScheduleEventModal
+        open={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        contactId={contactId}
+        contactName={contact?.name ?? undefined}
+      />
     </div>
   );
 }

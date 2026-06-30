@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
   Briefcase,
+  CalendarDays,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -99,6 +100,7 @@ const navItems: NavItem[] = [
   { href: "/broadcasts", label: "Disparos", icon: Radio },
   { href: "/automations", label: "Automações", icon: Zap },
   { href: "/flows", label: "Fluxos", icon: Workflow, beta: true },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays },
 ];
 
 const bottomNavItems = [
