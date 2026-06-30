@@ -67,6 +67,7 @@ export default function NegociosPage() {
 
   const [formOpen, setFormOpen] = useState(false)
   const [editDeal, setEditDeal] = useState<DealRow | null>(null)
+  const [editDealStages, setEditDealStages] = useState<PipelineStage[] | null>(null)
 
   const fetchSeq = useRef(0)
 
@@ -145,16 +146,38 @@ export default function NegociosPage() {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
-  // Open form from ?open=id (search results, external links)
+  // Open form from ?open=id (search results, external links).
+  // The deal might not be on the current page, so fetch it by ID if needed.
   useEffect(() => {
     const id = searchParams.get('open')
-    if (!id || !deals.length) return
-    const deal = deals.find((d) => d.id === id)
-    if (deal) {
-      setEditDeal(deal)
+    if (!id) return
+
+    const inList = deals.find((d) => d.id === id)
+    if (inList) {
+      setEditDeal(inList)
       setFormOpen(true)
+      return
     }
-  }, [searchParams, deals])
+
+    // Not in current page — fetch deal + its pipeline stages directly
+    supabase
+      .from('deals')
+      .select('*, contact:contacts(id, name, phone), stage:pipeline_stages(id, name), assignee:profiles!deals_assigned_to_fkey(id, full_name)')
+      .eq('id', id)
+      .single()
+      .then(async ({ data }) => {
+        if (!data) return
+        const deal = data as DealRow
+        const { data: stagesData } = await supabase
+          .from('pipeline_stages')
+          .select('*')
+          .eq('pipeline_id', deal.pipeline_id)
+          .order('position', { ascending: true })
+        setEditDealStages((stagesData as PipelineStage[]) ?? [])
+        setEditDeal(deal)
+        setFormOpen(true)
+      })
+  }, [searchParams, deals, supabase])
 
   function formatValue(value: number, currency?: string) {
     return new Intl.NumberFormat('pt-BR', {
@@ -169,6 +192,7 @@ export default function NegociosPage() {
   }
 
   function openEdit(deal: DealRow) {
+    setEditDealStages(null)
     setEditDeal(deal)
     setFormOpen(true)
   }
@@ -359,13 +383,14 @@ export default function NegociosPage() {
         )}
       </div>
 
-      {editDeal && currentFormPipeline && (
+      {editDeal && (currentFormPipeline || editDealStages) && (
         <DealForm
           open={formOpen}
           onOpenChange={(o) => {
             setFormOpen(o)
             if (!o) {
               setEditDeal(null)
+              setEditDealStages(null)
               if (searchParams.get('open')) {
                 const params = new URLSearchParams(searchParams.toString())
                 params.delete('open')
@@ -375,7 +400,7 @@ export default function NegociosPage() {
           }}
           deal={editDeal as Deal}
           pipelineId={editDeal.pipeline_id}
-          stages={currentFormPipeline.stages}
+          stages={editDealStages ?? currentFormPipeline?.stages ?? []}
           onSaved={() => {
             setFormOpen(false)
             setEditDeal(null)
