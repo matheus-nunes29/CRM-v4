@@ -160,11 +160,14 @@ async function handleOutboundEcho(
   const normalizedPhone = normalizePhone(phone)
 
   // Find or create contact
+  // Do NOT use pushName here — when fromMe=true, pushName is the account owner's
+  // own name, not the contact's name. Leave name undefined so the contact is
+  // created with just the phone number and can be named later.
   let contact = await findExistingContact(supabaseAdmin(), accountId, normalizedPhone)
   if (!contact) {
     const { data: newContact, error } = await supabaseAdmin()
       .from('contacts')
-      .insert({ account_id: accountId, user_id: userId, phone: normalizedPhone, name: event.pushName ?? undefined })
+      .insert({ account_id: accountId, user_id: userId, phone: normalizedPhone })
       .select()
       .single()
     if (error) {
