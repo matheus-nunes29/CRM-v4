@@ -21,6 +21,7 @@ import {
   type EvolutionUpsertEvent,
   type EvolutionUpdateEvent,
 } from '@/lib/whatsapp/evolution-api'
+import { processInboundMedia } from '@/lib/whatsapp/media-decrypt'
 import type { AutomationTriggerType } from '@/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,7 +206,18 @@ async function handleOutboundEcho(
   // Determine content
   let contentType = 'text'
   let contentText: string | null = null
-  const mediaUrl: string | null = event.mediaUrl
+  let mediaUrl: string | null = event.mediaUrl
+  if (event.mediaUrl && event.mediaKey && event.mediaType) {
+    const decrypted = await processInboundMedia({
+      encryptedUrl: event.mediaUrl,
+      mediaKeyRaw: event.mediaKey,
+      mediaType: event.mediaType,
+      mimeType: event.mimeType,
+      accountId,
+      messageId: event.messageId,
+    })
+    if (decrypted) mediaUrl = decrypted
+  }
 
   if (event.text) {
     contentType = 'text'
@@ -374,7 +386,18 @@ async function handleInboundMessage(
   // ── Content ──────────────────────────────────────────────────────────
   let contentType: string = 'text'
   let contentText: string | null = null
-  const mediaUrl: string | null = event.mediaUrl
+  let mediaUrl: string | null = event.mediaUrl
+  if (event.mediaUrl && event.mediaKey && event.mediaType) {
+    const decrypted = await processInboundMedia({
+      encryptedUrl: event.mediaUrl,
+      mediaKeyRaw: event.mediaKey,
+      mediaType: event.mediaType,
+      mimeType: event.mimeType,
+      accountId,
+      messageId: event.messageId,
+    })
+    if (decrypted) mediaUrl = decrypted
+  }
 
   if (event.text) {
     contentType = 'text'

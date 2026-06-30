@@ -112,18 +112,30 @@ export interface EvolutionSendResult {
   messageId: string
 }
 
-/** Send a plain-text message. */
+export interface EvolutionQuotedKey {
+  id: string
+  fromMe: boolean
+  remoteJid: string
+}
+
+/** Send a plain-text message. Pass `quoted` to reply to a specific message. */
 export async function sendTextMessage(
   cfg: EvolutionConfig,
   to: string,
   text: string,
+  quoted?: EvolutionQuotedKey,
 ): Promise<EvolutionSendResult> {
+  const body: Record<string, unknown> = { number: toEvolutionPhone(to), text }
+  if (quoted) {
+    body.options = { quoted: { key: { remoteJid: quoted.remoteJid, fromMe: quoted.fromMe, id: quoted.id } } }
+  }
+
   const res = await fetch(
     `${cfg.serverUrl}/message/sendText/${cfg.instanceName}`,
     {
       method: 'POST',
       headers: { ...evolutionHeaders(cfg), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ number: toEvolutionPhone(to), text }),
+      body: JSON.stringify(body),
     },
   )
 
@@ -139,7 +151,7 @@ export async function sendTextMessage(
 
 export type EvolutionMediaType = 'image' | 'video' | 'document' | 'audio'
 
-/** Send an image, video, document, or audio file via public URL. */
+/** Send an image, video, document, or audio file via public URL. Pass `quoted` to reply. */
 export async function sendMediaMessage(
   cfg: EvolutionConfig,
   to: string,
@@ -147,14 +159,22 @@ export async function sendMediaMessage(
   mediaUrl: string,
   caption?: string,
   filename?: string,
+  quoted?: EvolutionQuotedKey,
 ): Promise<EvolutionSendResult> {
-  const body: Record<string, unknown> = {
-    number: toEvolutionPhone(to),
-    mediatype: mediaType,
-    media: mediaUrl,
+  const evoPhone = toEvolutionPhone(to)
+
+  let body: Record<string, unknown>
+  if (mediaType === 'audio') {
+    body = { number: evoPhone, audio: mediaUrl, encoding: true }
+  } else {
+    body = { number: evoPhone, mediatype: mediaType, media: mediaUrl }
+    if (caption) body.caption = caption
+    if (filename) body.fileName = filename
   }
-  if (caption) body.caption = caption
-  if (filename) body.fileName = filename
+
+  if (quoted) {
+    body.options = { quoted: { key: { remoteJid: quoted.remoteJid, fromMe: quoted.fromMe, id: quoted.id } } }
+  }
 
   const endpoint =
     mediaType === 'audio'
@@ -164,11 +184,7 @@ export async function sendMediaMessage(
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { ...evolutionHeaders(cfg), 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      mediaType === 'audio'
-        ? { number: toEvolutionPhone(to), audio: mediaUrl, encoding: true }
-        : body,
-    ),
+    body: JSON.stringify(body),
   })
 
   const data = await res.json()
@@ -179,6 +195,31 @@ export async function sendMediaMessage(
   }
 
   return { messageId: data?.key?.id ?? data?.id ?? '' }
+}
+
+/** Send an emoji reaction to a message. `emoji = ""` removes any existing reaction. */
+export async function sendReactionMessage(
+  cfg: EvolutionConfig,
+  opts: { remoteJid: string; fromMe: boolean; messageId: string; emoji: string },
+): Promise<void> {
+  const res = await fetch(
+    `${cfg.serverUrl}/message/sendReaction/${cfg.instanceName}`,
+    {
+      method: 'POST',
+      headers: { ...evolutionHeaders(cfg), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: { remoteJid: opts.remoteJid, fromMe: opts.fromMe, id: opts.messageId },
+        reaction: opts.emoji,
+      }),
+    },
+  )
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(
+      data?.message ?? data?.error ?? `Evolution reaction error ${res.status}`,
+    )
+  }
 }
 
 // ─── Webhook normalisation ───────────────────────────────────────────────────
@@ -200,6 +241,7 @@ export interface EvolutionUpsertEvent {
   messageType: string
   text: string | null
   mediaUrl: string | null
+  mediaKey: unknown
   mediaType: 'image' | 'video' | 'document' | 'audio' | null
   mimeType: string | null
   filename: string | null
@@ -254,6 +296,7 @@ export function normalizeEvolutionWebhook(raw: unknown): EvolutionWebhookEvent {
 
     let text: string | null = null
     let mediaUrl: string | null = null
+    let mediaKey: unknown = null
     let mediaType: EvolutionUpsertEvent['mediaType'] = null
     let mimeType: string | null = null
     let filename: string | null = null
@@ -267,23 +310,27 @@ export function normalizeEvolutionWebhook(raw: unknown): EvolutionWebhookEvent {
     } else if (messageType === 'imageMessage') {
       const img = msg?.imageMessage as Record<string, unknown> | undefined
       mediaUrl = (img?.url as string) ?? null
+      mediaKey = img?.mediaKey ?? null
       mediaType = 'image'
       mimeType = (img?.mimetype as string) ?? null
       caption = (img?.caption as string) ?? null
     } else if (messageType === 'videoMessage') {
       const vid = msg?.videoMessage as Record<string, unknown> | undefined
       mediaUrl = (vid?.url as string) ?? null
+      mediaKey = vid?.mediaKey ?? null
       mediaType = 'video'
       mimeType = (vid?.mimetype as string) ?? null
       caption = (vid?.caption as string) ?? null
     } else if (messageType === 'audioMessage') {
       const aud = msg?.audioMessage as Record<string, unknown> | undefined
       mediaUrl = (aud?.url as string) ?? null
+      mediaKey = aud?.mediaKey ?? null
       mediaType = 'audio'
       mimeType = (aud?.mimetype as string) ?? null
     } else if (messageType === 'documentMessage') {
       const doc = msg?.documentMessage as Record<string, unknown> | undefined
       mediaUrl = (doc?.url as string) ?? null
+      mediaKey = doc?.mediaKey ?? null
       mediaType = 'document'
       mimeType = (doc?.mimetype as string) ?? null
       filename = (doc?.title as string) ?? (doc?.fileName as string) ?? null
@@ -301,6 +348,7 @@ export function normalizeEvolutionWebhook(raw: unknown): EvolutionWebhookEvent {
       messageType,
       text,
       mediaUrl,
+      mediaKey,
       mediaType,
       mimeType,
       filename,
@@ -334,6 +382,45 @@ export function normalizeEvolutionWebhook(raw: unknown): EvolutionWebhookEvent {
   }
 
   return { kind: 'other', event }
+}
+
+/** Configure the webhook for an instance. */
+export async function setWebhook(cfg: EvolutionConfig, webhookUrl: string): Promise<void> {
+  const res = await fetch(`${cfg.serverUrl}/webhook/set/${cfg.instanceName}`, {
+    method: 'POST',
+    headers: { ...evolutionHeaders(cfg), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      webhook: {
+        enabled: true,
+        url: webhookUrl,
+        webhook_by_events: false,
+        webhook_base64: false,
+        events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'],
+      },
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Evolution set webhook error ${res.status}: ${body}`)
+  }
+}
+
+/**
+ * Build an EvolutionConfig from server-side env vars.
+ * Throws if EVOLUTION_SERVER_URL or EVOLUTION_API_KEY are not set.
+ */
+export function getSystemEvolutionConfig(instanceName: string): EvolutionConfig {
+  const serverUrl = process.env.EVOLUTION_SERVER_URL?.replace(/\/+$/, '')
+  const apiKey = process.env.EVOLUTION_API_KEY
+  if (!serverUrl || !apiKey) {
+    throw new Error('EVOLUTION_SERVER_URL and EVOLUTION_API_KEY env vars must be set')
+  }
+  return { serverUrl, instanceName, apiKey }
+}
+
+/** Derive a stable Evolution instance name from an account UUID. */
+export function instanceNameForAccount(accountId: string): string {
+  return `acc-${accountId.replace(/-/g, '').slice(0, 20)}`
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
