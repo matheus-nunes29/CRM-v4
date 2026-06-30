@@ -10,20 +10,21 @@ import { Skeleton } from './skeleton'
 interface ResponseTimeChartProps {
   data: ResponseTimeSummary | null
   loading: boolean
-  /** Minutes. Surfaced as a "target" pill in the header. The
-   *  hand-rolled SVG version drew this as a horizontal dashed
-   *  line on the chart; Tremor BarChart doesn't expose Recharts
-   *  primitives, so we promote it to the header for now. A
-   *  follow-up can introduce an overlay or extend the vendored
-   *  BarChart with a `referenceLines` prop. */
   thresholdMinutes?: number
 }
 
-// Single category, single colour — the data is "average minutes
-// per weekday". Tremor expects categories as the second tuple in
-// the row object, so we shape the buckets into
-// `{ day: 'Mon', 'Avg minutes': 4.2 }` rows below.
 const CATEGORY = 'Média de minutos'
+
+// Nice round step for a given max value (in minutes)
+function niceStep(max: number): number {
+  if (max <= 5) return 1
+  if (max <= 15) return 3
+  if (max <= 30) return 5
+  if (max <= 60) return 10
+  if (max <= 120) return 20
+  if (max <= 240) return 30
+  return 60
+}
 
 export function ResponseTimeChart({
   data,
@@ -32,10 +33,6 @@ export function ResponseTimeChart({
 }: ResponseTimeChartProps) {
   const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false
 
-  // Map buckets → Tremor rows. Null `avgMinutes` (no samples)
-  // collapses to 0; the chart will render an empty slot for it.
-  // We attach `samples` on the row so a future customTooltip can
-  // surface "no samples" copy without losing the data shape.
   const chartData =
     data?.buckets.map((b, i) => ({
       day: DOW_SHORT_MON_FIRST[i],
@@ -43,14 +40,23 @@ export function ResponseTimeChart({
       samples: b.samples,
     })) ?? []
 
-  // Recharts v3 broke "auto" domain calculation when used with the vendored
-  // Tremor BarChart — the Redux store context doesn't resolve data max,
-  // yielding domain [0, 0] and all tick labels at "0". Pass an explicit max.
+  // Recharts v3 doesn't resolve "auto" domain via the Redux store context in
+  // the vendored Tremor BarChart, causing all ticks to land at 0. We compute
+  // explicit ticks so both domain and labels are always correct.
   const dataMax = chartData.reduce(
     (m, row) => Math.max(m, (row[CATEGORY] as number) ?? 0),
     0,
   )
-  const yMax = dataMax > 0 ? Math.ceil(dataMax * 1.15) : 10
+  const step = niceStep(dataMax > 0 ? dataMax : 10)
+  const tickCount = Math.ceil((dataMax > 0 ? dataMax : 10) / step) + 1
+  const yTicks = Array.from({ length: tickCount }, (_, i) => i * step)
+  const yMax = yTicks[yTicks.length - 1]
+
+  // Axis formatter: consistent unit across all ticks based on the max value
+  const axisLabel = (mins: number): string => {
+    if (yMax >= 60) return `${(mins / 60).toFixed(1)}h`
+    return `${Math.round(mins)}min`
+  }
 
   return (
     <section className="rounded-xl border border-border bg-card">
@@ -75,12 +81,12 @@ export function ResponseTimeChart({
               <div className="text-muted-foreground">
                 Esta semana:{' '}
                 <span className="font-medium text-foreground tabular-nums">
-                  {fmt(data.thisWeekAvg)}
+                  {fmtHeader(data.thisWeekAvg)}
                 </span>
               </div>
               <div className="text-muted-foreground">
                 Semana passada:{' '}
-                <span className="tabular-nums">{fmt(data.lastWeekAvg)}</span>
+                <span className="tabular-nums">{fmtHeader(data.lastWeekAvg)}</span>
               </div>
             </div>
           )}
@@ -102,8 +108,9 @@ export function ResponseTimeChart({
             index="day"
             categories={[CATEGORY]}
             colors={['emerald']}
-            valueFormatter={fmt}
+            valueFormatter={axisLabel}
             maxValue={yMax}
+            yAxisTicks={yTicks}
             showLegend={false}
             yAxisWidth={56}
             className="h-[260px]"
@@ -114,7 +121,8 @@ export function ResponseTimeChart({
   )
 }
 
-function fmt(mins: number | null): string {
+// Header summary: human-friendly mixed units (1s, 28min, 1.9h)
+function fmtHeader(mins: number | null): string {
   if (mins == null) return '—'
   if (mins < 1) return `${Math.max(1, Math.round(mins * 60))}s`
   if (mins < 60) return `${mins.toFixed(1)}min`
