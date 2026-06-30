@@ -97,7 +97,6 @@ const navItems: NavItem[] = [
   { href: "/negocios", label: "Negócios", icon: Briefcase },
   { href: "/pipelines", label: "Pipelines", icon: GitBranch },
   { href: "/broadcasts", label: "Disparos", icon: Radio },
-  { href: "/campanhas", label: "Campanhas", icon: Megaphone },
   { href: "/automations", label: "Automações", icon: Zap },
   { href: "/flows", label: "Fluxos", icon: Workflow, beta: true },
 ];
