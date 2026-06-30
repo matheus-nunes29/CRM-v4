@@ -71,7 +71,7 @@ export function GlobalSearch() {
             : d.status === "lost"
               ? "Perdido"
               : "Aberto",
-        href: `/negocios`,
+        href: `/negocios/${d.id}`,
       }));
 
       setResults([...contactResults, ...dealResults]);
