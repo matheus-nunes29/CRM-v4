@@ -52,11 +52,7 @@ export function ResponseTimeChart({
   const yTicks = Array.from({ length: tickCount }, (_, i) => i * step)
   const yMax = yTicks[yTicks.length - 1]
 
-  // Axis formatter: consistent unit across all ticks based on the max value
-  const axisLabel = (mins: number): string => {
-    if (yMax >= 60) return `${(mins / 60).toFixed(1)}h`
-    return `${Math.round(mins)}min`
-  }
+  const axisLabel = (mins: number): string => `${Math.round(mins)}min`
 
   return (
     <section className="rounded-xl border border-border bg-card">
