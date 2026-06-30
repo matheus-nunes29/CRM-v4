@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CURRENCIES } from "@/lib/currency";
@@ -38,6 +39,7 @@ import {
   CalendarDays,
   AlignLeft,
   ChevronDown,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -168,6 +170,7 @@ export function DealForm({
 }: DealFormProps) {
   const supabase = createClient();
   const { accountId, defaultCurrency } = useAuth();
+  const router = useRouter();
 
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
@@ -193,6 +196,23 @@ export function DealForm({
   const [lossReasons, setLossReasons] = useState<LossReason[]>([]);
   const [showLossPicker, setShowLossPicker] = useState(false);
   const [selectedLossReasonId, setSelectedLossReasonId] = useState<string>("");
+
+  const openInboxForContact = useCallback(async () => {
+    if (!contactId) return;
+    const { data } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("contact_id", contactId)
+      .order("last_message_at", { ascending: false })
+      .limit(1)
+      .single();
+    if (data?.id) {
+      onOpenChange(false);
+      router.push(`/inbox?c=${data.id}`);
+    } else {
+      toast.error("Nenhuma conversa encontrada para este contato");
+    }
+  }, [contactId, supabase, router, onOpenChange]);
 
   // Reset the form fields every time the sheet opens or its input
   // props change. This is a legitimate prop-driven sync; the rule is
@@ -491,10 +511,23 @@ export function DealForm({
               <div className="px-5 pt-4 pb-4 space-y-4">
                 <SectionLabel>Contato</SectionLabel>
                 <FieldGroup>
-                  <FieldLabel required>
-                    <User className="h-3 w-3" />
-                    Contato
-                  </FieldLabel>
+                  <div className="flex items-center justify-between">
+                    <FieldLabel required>
+                      <User className="h-3 w-3" />
+                      Contato
+                    </FieldLabel>
+                    {contactId && deal && (
+                      <button
+                        type="button"
+                        onClick={openInboxForContact}
+                        title="Abrir conversa no WhatsApp"
+                        className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        WhatsApp
+                      </button>
+                    )}
+                  </div>
                   <SelectField value={contactId} onChange={setContactId}>
                     <option value="">Selecionar contato</option>
                     {contacts.map((c) => (
