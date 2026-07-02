@@ -57,6 +57,10 @@ async function handler(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Budget: stop processing new recipients 45s after start to stay within
+  // maxDuration=60s. Each Evolution API call can take 2-4s.
+  const deadline = Date.now() + 45_000
+
   const db = adminDb()
   const now = new Date().toISOString()
 
@@ -70,7 +74,7 @@ async function handler(request: Request) {
   const sendingIds = (sendingBroadcasts ?? []).map((b: { id: string }) => b.id)
   if (!sendingIds.length) return NextResponse.json({ processed: 0 })
 
-  // ── Fetch due recipients ─────────────────────────────────────────────────
+  // ── Fetch due recipients (small batch to avoid timeout) ──────────────────
   const { data: due } = await db
     .from('broadcast_recipients')
     .select('id, broadcast_id, contact_id')
@@ -78,7 +82,7 @@ async function handler(request: Request) {
     .in('broadcast_id', sendingIds)
     .lte('scheduled_at', now)
     .order('scheduled_at', { ascending: true })
-    .limit(30)
+    .limit(10)
 
   if (!due?.length) return NextResponse.json({ processed: 0 })
 
@@ -139,6 +143,8 @@ async function handler(request: Request) {
   let processed = 0
 
   for (const recipient of quickRecipients) {
+    // Stop before the function deadline to ensure DB finalize runs cleanly
+    if (Date.now() >= deadline) break
     const broadcast = broadcastMap.get(recipient.broadcast_id) as {
       id: string; account_id: string; quick_template_id: string
     } | undefined
