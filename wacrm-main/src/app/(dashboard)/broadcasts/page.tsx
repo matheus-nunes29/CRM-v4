@@ -13,10 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Radio, Plus, Loader2 } from 'lucide-react';
+import { Radio, Plus, Loader2, Pause, Play, X } from 'lucide-react';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
+import { toast } from 'sonner';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -62,6 +63,7 @@ export default function BroadcastsPage() {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actioning, setActioning] = useState<string | null>(null);
 
   // Used to kick off polling only while something is actively sending.
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -88,7 +90,7 @@ export default function BroadcastsPage() {
   }, []);
 
   const anySending = useMemo(
-    () => broadcasts.some((b) => b.status === 'sending'),
+    () => broadcasts.some((b) => b.status === 'sending' || b.status === 'paused'),
     [broadcasts],
   );
 
@@ -127,6 +129,27 @@ export default function BroadcastsPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [anySending]);
+
+  async function broadcastAction(id: string, action: 'pause' | 'resume' | 'cancel') {
+    setActioning(id + action);
+    try {
+      const res = await fetch(`/api/whatsapp/broadcast/${id}/action`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error ?? 'Erro ao executar ação');
+        return;
+      }
+      await fetchBroadcasts();
+    } catch {
+      toast.error('Erro ao executar ação');
+    } finally {
+      setActioning(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -226,6 +249,7 @@ export default function BroadcastsPage() {
                 <TableHead className="hidden text-muted-foreground lg:table-cell">Lidas</TableHead>
                 <TableHead className="text-muted-foreground">Status</TableHead>
                 <TableHead className="hidden text-muted-foreground sm:table-cell">Data</TableHead>
+                <TableHead className="text-muted-foreground" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -275,6 +299,75 @@ export default function BroadcastsPage() {
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell">
                       {new Date(broadcast.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-right"
+                    >
+                      {broadcast.status === 'sending' && (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!!actioning}
+                            onClick={() => broadcastAction(broadcast.id, 'pause')}
+                            title="Pausar disparo"
+                            className="h-7 w-7 p-0 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300"
+                          >
+                            {actioning === broadcast.id + 'pause' ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Pause className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!!actioning}
+                            onClick={() => broadcastAction(broadcast.id, 'cancel')}
+                            title="Cancelar disparo"
+                            className="h-7 w-7 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                          >
+                            {actioning === broadcast.id + 'cancel' ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <X className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                      {broadcast.status === 'paused' && (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!!actioning}
+                            onClick={() => broadcastAction(broadcast.id, 'resume')}
+                            title="Retomar disparo"
+                            className="h-7 w-7 p-0 text-primary hover:bg-primary/10"
+                          >
+                            {actioning === broadcast.id + 'resume' ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Play className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!!actioning}
+                            onClick={() => broadcastAction(broadcast.id, 'cancel')}
+                            title="Cancelar disparo"
+                            className="h-7 w-7 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                          >
+                            {actioning === broadcast.id + 'cancel' ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <X className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

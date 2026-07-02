@@ -32,6 +32,9 @@ import {
   Download,
   ChevronDown,
   Trash2,
+  Pause,
+  Play,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -118,6 +121,7 @@ const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
   'read',
   'replied',
   'failed',
+  'cancelled',
 ];
 
 /**
@@ -155,6 +159,7 @@ export default function BroadcastDetailPage() {
   );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [actioning, setActioning] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -221,6 +226,32 @@ export default function BroadcastDetailPage() {
     const csv = toCsv([header, ...rows]);
     const safeName = broadcast.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
     downloadBlob(`broadcast-${safeName}-${broadcastId.slice(0, 8)}.csv`, csv);
+  }
+
+  async function broadcastAction(action: 'pause' | 'resume' | 'cancel') {
+    setActioning(action);
+    try {
+      const res = await fetch(`/api/whatsapp/broadcast/${broadcastId}/action`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? 'Erro ao executar ação');
+        return;
+      }
+      setBroadcast((prev) => prev ? { ...prev, status: data.status } : prev);
+      toast.success(
+        action === 'pause' ? 'Disparo pausado' :
+        action === 'resume' ? 'Disparo retomado' :
+        'Disparo cancelado',
+      );
+    } catch {
+      toast.error('Erro ao executar ação');
+    } finally {
+      setActioning(null);
+    }
   }
 
   async function handleDelete() {
@@ -303,48 +334,113 @@ export default function BroadcastDetailPage() {
           </div>
         </div>
 
-        {/* Delete — inline-confirm pattern matches the pipeline-settings
-            "Delete Pipeline" flow. Mid-send broadcasts can't be deleted
-            because orphaning in-flight Meta messages would leave the
-            funnel inconsistent. */}
-        {confirmDelete ? (
-          <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm">
-            <span className="text-red-300">Delete this broadcast?</span>
+        <div className="flex items-center gap-2">
+          {/* Pause/Resume/Cancel — only for sending or paused broadcasts */}
+          {broadcast.status === 'sending' && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!!actioning}
+                onClick={() => broadcastAction('pause')}
+                className="border-orange-500/30 bg-transparent text-orange-400 hover:bg-orange-500/10 disabled:opacity-40"
+              >
+                {actioning === 'pause' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Pause className="h-3.5 w-3.5" />
+                )}
+                Pausar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!!actioning}
+                onClick={() => broadcastAction('cancel')}
+                className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 disabled:opacity-40"
+              >
+                {actioning === 'cancel' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <X className="h-3.5 w-3.5" />
+                )}
+                Cancelar
+              </Button>
+            </>
+          )}
+          {broadcast.status === 'paused' && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!!actioning}
+                onClick={() => broadcastAction('resume')}
+                className="border-primary/30 bg-transparent text-primary hover:bg-primary/10 disabled:opacity-40"
+              >
+                {actioning === 'resume' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+                Retomar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!!actioning}
+                onClick={() => broadcastAction('cancel')}
+                className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 disabled:opacity-40"
+              >
+                {actioning === 'cancel' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <X className="h-3.5 w-3.5" />
+                )}
+                Cancelar
+              </Button>
+            </>
+          )}
+
+          {/* Delete — disabled during sending/paused */}
+          {confirmDelete ? (
+            <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm">
+              <span className="text-red-300">Excluir este disparo?</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="h-7 border-border bg-transparent text-muted-foreground hover:bg-muted"
+              >
+                Voltar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="h-7 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Excluindo…' : 'Confirmar'}
+              </Button>
+            </div>
+          ) : (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setConfirmDelete(false)}
-              disabled={deleting}
-              className="h-7 border-border bg-transparent text-muted-foreground hover:bg-muted"
+              disabled={broadcast.status === 'sending' || broadcast.status === 'paused'}
+              onClick={() => setConfirmDelete(true)}
+              title={
+                broadcast.status === 'sending' || broadcast.status === 'paused'
+                  ? 'Pause ou cancele o disparo antes de excluir'
+                  : 'Excluir este disparo'
+              }
+              className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 disabled:opacity-40"
             >
-              Cancel
+              <Trash2 className="h-3.5 w-3.5" />
+              Excluir
             </Button>
-            <Button
-              size="sm"
-              onClick={handleDelete}
-              disabled={deleting}
-              className="h-7 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {deleting ? 'Deleting…' : 'Confirm'}
-            </Button>
-          </div>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={broadcast.status === 'sending'}
-            onClick={() => setConfirmDelete(true)}
-            title={
-              broadcast.status === 'sending'
-                ? 'Cannot delete while a broadcast is actively sending'
-                : 'Delete this broadcast'
-            }
-            className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 disabled:opacity-40"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete
-          </Button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Stats — 6 cards: Total / Sent / Delivered / Read / Replied / Failed */}

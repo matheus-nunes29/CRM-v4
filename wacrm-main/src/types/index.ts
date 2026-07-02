@@ -451,8 +451,29 @@ export interface Deal {
   custom_values?: DealCustomValueWithField[];
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
+export interface TemplateMessage {
+  body: string;
+  media_type?: 'image' | 'video' | 'audio' | null;
+  media_url?: string | null;
+  /** Delay in ms before sending this message. Only used for index > 0. */
+  delay_before_ms?: number;
+}
+
+export interface QuickTemplate {
+  id: string;
+  account_id: string;
+  name: string;
+  body: string;
+  media_type?: 'image' | 'video' | 'audio' | null;
+  media_url?: string | null;
+  /** When set, overrides body/media_type/media_url — sends each item in sequence. */
+  messages?: TemplateMessage[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'paused' | 'cancelled' | 'sent' | 'failed';
+export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed' | 'cancelled';
 
 export interface Broadcast {
   id: string;
@@ -471,6 +492,9 @@ export interface Broadcast {
   replied_count: number;
   failed_count: number;
   created_at: string;
+  broadcast_type?: 'meta' | 'quick';
+  quick_template_id?: string | null;
+  quick_template_body?: string | null;
 }
 
 export interface BroadcastRecipient {

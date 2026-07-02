@@ -18,8 +18,10 @@ import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { fireCapiForDeal } from '@/lib/capi/fire-for-deal'
 import {
   normalizeEvolutionWebhook,
+  jidToPhone,
   type EvolutionUpsertEvent,
   type EvolutionUpdateEvent,
+  type EvolutionChatsUpdateEvent,
 } from '@/lib/whatsapp/evolution-api'
 import { processInboundMedia } from '@/lib/whatsapp/media-decrypt'
 import type { AutomationTriggerType } from '@/types'
@@ -82,7 +84,12 @@ async function processEvolutionEvent(
   const userId: string = config.user_id
 
   if (event.kind === 'update') {
-    await handleStatusUpdate(event)
+    await handleStatusUpdate(event, accountId)
+    return
+  }
+
+  if (event.kind === 'chats_update') {
+    await handleChatsUpdate(event, accountId)
     return
   }
 
@@ -97,8 +104,17 @@ async function processEvolutionEvent(
 
 // ── Status updates ─────────────────────────────────────────────────────────
 
-async function handleStatusUpdate(event: EvolutionUpdateEvent) {
+async function handleStatusUpdate(event: EvolutionUpdateEvent, accountId: string) {
   if (!event.messageId) return
+
+  // Agent read a customer message on their phone → zero out unread count
+  if (!event.fromMe && event.status === 'read' && event.remoteJid) {
+    const phone = jidToPhone(event.remoteJid)
+    if (phone && !event.remoteJid.endsWith('@g.us')) {
+      await zeroUnreadByPhone(accountId, phone)
+    }
+    return
+  }
 
   const statusMap: Record<string, string> = {
     sent: 'sent',
@@ -123,6 +139,39 @@ async function handleStatusUpdate(event: EvolutionUpdateEvent) {
     .from('messages')
     .update({ status: newStatus })
     .eq('id', msg.id)
+}
+
+// ── Chats update (phone marked conversation as read) ───────────────────────
+
+async function handleChatsUpdate(event: EvolutionChatsUpdateEvent, accountId: string) {
+  if (!event.jid || event.jid.endsWith('@g.us')) return
+  if (event.unreadCount !== 0) return
+
+  const phone = jidToPhone(event.jid)
+  if (!phone) return
+  await zeroUnreadByPhone(accountId, phone)
+}
+
+// ── Helper: set unread_count = 0 for all conversations with this phone ─────
+
+async function zeroUnreadByPhone(accountId: string, phone: string) {
+  const normalized = phone.startsWith('+') ? phone : `+${phone}`
+
+  const { data: contact } = await supabaseAdmin()
+    .from('contacts')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('phone', normalized)
+    .maybeSingle()
+
+  if (!contact) return
+
+  await supabaseAdmin()
+    .from('conversations')
+    .update({ unread_count: 0, updated_at: new Date().toISOString() })
+    .eq('account_id', accountId)
+    .eq('contact_id', contact.id)
+    .gt('unread_count', 0)
 }
 
 function isForwardMove(current: string, incoming: string): boolean {

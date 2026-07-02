@@ -32,7 +32,7 @@ interface ConversationListProps {
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
-  open: "bg-primary",
+  open: "bg-[#25D366]",
   pending: "bg-amber-500",
   closed: "bg-muted-foreground",
 };

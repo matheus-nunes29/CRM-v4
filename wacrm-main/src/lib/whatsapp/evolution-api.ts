@@ -227,6 +227,7 @@ export async function sendReactionMessage(
 export type EvolutionWebhookEvent =
   | EvolutionUpsertEvent
   | EvolutionUpdateEvent
+  | EvolutionChatsUpdateEvent
   | EvolutionOtherEvent
 
 export interface EvolutionUpsertEvent {
@@ -254,7 +255,16 @@ export interface EvolutionUpdateEvent {
   kind: 'update'
   instanceName: string
   messageId: string
+  fromMe: boolean
+  remoteJid: string
   status: 'sent' | 'delivered' | 'read' | 'failed'
+}
+
+export interface EvolutionChatsUpdateEvent {
+  kind: 'chats_update'
+  instanceName: string
+  jid: string
+  unreadCount: number | null
 }
 
 export interface EvolutionOtherEvent {
@@ -364,6 +374,8 @@ export function normalizeEvolutionWebhook(raw: unknown): EvolutionWebhookEvent {
     const first = (updates[0] as Record<string, unknown>) ?? {}
     const key = first.key as Record<string, unknown> | undefined
     const messageId = String(key?.id ?? '')
+    const fromMe = Boolean(key?.fromMe)
+    const remoteJid = String(key?.remoteJid ?? '')
     const rawStatus = String(
       (first.update as Record<string, unknown>)?.status ?? '',
     ).toUpperCase()
@@ -378,7 +390,16 @@ export function normalizeEvolutionWebhook(raw: unknown): EvolutionWebhookEvent {
     }
     const status = statusMap[rawStatus] ?? 'sent'
 
-    return { kind: 'update', instanceName, messageId, status }
+    return { kind: 'update', instanceName, messageId, fromMe, remoteJid, status }
+  }
+
+  // ── chats.update (agent read chat on phone → unreadCount drops to 0) ──
+  if (event === 'chats.update') {
+    const updates = Array.isArray(payload.data) ? payload.data : [payload.data]
+    const first = (updates[0] as Record<string, unknown>) ?? {}
+    const jid = String(first.id ?? '')
+    const unreadCount = typeof first.unreadCount === 'number' ? first.unreadCount : null
+    return { kind: 'chats_update', instanceName, jid, unreadCount }
   }
 
   return { kind: 'other', event }
@@ -395,7 +416,7 @@ export async function setWebhook(cfg: EvolutionConfig, webhookUrl: string): Prom
         url: webhookUrl,
         webhook_by_events: false,
         webhook_base64: false,
-        events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'],
+        events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CHATS_UPDATE'],
       },
     }),
   })
@@ -442,6 +463,6 @@ export function toEvolutionPhone(e164: string): string {
  * "5511999999999@s.whatsapp.net" → "5511999999999"
  * Group JIDs (ending @g.us) return the full JID so callers can detect them.
  */
-function jidToPhone(jid: string): string {
+export function jidToPhone(jid: string): string {
   return jid.split('@')[0] ?? jid
 }
