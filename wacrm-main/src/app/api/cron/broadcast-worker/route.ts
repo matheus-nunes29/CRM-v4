@@ -45,7 +45,7 @@ function resolveQuickVars(
     .replace(/\{\{empresa\}\}/gi, contact.company ?? '')
 }
 
-export async function GET(request: Request) {
+async function handler(request: Request) {
   // Accept calls from Vercel cron (Bearer CRON_SECRET) or Supabase pg_net
   // (Bearer SUPABASE_SERVICE_ROLE_KEY). Both are server-side callers only.
   const auth = request.headers.get('authorization')?.replace('Bearer ', '')
@@ -267,5 +267,6 @@ export async function GET(request: Request) {
   return NextResponse.json({ processed })
 }
 
-// pg_cron calls via net.http_post — alias POST to the same handler
-export { GET as POST }
+// pg_cron calls via net.http_post; Vercel cron calls via GET
+export async function GET(request: Request) { return handler(request) }
+export async function POST(request: Request) { return handler(request) }
