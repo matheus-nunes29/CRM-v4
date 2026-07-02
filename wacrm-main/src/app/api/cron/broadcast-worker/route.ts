@@ -17,6 +17,13 @@ import {
 } from '@/lib/whatsapp/evolution-api'
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 
+type MsgDef = {
+  body: string
+  media_type?: string | null
+  media_url?: string | null
+  delay_before_ms?: number
+}
+
 export const maxDuration = 60
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,10 +36,6 @@ function adminDb() {
     )
   }
   return _admin
-}
-
-function sleep(ms: number) {
-  return new Promise<void>((r) => setTimeout(r, ms))
 }
 
 function resolveQuickVars(
@@ -77,7 +80,7 @@ async function handler(request: Request) {
   // ── Fetch due recipients (small batch to avoid timeout) ──────────────────
   const { data: due } = await db
     .from('broadcast_recipients')
-    .select('id, broadcast_id, contact_id')
+    .select('id, broadcast_id, contact_id, message_index')
     .eq('status', 'pending')
     .in('broadcast_id', sendingIds)
     .lte('scheduled_at', now)
@@ -196,54 +199,61 @@ async function handler(request: Request) {
 
     const evoPhone = toEvolutionPhone(sanitized)
 
-    type MsgDef = {
-      body: string
-      media_type?: string | null
-      media_url?: string | null
-      delay_before_ms?: number
-    }
     const msgs = template.messages as MsgDef[] | null
     const sequence: MsgDef[] =
       msgs && msgs.length > 0
         ? msgs
         : [{ body: template.body, media_type: template.media_type, media_url: template.media_url }]
 
-    let failed = false
-    let lastMsgId = ''
+    // Send only the message at the current message_index (no sleep — delays are
+    // handled by rescheduling the recipient row for the next cron tick).
+    const msgIdx: number = (recipient as { message_index?: number }).message_index ?? 0
+    const msg = sequence[Math.min(msgIdx, sequence.length - 1)]
+    const text = resolveQuickVars(msg.body, contact)
 
-    for (let msgIdx = 0; msgIdx < sequence.length; msgIdx++) {
-      const msg = sequence[msgIdx]
-      if (msgIdx > 0 && msg.delay_before_ms) {
-        await sleep(msg.delay_before_ms)
+    let msgId = ''
+    try {
+      let result
+      if (msg.media_url && msg.media_type) {
+        result = await sendMediaMessage(
+          evoCfg,
+          evoPhone,
+          msg.media_type as EvolutionMediaType,
+          msg.media_url,
+          msg.media_type !== 'audio' ? text : undefined,
+        )
+      } else {
+        result = await sendTextMessage(evoCfg, evoPhone, text)
       }
-      const text = resolveQuickVars(msg.body, contact)
-      try {
-        let result
-        if (msg.media_url && msg.media_type) {
-          result = await sendMediaMessage(
-            evoCfg,
-            evoPhone,
-            msg.media_type as EvolutionMediaType,
-            msg.media_url,
-            msg.media_type !== 'audio' ? text : undefined,
-          )
-        } else {
-          result = await sendTextMessage(evoCfg, evoPhone, text)
-        }
-        lastMsgId = result.messageId || ''
-      } catch (err) {
-        failed = true
-        const errMsg = err instanceof Error ? err.message : 'Send failed'
-        await db.from('broadcast_recipients')
-          .update({ status: 'failed', error_message: `Msg ${msgIdx + 1}: ${errMsg}` })
-          .eq('id', recipient.id)
-        break
-      }
+      msgId = result.messageId || ''
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Send failed'
+      await db.from('broadcast_recipients')
+        .update({ status: 'failed', error_message: `Msg ${msgIdx + 1}: ${errMsg}` })
+        .eq('id', recipient.id)
+      continue
     }
 
-    if (!failed) {
+    const nextIdx = msgIdx + 1
+    if (nextIdx < sequence.length) {
+      // More messages remain — reschedule for the next message after its delay.
+      // The recipient stays 'pending' so the finalize check won't fire early.
+      const nextDelay = sequence[nextIdx].delay_before_ms ?? 1000
       await db.from('broadcast_recipients')
-        .update({ status: 'sent', sent_at: new Date().toISOString(), whatsapp_message_id: lastMsgId || null })
+        .update({
+          message_index: nextIdx,
+          scheduled_at: new Date(Date.now() + nextDelay).toISOString(),
+          whatsapp_message_id: msgId || null,
+        })
+        .eq('id', recipient.id)
+    } else {
+      // Last message sent — mark the recipient as fully done.
+      await db.from('broadcast_recipients')
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          whatsapp_message_id: msgId || null,
+        })
         .eq('id', recipient.id)
       processed++
     }

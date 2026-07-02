@@ -192,13 +192,25 @@ export async function POST(request: Request) {
   }
 
   // ── Schedule recipients — cron worker handles actual sending ──────────────
-  // Each contact gets a scheduled_at = baseTime + index × delay + jitter(±5s).
-  // The broadcast-worker cron (runs every minute) picks up due recipients
-  // and sends them, so this route returns immediately regardless of list size.
+  // Each contact's first message is scheduled at:
+  //   baseTime + index × (contact_delay + total_sequence_delay)
+  //
+  // total_sequence_delay = sum of delay_before_ms of all messages after the first.
+  // This ensures Contact N+1 starts only after Contact N has finished all messages.
+  // Subsequent messages within a sequence are rescheduled dynamically by the worker
+  // (message_index tracks progress; no sleep() in the function).
+  type MsgDef = { delay_before_ms?: number }
+  const templateMsgs = template.messages as MsgDef[] | null
+  const totalSequenceMs =
+    templateMsgs && templateMsgs.length > 1
+      ? templateMsgs.slice(1).reduce((sum, m) => sum + (m.delay_before_ms ?? 0), 0)
+      : 0
+  const contactIntervalMs = Math.max(delayMs, MIN_DELAY_MS) + totalSequenceMs
+
   const baseTime = Date.now()
   const recipientRows = contacts.map((c, index) => {
     const jitter = index === 0 ? 0 : (Math.random() * 10 - 5) * 1000
-    const scheduledMs = baseTime + index * Math.max(delayMs, MIN_DELAY_MS) + jitter
+    const scheduledMs = baseTime + index * contactIntervalMs + jitter
     return {
       broadcast_id: broadcast.id,
       contact_id: c.id,
