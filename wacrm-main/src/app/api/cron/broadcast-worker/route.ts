@@ -266,3 +266,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ processed })
 }
+
+// pg_cron calls via net.http_post — alias POST to the same handler
+export { GET as POST }

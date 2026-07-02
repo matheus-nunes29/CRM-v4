@@ -82,12 +82,19 @@ export async function PATCH(
 
   if (pending?.length) {
     const baseTime = Date.now()
-    for (let i = 0; i < pending.length; i++) {
-      const jitter = i === 0 ? 0 : (Math.random() * 10 - 5) * 1000
-      const scheduledMs = baseTime + i * MIN_DELAY_MS + jitter
-      await db.from('broadcast_recipients')
-        .update({ scheduled_at: new Date(scheduledMs).toISOString() })
-        .eq('id', pending[i].id)
+    // Batch into chunks of 50 concurrent updates
+    const CHUNK = 50
+    for (let chunk = 0; chunk < pending.length; chunk += CHUNK) {
+      await Promise.all(
+        pending.slice(chunk, chunk + CHUNK).map((r: { id: string }, idx: number) => {
+          const i = chunk + idx
+          const jitter = i === 0 ? 0 : (Math.random() * 10 - 5) * 1000
+          const scheduledMs = baseTime + i * MIN_DELAY_MS + jitter
+          return db.from('broadcast_recipients')
+            .update({ scheduled_at: new Date(scheduledMs).toISOString() })
+            .eq('id', r.id)
+        }),
+      )
     }
   }
 
