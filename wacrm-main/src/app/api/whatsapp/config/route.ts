@@ -423,9 +423,9 @@ async function handleEvolutionSave({
   return NextResponse.json({
     success: true,
     provider: 'evolution',
-    instance_state: state.state,
+    instance_state: 'connecting',
     connected,
-    needs_qr: !connected,
+    needs_qr: true,
   })
 }
 
