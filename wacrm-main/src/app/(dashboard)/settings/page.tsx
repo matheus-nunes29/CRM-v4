@@ -10,6 +10,7 @@ import { ProfileForm } from '@/components/settings/profile-form';
 import { SecurityPanel } from '@/components/settings/security-panel';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { TemplateManager } from '@/components/settings/template-manager';
+import { QuickTemplateManager } from '@/components/settings/quick-template-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { MembersTab } from '@/components/settings/members-tab';
@@ -53,6 +54,7 @@ export default function SettingsPage() {
     security: <SecurityPanel />,
     whatsapp: <WhatsAppConfig />,
     templates: <TemplateManager />,
+    'quick-templates': <QuickTemplateManager />,
     tracking: <TrackingLinksManager />,
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,
