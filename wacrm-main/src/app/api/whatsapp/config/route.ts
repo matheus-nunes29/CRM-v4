@@ -343,9 +343,18 @@ async function handleEvolutionSave({
   user: any
   accountId: string
 }) {
+  // Preserve the existing instance name if one is already configured.
+  // Only fall back to the auto-generated name on first-ever setup.
+  const { data: existingConfig } = await supabase
+    .from('whatsapp_config')
+    .select('evolution_instance_name')
+    .eq('account_id', accountId)
+    .maybeSingle()
+
   let evoCfg
   try {
-    const instanceName = instanceNameForAccount(accountId)
+    const instanceName =
+      existingConfig?.evolution_instance_name || instanceNameForAccount(accountId)
     evoCfg = getSystemEvolutionConfig(instanceName)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
