@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { getSystemEvolutionConfig } from '@/lib/whatsapp/evolution-api'
+import { getSystemWApiConfig } from '@/lib/whatsapp/wapi'
 import { isInScheduleWindow, nextWindowOpenMs, type ScheduleWindow } from '@/lib/broadcast/schedule-windows'
 
 interface AudienceConfig {
@@ -83,19 +84,36 @@ export async function POST(request: Request) {
     .eq('account_id', accountId)
     .maybeSingle()
 
-  if (!waConfig || waConfig.provider !== 'evolution' || !waConfig.evolution_instance_name) {
+  if (!waConfig || (waConfig.provider !== 'evolution' && waConfig.provider !== 'wapi')) {
     return NextResponse.json(
-      { error: 'Quick broadcasts require Evolution API (unofficial provider). Configure it in WhatsApp settings.' },
+      { error: 'Quick broadcasts require Evolution API or W-API (unofficial providers). Configure one in WhatsApp settings.' },
       { status: 400 },
     )
   }
 
-  let evoCfg
-  try {
-    evoCfg = getSystemEvolutionConfig(waConfig.evolution_instance_name)
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: `Evolution server not configured: ${msg}` }, { status: 503 })
+  if (waConfig.provider === 'evolution' && !waConfig.evolution_instance_name) {
+    return NextResponse.json(
+      { error: 'Evolution API instance not configured.' },
+      { status: 400 },
+    )
+  }
+
+  // Validate provider config is accessible (evolution needs instance name; wapi uses env vars)
+  if (waConfig.provider === 'evolution') {
+    try {
+      getSystemEvolutionConfig(waConfig.evolution_instance_name)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      return NextResponse.json({ error: `Evolution server not configured: ${msg}` }, { status: 503 })
+    }
+  } else {
+    // W-API — validate env vars are set
+    try {
+      getSystemWApiConfig()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      return NextResponse.json({ error: `W-API not configured: ${msg}` }, { status: 503 })
+    }
   }
 
   // ── Resolve audience contacts ──────────────────────────────────────────────

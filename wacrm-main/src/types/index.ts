@@ -298,7 +298,7 @@ export interface MessageReaction {
   created_at: string;
 }
 
-export type WhatsAppProvider = 'meta' | 'evolution';
+export type WhatsAppProvider = 'meta' | 'evolution' | 'wapi';
 
 export interface WhatsAppConfig {
   id: string;

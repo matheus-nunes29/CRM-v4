@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getQrCode, getSystemEvolutionConfig } from '@/lib/whatsapp/evolution-api'
+import { getSystemWApiConfig, getWApiQrCode } from '@/lib/whatsapp/wapi'
 
 async function resolveAccountId(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -33,7 +34,22 @@ export async function GET() {
       .eq('account_id', accountId)
       .maybeSingle()
 
-    if (!config || config.provider !== 'evolution' || !config.evolution_instance_name) {
+    if (!config) {
+      return NextResponse.json({ error: 'WhatsApp not configured' }, { status: 400 })
+    }
+
+    // ── W-API QR ──────────────────────────────────────────────────────────
+    if (config.provider === 'wapi') {
+      const wapiCfg = getSystemWApiConfig()
+      const qr = await getWApiQrCode(wapiCfg)
+      if (!qr) {
+        return NextResponse.json({ qr: null, message: 'QR unavailable or already connected' })
+      }
+      return NextResponse.json({ qr })
+    }
+
+    // ── Evolution QR ──────────────────────────────────────────────────────
+    if (config.provider !== 'evolution' || !config.evolution_instance_name) {
       return NextResponse.json({ error: 'Evolution API not configured' }, { status: 400 })
     }
 

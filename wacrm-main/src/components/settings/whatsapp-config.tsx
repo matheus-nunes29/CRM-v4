@@ -76,7 +76,7 @@ export function WhatsAppConfig() {
   };
   const [registrationProbe, setRegistrationProbe] = useState<RegistrationProbe | null>(null);
 
-  // ── Evolution fields ─────────────────────────────────────────────────
+  // ── Evolution / W-API QR fields ──────────────────────────────────────
   const [evoQrCode, setEvoQrCode] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
   const [instanceState, setInstanceState] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export function WhatsAppConfig() {
         const savedProvider: WhatsAppProvider = (data.provider as WhatsAppProvider) ?? 'meta';
         setProvider(savedProvider);
 
-        if (savedProvider === 'evolution') {
+        if (savedProvider === 'evolution' || savedProvider === 'wapi') {
           // credentials managed server-side via env vars
         } else {
           setPhoneNumberId(data.phone_number_id || '');
@@ -197,6 +197,8 @@ export function WhatsAppConfig() {
   async function handleSave() {
     if (provider === 'evolution') {
       await handleSaveEvolution();
+    } else if (provider === 'wapi') {
+      await handleSaveWApi();
     } else {
       await handleSaveMeta();
     }
@@ -289,6 +291,45 @@ export function WhatsAppConfig() {
         await fetchEvolutionQr();
       } else {
         toast.success('Evolution API conectada com sucesso.');
+        setInstanceState('open');
+        setEvoQrCode(null);
+      }
+
+      if (accountId) await fetchConfig(accountId);
+    } catch (err) {
+      console.error('Save error:', err);
+      toast.error('Falha ao salvar a configuração');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveWApi() {
+    try {
+      setSaving(true);
+      const payload: Record<string, unknown> = {
+        provider: 'wapi',
+      };
+
+      const res = await fetch('/api/whatsapp/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Falha ao salvar a configuração');
+        return;
+      }
+
+      if (data.needs_qr) {
+        toast.success('Configuração salva. Escaneie o QR code abaixo para conectar.');
+        setInstanceState('connecting');
+        await fetchEvolutionQr();
+      } else {
+        toast.success('W-API conectada com sucesso.');
         setInstanceState('open');
         setEvoQrCode(null);
       }
@@ -400,8 +441,8 @@ export function WhatsAppConfig() {
   }
 
   const showResetBanner = resetReason === 'token_corrupted';
-  const evoConnected = provider === 'evolution' && instanceState === 'open';
-  const evoNeedsQr = provider === 'evolution' && instanceState === 'connecting';
+  const evoConnected = (provider === 'evolution' || provider === 'wapi') && instanceState === 'open';
+  const evoNeedsQr = (provider === 'evolution' || provider === 'wapi') && instanceState === 'connecting';
 
   return (
     <section className="animate-in fade-in-50 duration-200">
@@ -433,6 +474,20 @@ export function WhatsAppConfig() {
           }`}
         >
           Evolution API
+          <span className="ml-1.5 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">
+            não oficial
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setProvider('wapi')}
+          className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+            provider === 'wapi'
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          W-API
           <span className="ml-1.5 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">
             não oficial
           </span>
@@ -474,19 +529,23 @@ export function WhatsAppConfig() {
                 {connectionStatus === 'connected'
                   ? provider === 'evolution'
                     ? 'Evolution API conectada'
+                    : provider === 'wapi'
+                    ? 'W-API conectada'
                     : 'Credenciais válidas'
                   : provider === 'evolution'
                   ? 'Evolution API desconectada'
+                  : provider === 'wapi'
+                  ? 'W-API desconectada'
                   : 'Não conectado'}
               </AlertTitle>
             </div>
             <AlertDescription className="text-muted-foreground">
               {connectionStatus === 'connected'
-                ? provider === 'evolution'
+                ? provider === 'evolution' || provider === 'wapi'
                   ? 'Instância conectada e pronta para envio e recebimento de mensagens.'
                   : 'Seu token de acesso autentica com o Meta.'
                 : statusMessage ||
-                  (provider === 'evolution'
+                  (provider === 'evolution' || provider === 'wapi'
                     ? 'Clique em "Conectar WhatsApp" para gerar o QR code.'
                     : 'Configure suas credenciais da API do Meta abaixo.')}
             </AlertDescription>
@@ -617,6 +676,52 @@ export function WhatsAppConfig() {
             </>
           )}
 
+          {/* ── W-API form ────────────────────────────────────────────── */}
+          {provider === 'wapi' && (
+            <>
+              {/* Informational note */}
+              <Alert className="bg-card border-border">
+                <AlertDescription className="text-muted-foreground text-sm">
+                  Serviço gerenciado W-API — sem auto-hospedagem. As credenciais são configuradas via variáveis de ambiente no servidor.
+                </AlertDescription>
+              </Alert>
+
+              {/* QR code panel */}
+              {(evoNeedsQr || evoQrCode) && (
+                <Alert className="bg-blue-950/30 border-blue-700/50">
+                  <div className="flex items-start gap-3">
+                    <QrCode className="size-5 text-blue-400 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <AlertTitle className="text-blue-200 mb-2">Escaneie o QR code para conectar</AlertTitle>
+                      <AlertDescription className="text-blue-100/80 text-sm mb-3">
+                        Abra o WhatsApp → Aparelhos conectados → Conectar um aparelho → escaneie o código abaixo.
+                      </AlertDescription>
+                      {evoQrCode ? (
+                        <div className="mb-3 inline-block rounded-lg border border-blue-700/40 bg-white p-2">
+                          <img src={evoQrCode} alt="QR code" className="h-48 w-48" />
+                        </div>
+                      ) : (
+                        <div className="mb-3 flex h-48 w-48 items-center justify-center rounded-lg border border-blue-700/40 bg-blue-950/40">
+                          <Loader2 className="size-6 animate-spin text-blue-400" />
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={fetchEvolutionQr} disabled={loadingQr} className="border-blue-700/50 text-blue-300 hover:bg-blue-950/40">
+                          {loadingQr ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                          Atualizar QR
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={testing} className="border-blue-700/50 text-blue-300 hover:bg-blue-950/40">
+                          {testing ? <Loader2 className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
+                          Já escaniei
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Alert>
+              )}
+            </>
+          )}
+
           {/* ── Evolution form ────────────────────────────────────────── */}
           {provider === 'evolution' && (
             <>
@@ -658,7 +763,7 @@ export function WhatsAppConfig() {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3">
-            {provider === 'evolution' ? (
+            {provider === 'evolution' || provider === 'wapi' ? (
               <Button onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 {saving
                   ? <><Loader2 className="size-4 animate-spin" />Conectando...</>
@@ -689,7 +794,44 @@ export function WhatsAppConfig() {
 
         {/* Setup instructions sidebar */}
         <div>
-          {provider === 'meta' ? (
+          {provider === 'wapi' ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-foreground text-base">Como conectar via W-API</CardTitle>
+                <CardDescription className="text-muted-foreground text-xs">Serviço gerenciado — sem auto-hospedagem.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <ol className="space-y-4">
+                  {[
+                    { n: 1, text: 'Clique no botão', highlight: 'Conectar WhatsApp', after: '.' },
+                    { n: 2, text: 'O QR code aparece aqui. Abra o', highlight: 'WhatsApp', after: 'no celular.' },
+                    { n: 3, text: 'Toque em', highlight: 'Aparelhos conectados → Conectar um aparelho', after: 'e aponte a câmera para o QR.' },
+                    { n: 4, text: 'Clique em', highlight: 'Já escaniei', after: 'para confirmar a conexão.' },
+                  ].map(({ n, text, highlight, after }) => (
+                    <li key={n} className="flex items-start gap-3">
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground mt-0.5">
+                        {n}
+                      </span>
+                      <p className="text-sm text-muted-foreground leading-snug">
+                        {text} <span className="font-semibold text-foreground">{highlight}</span> {after}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+
+                <p className="text-xs text-muted-foreground border-t border-border pt-3">
+                  O QR expira em ~20 s — clique em <span className="text-foreground font-medium">Atualizar QR</span> se precisar de um novo.
+                </p>
+
+                <div className="rounded-lg border border-amber-600/30 bg-amber-950/20 px-3 py-2.5">
+                  <p className="text-xs font-semibold text-amber-400 mb-1">Aviso</p>
+                  <p className="text-xs text-amber-200/70 leading-relaxed">
+                    Usa o protocolo não oficial do WhatsApp Web via W-API. O Meta pode suspender o número. Use preferencialmente em números secundários.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : provider === 'meta' ? (
             <Card>
               <CardHeader>
                 <CardTitle className="text-foreground text-base">Instruções de configuração</CardTitle>

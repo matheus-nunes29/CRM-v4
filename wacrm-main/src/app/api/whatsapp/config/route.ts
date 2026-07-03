@@ -15,6 +15,11 @@ import {
   getSystemEvolutionConfig,
   instanceNameForAccount,
 } from '@/lib/whatsapp/evolution-api'
+import {
+  getSystemWApiConfig,
+  getWApiInstanceStatus,
+  configureWApiWebhook,
+} from '@/lib/whatsapp/wapi'
 
 async function resolveAccountId(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -83,6 +88,21 @@ export async function GET() {
     }
 
     const provider = config.provider ?? 'meta'
+
+    // ── W-API provider ──────────────────────────────────────────────────
+    if (provider === 'wapi') {
+      try {
+        const wapiCfg = getSystemWApiConfig()
+        const status = await getWApiInstanceStatus(wapiCfg)
+        return NextResponse.json({ connected: status.connected, provider: 'wapi' })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        return NextResponse.json(
+          { connected: false, reason: 'wapi_error', message },
+          { status: 200 },
+        )
+      }
+    }
 
     // ── Evolution provider ──────────────────────────────────────────────
     if (provider === 'evolution') {
@@ -168,6 +188,10 @@ export async function POST(request: Request) {
 
     if (provider === 'evolution') {
       return await handleEvolutionSave({ supabase, user, accountId })
+    }
+
+    if (provider === 'wapi') {
+      return await handleWApiSave({ supabase, user, accountId })
     }
 
     return await handleMetaSave({ supabase, user, accountId, body })
@@ -435,6 +459,95 @@ async function handleEvolutionSave({
     instance_state: 'connecting',
     connected,
     needs_qr: true,
+  })
+}
+
+// ── W-API save ─────────────────────────────────────────────────────────────
+
+async function handleWApiSave({
+  supabase,
+  user,
+  accountId,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  user: any
+  accountId: string
+}) {
+  let wapiCfg
+  try {
+    wapiCfg = getSystemWApiConfig()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ error: `W-API não configurado: ${message}` }, { status: 503 })
+  }
+
+  // Auto-configure webhook
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  if (siteUrl) {
+    try {
+      await configureWApiWebhook(wapiCfg, `${siteUrl}/api/whatsapp/webhook/wapi`)
+    } catch (err) {
+      console.warn('[wapi] webhook setup failed (non-fatal):', err)
+    }
+  }
+
+  // Check current connection status
+  let connected = false
+  try {
+    const status = await getWApiInstanceStatus(wapiCfg)
+    connected = status.connected
+  } catch (err) {
+    console.warn('[wapi] status check failed (non-fatal):', err)
+  }
+
+  const { data: existing } = await supabase
+    .from('whatsapp_config')
+    .select('id, phone_number_id, access_token')
+    .eq('account_id', accountId)
+    .maybeSingle()
+
+  const baseRow = {
+    provider: 'wapi',
+    // Reuse evolution_instance_name column to store the W-API instance ID for reference
+    evolution_instance_name: wapiCfg.instanceId,
+    evolution_server_url: null,
+    evolution_api_key: null,
+    status: connected ? 'connected' : 'disconnected',
+    connected_at: connected ? new Date().toISOString() : null,
+    phone_number_id: existing?.phone_number_id ?? '',
+    waba_id: null,
+    access_token: existing?.access_token ?? '',
+    verify_token: null,
+    registered_at: null,
+    subscribed_apps_at: null,
+    last_registration_error: null,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (existing) {
+    const { error: updateError } = await supabase
+      .from('whatsapp_config')
+      .update(baseRow)
+      .eq('account_id', accountId)
+    if (updateError) {
+      return NextResponse.json({ error: 'Failed to update configuration' }, { status: 500 })
+    }
+  } else {
+    const { error: insertError } = await supabase
+      .from('whatsapp_config')
+      .insert({ account_id: accountId, user_id: user.id, ...baseRow })
+    if (insertError) {
+      return NextResponse.json({ error: 'Failed to save configuration' }, { status: 500 })
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    provider: 'wapi',
+    connected,
+    needs_qr: !connected,
   })
 }
 

@@ -15,6 +15,13 @@ import {
   toEvolutionPhone,
   type EvolutionMediaType,
 } from '@/lib/whatsapp/evolution-api'
+import {
+  getSystemWApiConfig,
+  sendWApiTextMessage,
+  sendWApiMediaMessage,
+  toWApiPhone,
+  type WApiMediaType,
+} from '@/lib/whatsapp/wapi'
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 import { isInScheduleWindow, clampToWindow, type ScheduleWindow } from '@/lib/broadcast/schedule-windows'
 
@@ -145,7 +152,7 @@ async function handler(request: Request) {
     .in('id', templateIds)
   const templateMap = new Map((templates ?? []).map((t: { id: string }) => [t.id, t]))
 
-  // Load Evolution configs
+  // Load provider configs (evolution + wapi)
   const accountIds = [...new Set(
     quickRecipients
       .map((r: { broadcast_id: string }) => (broadcastMap.get(r.broadcast_id) as { account_id?: string })?.account_id)
@@ -153,9 +160,9 @@ async function handler(request: Request) {
   )]
   const { data: configs } = await db
     .from('whatsapp_config')
-    .select('account_id, evolution_instance_name')
+    .select('account_id, provider, evolution_instance_name')
     .in('account_id', accountIds)
-    .eq('provider', 'evolution')
+    .in('provider', ['evolution', 'wapi'])
   const configMap = new Map((configs ?? []).map((c: { account_id: string }) => [c.account_id, c]))
 
   // ── Process each recipient ────────────────────────────────────────────────
@@ -186,25 +193,52 @@ async function handler(request: Request) {
       body: string; media_type: string | null; media_url: string | null; messages: unknown
     } | undefined
     const config = configMap.get(broadcast.account_id) as {
+      provider: string
       evolution_instance_name: string
     } | undefined
 
-    if (!template || !config?.evolution_instance_name) {
+    if (!template || !config) {
       await db.from('broadcast_recipients')
-        .update({ status: 'failed', error_message: 'Template or Evolution config not found' })
+        .update({ status: 'failed', error_message: 'Template or WhatsApp config not found' })
         .eq('id', recipient.id)
       continue
     }
 
-    let evoCfg
-    try {
-      evoCfg = getSystemEvolutionConfig(config.evolution_instance_name)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Evolution config error'
+    const isWApi = config.provider === 'wapi'
+
+    if (!isWApi && !config.evolution_instance_name) {
       await db.from('broadcast_recipients')
-        .update({ status: 'failed', error_message: msg })
+        .update({ status: 'failed', error_message: 'Evolution instance name not configured' })
         .eq('id', recipient.id)
       continue
+    }
+
+    // Resolve the provider-specific send config
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let evoCfg: any = null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let wapiCfg: any = null
+
+    if (isWApi) {
+      try {
+        wapiCfg = getSystemWApiConfig()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'W-API config error'
+        await db.from('broadcast_recipients')
+          .update({ status: 'failed', error_message: msg })
+          .eq('id', recipient.id)
+        continue
+      }
+    } else {
+      try {
+        evoCfg = getSystemEvolutionConfig(config.evolution_instance_name)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Evolution config error'
+        await db.from('broadcast_recipients')
+          .update({ status: 'failed', error_message: msg })
+          .eq('id', recipient.id)
+        continue
+      }
     }
 
     const sanitized = sanitizePhoneForMeta(contact.phone)
@@ -232,16 +266,30 @@ async function handler(request: Request) {
     let msgId = ''
     try {
       let result
-      if (msg.media_url && msg.media_type) {
-        result = await sendMediaMessage(
-          evoCfg,
-          evoPhone,
-          msg.media_type as EvolutionMediaType,
-          msg.media_url,
-          msg.media_type !== 'audio' ? text : undefined,
-        )
+      if (isWApi) {
+        if (msg.media_url && msg.media_type) {
+          result = await sendWApiMediaMessage(
+            wapiCfg,
+            toWApiPhone(evoPhone),
+            msg.media_type as WApiMediaType,
+            msg.media_url,
+            msg.media_type !== 'audio' ? text : undefined,
+          )
+        } else {
+          result = await sendWApiTextMessage(wapiCfg, toWApiPhone(evoPhone), text)
+        }
       } else {
-        result = await sendTextMessage(evoCfg, evoPhone, text)
+        if (msg.media_url && msg.media_type) {
+          result = await sendMediaMessage(
+            evoCfg,
+            evoPhone,
+            msg.media_type as EvolutionMediaType,
+            msg.media_url,
+            msg.media_type !== 'audio' ? text : undefined,
+          )
+        } else {
+          result = await sendTextMessage(evoCfg, evoPhone, text)
+        }
       }
       msgId = result.messageId || ''
     } catch (err) {
