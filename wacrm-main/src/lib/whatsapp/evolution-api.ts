@@ -106,6 +106,23 @@ export async function deleteInstance(cfg: EvolutionConfig): Promise<void> {
   }
 }
 
+/**
+ * Logout (disconnect) an existing instance session without deleting the
+ * instance definition. After this call the instance will be in 'close' state
+ * and `/instance/connect` will return a fresh QR code.
+ */
+export async function logoutInstance(cfg: EvolutionConfig): Promise<void> {
+  const res = await fetch(
+    `${cfg.serverUrl}/instance/logout/${cfg.instanceName}`,
+    { method: 'DELETE', headers: evolutionHeaders(cfg) },
+  )
+  // 404 = instance doesn't exist / already logged out — both are fine
+  if (!res.ok && res.status !== 404) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Evolution logout error ${res.status}: ${body}`)
+  }
+}
+
 // ─── Sending messages ───────────────────────────────────────────────────────
 
 export interface EvolutionSendResult {

@@ -10,6 +10,7 @@ import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import {
   getInstanceState,
   createInstance,
+  logoutInstance,
   setWebhook,
   getSystemEvolutionConfig,
   instanceNameForAccount,
@@ -358,6 +359,14 @@ async function handleEvolutionSave({
     return NextResponse.json({ error: `Erro ao criar instância: ${message}` }, { status: 400 })
   }
 
+  // Logout any existing session so a fresh QR is always generated.
+  // This is safe — it only disconnects the WhatsApp session, not the instance.
+  try {
+    await logoutInstance(evoCfg)
+  } catch (err) {
+    console.warn('[evolution] logout before reconnect failed (non-fatal):', err)
+  }
+
   // Auto-configure webhook
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
   if (siteUrl) {
@@ -368,8 +377,8 @@ async function handleEvolutionSave({
     }
   }
 
-  const state = await getInstanceState(evoCfg)
-  const connected = state.state === 'open'
+  // After logout the instance is always in 'close' state, so QR is always needed.
+  const connected = false
 
   const { data: existing } = await supabase
     .from('whatsapp_config')
@@ -382,8 +391,8 @@ async function handleEvolutionSave({
     evolution_instance_name: evoCfg.instanceName,
     evolution_server_url: null,
     evolution_api_key: null,
-    status: connected ? 'connected' : 'disconnected',
-    connected_at: connected ? new Date().toISOString() : null,
+    status: 'disconnected',
+    connected_at: null,
     phone_number_id: existing?.phone_number_id ?? '',
     waba_id: null,
     access_token: existing?.access_token ?? '',
