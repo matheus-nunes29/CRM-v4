@@ -124,21 +124,49 @@ async function handleStatusUpdate(event: EvolutionUpdateEvent, accountId: string
   }
   const newStatus = statusMap[event.status] ?? 'sent'
 
+  // ── Regular conversation message ──────────────────────────────────────────
   const { data: msg } = await supabaseAdmin()
     .from('messages')
     .select('id, status')
     .eq('message_id', event.messageId)
     .maybeSingle()
 
-  if (!msg) return
+  if (msg) {
+    const current = msg.status as string
+    if (isForwardMove(current, newStatus)) {
+      await supabaseAdmin()
+        .from('messages')
+        .update({ status: newStatus })
+        .eq('id', msg.id)
+    }
+    return
+  }
 
-  const current = msg.status as string
+  // ── Broadcast message (not in messages table) ─────────────────────────────
+  if (newStatus !== 'delivered' && newStatus !== 'read') return
+
+  const { data: recipient } = await supabaseAdmin()
+    .from('broadcast_recipients')
+    .select('id, status, broadcast_id')
+    .eq('whatsapp_message_id', event.messageId)
+    .maybeSingle()
+
+  if (!recipient) return
+
+  const current = recipient.status as string
   if (!isForwardMove(current, newStatus)) return
 
   await supabaseAdmin()
-    .from('messages')
+    .from('broadcast_recipients')
     .update({ status: newStatus })
-    .eq('id', msg.id)
+    .eq('id', recipient.id)
+
+  // Increment the broadcast counter atomically
+  if (newStatus === 'delivered') {
+    await supabaseAdmin().rpc('increment_broadcast_delivered', { p_broadcast_id: recipient.broadcast_id })
+  } else {
+    await supabaseAdmin().rpc('increment_broadcast_read', { p_broadcast_id: recipient.broadcast_id })
+  }
 }
 
 // ── Chats update (phone marked conversation as read) ───────────────────────
