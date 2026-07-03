@@ -16,6 +16,7 @@ import {
   type EvolutionMediaType,
 } from '@/lib/whatsapp/evolution-api'
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { isInScheduleWindow, clampToWindow, type ScheduleWindow } from '@/lib/broadcast/schedule-windows'
 
 type MsgDef = {
   body: string
@@ -65,16 +66,22 @@ async function handler(request: Request) {
   const deadline = Date.now() + 45_000
 
   const db = adminDb()
-  const now = new Date().toISOString()
+  const nowIso = new Date().toISOString()
 
   // ── Only process recipients from actively-sending broadcasts ─────────────
   const { data: sendingBroadcasts } = await db
     .from('broadcasts')
-    .select('id')
+    .select('id, schedule_windows, schedule_timezone')
     .eq('status', 'sending')
     .eq('broadcast_type', 'quick')
 
-  const sendingIds = (sendingBroadcasts ?? []).map((b: { id: string }) => b.id)
+  const now = new Date()
+  const eligibleBroadcasts = (sendingBroadcasts ?? []).filter((b: { id: string; schedule_windows: unknown; schedule_timezone: string | null }) => {
+    const windows = b.schedule_windows as ScheduleWindow[] | null
+    if (!windows?.length) return true
+    return isInScheduleWindow(now, windows, b.schedule_timezone ?? 'America/Sao_Paulo')
+  })
+  const sendingIds = eligibleBroadcasts.map((b: { id: string }) => b.id)
   if (!sendingIds.length) return NextResponse.json({ processed: 0 })
 
   // ── Fetch due recipients (small batch to avoid timeout) ──────────────────
@@ -83,7 +90,7 @@ async function handler(request: Request) {
     .select('id, broadcast_id, contact_id, message_index')
     .eq('status', 'pending')
     .in('broadcast_id', sendingIds)
-    .lte('scheduled_at', now)
+    .lte('scheduled_at', nowIso)
     .order('scheduled_at', { ascending: true })
     .limit(10)
 
@@ -96,7 +103,7 @@ async function handler(request: Request) {
   const [{ data: broadcasts }, { data: contacts }] = await Promise.all([
     db
       .from('broadcasts')
-      .select('id, account_id, quick_template_id, broadcast_type')
+      .select('id, account_id, quick_template_id, broadcast_type, schedule_windows, schedule_timezone')
       .in('id', broadcastIds),
     db
       .from('contacts')
@@ -115,6 +122,16 @@ async function handler(request: Request) {
 
   const broadcastMap = new Map((broadcasts ?? []).map((b: { id: string }) => [b.id, b]))
   const contactMap = new Map((contacts ?? []).map((c: { id: string }) => [c.id, c]))
+
+  const scheduleMap = new Map<string, { windows: ScheduleWindow[]; timezone: string }>(
+    (broadcasts ?? []).map((b: { id: string; schedule_windows: unknown; schedule_timezone: string | null }) => [
+      b.id,
+      {
+        windows: (b.schedule_windows as ScheduleWindow[] | null) ?? [],
+        timezone: b.schedule_timezone ?? 'America/Sao_Paulo',
+      },
+    ]),
+  )
 
   // Load templates
   const templateIds = [...new Set(
@@ -148,6 +165,7 @@ async function handler(request: Request) {
   for (const recipient of quickRecipients) {
     // Stop before the function deadline to ensure DB finalize runs cleanly
     if (Date.now() >= deadline) break
+    const sched = scheduleMap.get(recipient.broadcast_id) ?? { windows: [], timezone: 'America/Sao_Paulo' }
     const broadcast = broadcastMap.get(recipient.broadcast_id) as {
       id: string; account_id: string; quick_template_id: string
     } | undefined
@@ -242,7 +260,9 @@ async function handler(request: Request) {
       await db.from('broadcast_recipients')
         .update({
           message_index: nextIdx,
-          scheduled_at: new Date(Date.now() + nextDelay).toISOString(),
+          scheduled_at: new Date(
+            clampToWindow(Date.now() + nextDelay, sched.windows, sched.timezone)
+          ).toISOString(),
           whatsapp_message_id: msgId || null,
         })
         .eq('id', recipient.id)

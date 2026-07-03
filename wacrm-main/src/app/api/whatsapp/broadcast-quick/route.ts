@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { getSystemEvolutionConfig } from '@/lib/whatsapp/evolution-api'
+import { isInScheduleWindow, nextWindowOpenMs, type ScheduleWindow } from '@/lib/broadcast/schedule-windows'
 
 interface AudienceConfig {
   type: 'all' | 'tags' | 'custom_field' | 'csv'
@@ -41,11 +42,13 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json()
-  const { name, quick_template_id, audience, delay_seconds } = body as {
+  const { name, quick_template_id, audience, delay_seconds, schedule_windows, schedule_timezone } = body as {
     name: string
     quick_template_id: string
     audience: AudienceConfig
     delay_seconds?: number
+    schedule_windows?: ScheduleWindow[]
+    schedule_timezone?: string
   }
 
   // Clamp delay between 300 ms and 10 minutes
@@ -173,6 +176,8 @@ export async function POST(request: Request) {
       quick_template_id: template.id,
       quick_template_body: template.body,
       audience_filter: { type: audience.type, tagIds: audience.tagIds },
+      schedule_windows: schedule_windows?.length ? schedule_windows : null,
+      schedule_timezone: schedule_timezone || 'America/Sao_Paulo',
       status: 'sending',
       total_recipients: contacts.length,
       sent_count: 0,
@@ -207,7 +212,11 @@ export async function POST(request: Request) {
       : 0
   const contactIntervalMs = Math.max(delayMs, MIN_DELAY_MS) + totalSequenceMs
 
-  const baseTime = Date.now()
+  const windows = schedule_windows?.length ? schedule_windows : []
+  const tz = schedule_timezone || 'America/Sao_Paulo'
+  const baseTime = windows.length && !isInScheduleWindow(new Date(), windows, tz)
+    ? nextWindowOpenMs(new Date(), windows, tz)
+    : Date.now()
   const recipientRows = contacts.map((c, index) => {
     const jitter = index === 0 ? 0 : (Math.random() * 10 - 5) * 1000
     const scheduledMs = baseTime + index * contactIntervalMs + jitter

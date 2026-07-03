@@ -40,6 +40,11 @@ interface AudienceState {
   excludeTagIds?: string[];
 }
 
+interface ScheduleWindow {
+  start: string;
+  end: string;
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function NewBroadcastPage() {
@@ -61,6 +66,9 @@ export default function NewBroadcastPage() {
   const [quickTemplate, setQuickTemplate] = useState<QuickTemplate | null>(null);
   const [quickSending, setQuickSending] = useState(false);
   const [delaySec, setDelaySec] = useState(10);
+  const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
+  const [scheduleTimezone, setScheduleTimezone] = useState('America/Sao_Paulo');
+  const [useSchedule, setUseSchedule] = useState(false);
 
   // Shared state
   const [audience, setAudience] = useState<AudienceState>({ type: 'all' });
@@ -147,6 +155,8 @@ export default function NewBroadcastPage() {
             csvContacts: audience.csvContacts,
             excludeTagIds: audience.excludeTagIds,
           },
+          schedule_windows: useSchedule && scheduleWindows.length ? scheduleWindows : undefined,
+          schedule_timezone: useSchedule ? scheduleTimezone : undefined,
         }),
       });
       const data = await res.json();
@@ -290,6 +300,12 @@ export default function NewBroadcastPage() {
                 onSend={handleQuickSend}
                 onBack={() => setCurrentStep(1)}
                 isSending={quickSending}
+                useSchedule={useSchedule}
+                onUseScheduleChange={setUseSchedule}
+                scheduleWindows={scheduleWindows}
+                onScheduleWindowsChange={setScheduleWindows}
+                scheduleTimezone={scheduleTimezone}
+                onScheduleTimezoneChange={setScheduleTimezone}
               />
             )}
           </div>
@@ -381,6 +397,12 @@ interface QuickSendStepProps {
   onSend: () => void;
   onBack: () => void;
   isSending: boolean;
+  useSchedule: boolean;
+  onUseScheduleChange: (v: boolean) => void;
+  scheduleWindows: ScheduleWindow[];
+  onScheduleWindowsChange: (v: ScheduleWindow[]) => void;
+  scheduleTimezone: string;
+  onScheduleTimezoneChange: (v: string) => void;
 }
 
 function audienceSummary(audience: AudienceState): string {
@@ -391,7 +413,21 @@ function audienceSummary(audience: AudienceState): string {
   return '';
 }
 
-function QuickSendStep({ name, onNameChange, quickTemplate, audience, delaySec, onDelayChange, onSend, onBack, isSending }: QuickSendStepProps) {
+function QuickSendStep({ name, onNameChange, quickTemplate, audience, delaySec, onDelayChange, onSend, onBack, isSending, useSchedule, onUseScheduleChange, scheduleWindows, onScheduleWindowsChange, scheduleTimezone, onScheduleTimezoneChange }: QuickSendStepProps) {
+  function addWindow() {
+    if (scheduleWindows.length >= 4) return;
+    onScheduleWindowsChange([...scheduleWindows, { start: '08:00', end: '18:00' }]);
+  }
+
+  function removeWindow(index: number) {
+    onScheduleWindowsChange(scheduleWindows.filter((_, i) => i !== index));
+  }
+
+  function updateWindow(index: number, field: 'start' | 'end', value: string) {
+    const updated = scheduleWindows.map((w, i) => i === index ? { ...w, [field]: value } : w);
+    onScheduleWindowsChange(updated);
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -442,6 +478,84 @@ function QuickSendStep({ name, onNameChange, quickTemplate, audience, delaySec, 
         </div>
       </div>
 
+      {/* Schedule windows */}
+      <div className="space-y-3">
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={useSchedule}
+            onChange={(e) => {
+              onUseScheduleChange(e.target.checked);
+              if (e.target.checked && scheduleWindows.length === 0) {
+                onScheduleWindowsChange([{ start: '08:00', end: '18:00' }]);
+              }
+            }}
+            className="h-4 w-4 rounded border-border accent-primary"
+          />
+          <span className="text-sm font-medium text-foreground">Programar janelas de horário</span>
+        </label>
+
+        {useSchedule && (
+          <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Fuso horário</label>
+              <select
+                value={scheduleTimezone}
+                onChange={(e) => onScheduleTimezoneChange(e.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-muted/60 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="America/Sao_Paulo">America/Sao_Paulo (Brasília)</option>
+                <option value="America/Manaus">America/Manaus</option>
+                <option value="America/Fortaleza">America/Fortaleza</option>
+                <option value="America/Belem">America/Belem</option>
+                <option value="America/Recife">America/Recife</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Janelas de envio</label>
+              {scheduleWindows.map((w, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={w.start}
+                    onChange={(e) => updateWindow(i, 'start', e.target.value)}
+                    className="h-9 w-28 rounded-lg border border-border bg-muted/60 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                  <span className="text-xs text-muted-foreground">até</span>
+                  <input
+                    type="time"
+                    value={w.end}
+                    onChange={(e) => updateWindow(i, 'end', e.target.value)}
+                    className="h-9 w-28 rounded-lg border border-border bg-muted/60 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeWindow(i)}
+                    className="ml-1 rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:border-destructive/40 hover:text-destructive transition-colors"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addWindow}
+                disabled={scheduleWindows.length >= 4}
+                className="mt-1 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                + Adicionar janela
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Mensagens só serão enviadas dentro das janelas. O disparo continua nos dias seguintes até finalizar.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Summary */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm">
         <div className="flex justify-between gap-4">
@@ -465,6 +579,14 @@ function QuickSendStep({ name, onNameChange, quickTemplate, audience, delaySec, 
             {DELAY_OPTIONS.find(o => o.value === delaySec)?.label ?? `${delaySec}s`}
           </span>
         </div>
+        {useSchedule && scheduleWindows.length > 0 && (
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Horários</span>
+            <span className="font-medium text-foreground text-right text-xs">
+              {scheduleWindows.map(w => `${w.start}–${w.end}`).join(', ')}
+            </span>
+          </div>
+        )}
         <div className="border-t border-border pt-3">
           <p className="text-xs text-muted-foreground mb-1">Mensagem (prévia)</p>
           <p className="text-xs text-foreground whitespace-pre-wrap line-clamp-4">{quickTemplate.body}</p>
@@ -472,7 +594,9 @@ function QuickSendStep({ name, onNameChange, quickTemplate, audience, delaySec, 
       </div>
 
       <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-xs text-amber-600 dark:text-amber-400">
-        O disparo será enviado imediatamente para todos os contatos do público selecionado. Esta ação não pode ser desfeita.
+        {useSchedule
+          ? 'O disparo será enviado nos horários configurados e continuará nos dias seguintes até concluir todos os envios.'
+          : 'O disparo será enviado imediatamente para todos os contatos do público selecionado. Esta ação não pode ser desfeita.'}
       </div>
 
       <div className="flex justify-between pt-2">
