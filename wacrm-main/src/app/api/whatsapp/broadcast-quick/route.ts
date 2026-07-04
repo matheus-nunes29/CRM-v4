@@ -172,6 +172,17 @@ export async function POST(request: Request) {
   const delaySec = Math.max(delay_seconds ?? 10, 1)
   const adminDb = supabaseAdmin()
 
+  // Cache WAPI credentials in whatsapp_config so tick-broadcasts can use them
+  // as fallback for broadcasts that don't have inline credentials (e.g. created
+  // during a code transition). Fire-and-forget; non-fatal if it fails.
+  adminDb
+    .from('whatsapp_config')
+    .update({ wapi_token: WAPI_TOKEN })
+    .eq('account_id', accountId)
+    .eq('provider', 'wapi')
+    .then(() => {})
+    .catch(() => {})
+
   // Create broadcast record — store W-API credentials so the background cron
   // (tick-broadcasts) can access them without needing Vercel env vars
   const { data: broadcast, error: bcErr } = await adminDb
