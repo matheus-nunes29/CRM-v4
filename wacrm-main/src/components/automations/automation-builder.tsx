@@ -30,6 +30,9 @@ import {
   Loader2,
   ArrowDown,
   ArrowUp,
+  ArrowRightLeft,
+  Trophy,
+  RefreshCcw,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -99,6 +102,9 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   condition: { label: "Condição (Se/Senão)", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "Enviar Webhook", icon: Webhook, border: "border-l-primary" },
   close_conversation: { label: "Fechar Conversa", icon: CircleSlash, border: "border-l-primary" },
+  reopen_conversation: { label: "Reabrir Conversa", icon: RefreshCcw, border: "border-l-primary" },
+  move_deal_stage: { label: "Mover Negócio de Etapa", icon: ArrowRightLeft, border: "border-l-primary" },
+  close_deal: { label: "Ganhar / Perder Negócio", icon: Trophy, border: "border-l-primary" },
 }
 
 const ADDABLE_STEPS: AutomationStepType[] = [
@@ -109,10 +115,13 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "assign_conversation",
   "update_contact_field",
   "create_deal",
+  "move_deal_stage",
+  "close_deal",
   "wait",
   "condition",
   "send_webhook",
   "close_conversation",
+  "reopen_conversation",
 ]
 
 const TRIGGER_GROUPS: { group: string; options: { value: AutomationTriggerType; label: string; hint: string }[] }[] = [
@@ -196,7 +205,12 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
     case "send_webhook":
       return { url: "", headers: {}, body_template: "" }
     case "close_conversation":
+    case "reopen_conversation":
       return {}
+    case "move_deal_stage":
+      return { pipeline_id: "", stage_id: "" }
+    case "close_deal":
+      return { outcome: "won" }
     default:
       return {}
   }
@@ -1536,6 +1550,43 @@ function StepEditor({
           Define o status da conversa como &quot;fechada&quot;. Nenhuma configuração necessária.
         </p>
       )
+    case "reopen_conversation":
+      return (
+        <p className="text-xs text-muted-foreground">
+          Reabre a conversa mais recente do contato para que mensagens possam ser enviadas. Nenhuma configuração necessária.
+        </p>
+      )
+    case "move_deal_stage":
+      return (
+        <>
+          <FieldBlock label="Pipeline">
+            <PipelineSelect
+              value={(cfg.pipeline_id as string) ?? ""}
+              onChange={(v) => set({ pipeline_id: v, stage_id: "" })}
+            />
+          </FieldBlock>
+          <FieldBlock label="Mover para a etapa">
+            <StageSelect
+              pipelineId={(cfg.pipeline_id as string) ?? ""}
+              value={(cfg.stage_id as string) ?? ""}
+              onChange={(v) => set({ stage_id: v })}
+            />
+          </FieldBlock>
+        </>
+      )
+    case "close_deal":
+      return (
+        <FieldBlock label="Resultado">
+          <select
+            value={(cfg.outcome as string) ?? "won"}
+            onChange={(e) => set({ outcome: e.target.value })}
+            className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+          >
+            <option value="won">Marcar como Ganho</option>
+            <option value="lost">Marcar como Perdido</option>
+          </select>
+        </FieldBlock>
+      )
     default:
       return null
   }
@@ -1568,6 +1619,8 @@ function previewFor(step: BuilderStep): string {
       return `quando ${step.step_config.subject ?? "?"}`
     case "send_webhook":
       return (step.step_config.url as string) || "sem URL"
+    case "close_deal":
+      return step.step_config.outcome === "lost" ? "marcar como perdido" : "marcar como ganho"
     default:
       return ""
   }

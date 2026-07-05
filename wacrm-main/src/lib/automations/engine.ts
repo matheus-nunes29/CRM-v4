@@ -15,6 +15,8 @@ import type {
   WaitStepConfig,
   CreateDealStepConfig,
   AssignConversationStepConfig,
+  MoveDealStageStepConfig,
+  CloseDealStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
@@ -558,6 +560,81 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       return 'conversation closed'
     }
 
+    case 'reopen_conversation': {
+      if (!args.contactId) throw new Error('reopen_conversation needs a contact')
+      const { data: conv } = await db
+        .from('conversations')
+        .select('id')
+        .eq('account_id', args.automation.account_id)
+        .eq('contact_id', args.contactId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (!conv?.id) throw new Error('no conversation found to reopen')
+      await db
+        .from('conversations')
+        .update({ status: 'open', updated_at: new Date().toISOString() })
+        .eq('id', conv.id)
+      // Update context so subsequent send_message/send_template steps use this conversation
+      args.context.conversation_id = conv.id
+      return 'conversation reopened'
+    }
+
+    case 'move_deal_stage': {
+      const cfg = step.step_config as MoveDealStageStepConfig
+      if (!cfg.pipeline_id || !cfg.stage_id) throw new Error('move_deal_stage needs pipeline + stage')
+      // Use deal_id from trigger context, or find most recent open deal for the contact
+      let dealId = args.context.deal_id
+      if (!dealId) {
+        if (!args.contactId) throw new Error('move_deal_stage needs a deal or contact')
+        const { data: deal } = await db
+          .from('deals')
+          .select('id')
+          .eq('account_id', args.automation.account_id)
+          .eq('contact_id', args.contactId)
+          .eq('status', 'open')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (!deal?.id) throw new Error('no open deal found for contact')
+        dealId = deal.id as string
+      }
+      await db
+        .from('deals')
+        .update({ stage_id: cfg.stage_id, updated_at: new Date().toISOString() })
+        .eq('id', dealId)
+        .eq('account_id', args.automation.account_id)
+      return `deal moved to stage ${cfg.stage_id}`
+    }
+
+    case 'close_deal': {
+      const cfg = step.step_config as CloseDealStepConfig
+      if (!cfg.outcome || (cfg.outcome !== 'won' && cfg.outcome !== 'lost')) {
+        throw new Error('close_deal needs outcome: won | lost')
+      }
+      let dealId = args.context.deal_id
+      if (!dealId) {
+        if (!args.contactId) throw new Error('close_deal needs a deal or contact')
+        const { data: deal } = await db
+          .from('deals')
+          .select('id')
+          .eq('account_id', args.automation.account_id)
+          .eq('contact_id', args.contactId)
+          .eq('status', 'open')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (!deal?.id) throw new Error('no open deal found for contact')
+        dealId = deal.id as string
+      }
+      await db
+        .from('deals')
+        .update({ status: cfg.outcome, updated_at: new Date().toISOString() })
+        .eq('id', dealId)
+        .eq('account_id', args.automation.account_id)
+      return `deal marked as ${cfg.outcome}`
+    }
+
     default:
       return `unknown step: ${step.step_type}`
   }
@@ -578,11 +655,26 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
   const fromCtx = args.context.conversation_id
   if (fromCtx) return fromCtx
   if (!args.contactId) throw new Error('cannot resolve conversation: no contact')
-  const { data, error } = await supabaseAdmin()
+  const db = supabaseAdmin()
+  // Prefer open conversations so send steps don't target closed threads
+  const { data: open } = await db
     .from('conversations')
     .select('id')
     .eq('account_id', args.automation.account_id)
     .eq('contact_id', args.contactId)
+    .eq('status', 'open')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (open?.id) return open.id as string
+  // Fallback: any conversation (e.g. after reopen_conversation runs before this)
+  const { data, error } = await db
+    .from('conversations')
+    .select('id')
+    .eq('account_id', args.automation.account_id)
+    .eq('contact_id', args.contactId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
   if (error) throw new Error(`conversation lookup failed: ${error.message}`)
   if (!data?.id) throw new Error('no conversation for contact')

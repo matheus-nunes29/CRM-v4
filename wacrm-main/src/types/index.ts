@@ -563,7 +563,10 @@ export type AutomationStepType =
   | 'wait'
   | 'condition'
   | 'send_webhook'
-  | 'close_conversation';
+  | 'close_conversation'
+  | 'move_deal_stage'
+  | 'close_deal'
+  | 'reopen_conversation';
 
 export type AutomationLogStatus = 'success' | 'partial' | 'failed';
 
@@ -671,6 +674,15 @@ export interface SendWebhookStepConfig {
   body_template?: string;
 }
 
+export interface MoveDealStageStepConfig {
+  pipeline_id: string;
+  stage_id: string;
+}
+
+export interface CloseDealStepConfig {
+  outcome: 'won' | 'lost';
+}
+
 export type AutomationStepConfig =
   | SendMessageStepConfig
   | SendTemplateStepConfig
@@ -681,6 +693,8 @@ export type AutomationStepConfig =
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig
+  | MoveDealStageStepConfig
+  | CloseDealStepConfig
   | Record<string, never>
   | Record<string, unknown>;
 

@@ -133,7 +133,21 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       }
       break
     case 'close_conversation':
+    case 'reopen_conversation':
       // No config required.
+      break
+    case 'move_deal_stage':
+      if (!nonEmpty(c.pipeline_id)) {
+        issues.push({ path: `${path}.pipeline_id`, message: 'pipeline is required' })
+      }
+      if (!nonEmpty(c.stage_id)) {
+        issues.push({ path: `${path}.stage_id`, message: 'stage is required' })
+      }
+      break
+    case 'close_deal':
+      if (c.outcome !== 'won' && c.outcome !== 'lost') {
+        issues.push({ path: `${path}.outcome`, message: 'outcome must be "won" or "lost"' })
+      }
       break
     default:
       issues.push({ path, message: `unknown step type: ${step.step_type}` })
