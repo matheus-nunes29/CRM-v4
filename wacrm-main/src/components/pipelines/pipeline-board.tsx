@@ -15,7 +15,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import type { Deal, PipelineStage } from "@/types";
-import { DealCard } from "./deal-card";
+import { DealCard, type NextEventInfo } from "./deal-card";
 import { Button } from "@/components/ui/button";
 import { Plus, ChevronRight, ChevronLeft } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -27,6 +27,7 @@ interface PipelineBoardProps {
   onDealMoved: (dealId: string, newStageId: string) => void;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  nextEventsMap?: Record<string, NextEventInfo>;
 }
 
 function fixedSortKey(stage: PipelineStage): number {
@@ -42,6 +43,7 @@ export function PipelineBoard({
   onDealMoved,
   onAddDeal,
   onEditDeal,
+  nextEventsMap,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
@@ -135,6 +137,7 @@ export function PipelineBoard({
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              nextEventsMap={nextEventsMap}
             />
           );
         })}
@@ -153,6 +156,7 @@ export function PipelineBoard({
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              nextEventsMap={nextEventsMap}
               onCollapse={() => {
                 setLostExpanded(false);
                 localStorage.setItem('pipeline_lost_expanded', 'false');
@@ -255,6 +259,7 @@ function StageColumn({
   onAddDeal,
   onEditDeal,
   onCollapse,
+  nextEventsMap,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -263,6 +268,7 @@ function StageColumn({
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
   onCollapse?: () => void;
+  nextEventsMap?: Record<string, NextEventInfo>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
@@ -322,6 +328,7 @@ function StageColumn({
               deal={deal}
               stage={stage}
               onEdit={onEditDeal}
+              nextEvent={nextEventsMap?.[deal.id]}
             />
           ))
         )}
@@ -344,10 +351,12 @@ function DraggableDealCard({
   deal,
   stage,
   onEdit,
+  nextEvent,
 }: {
   deal: Deal;
   stage: PipelineStage;
   onEdit: (deal: Deal) => void;
+  nextEvent?: NextEventInfo;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: deal.id,
@@ -360,7 +369,7 @@ function DraggableDealCard({
       {...attributes}
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: "none" }}
     >
-      <DealCard deal={deal} stage={stage} onEdit={onEdit} />
+      <DealCard deal={deal} stage={stage} onEdit={onEdit} nextEvent={nextEvent} />
     </div>
   );
 }

@@ -28,9 +28,17 @@ export async function GET(request: NextRequest) {
   if (contactId) query = query.eq('contact_id', contactId)
   if (dealId) query = query.eq('deal_id', dealId)
 
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ events: data })
+  const [eventsResult, integration] = await Promise.all([
+    query,
+    getIntegration(profile.account_id),
+  ])
+
+  if (eventsResult.error) return NextResponse.json({ error: eventsResult.error.message }, { status: 500 })
+
+  return NextResponse.json({
+    events: eventsResult.data,
+    has_google_integration: !!integration,
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -42,27 +50,42 @@ export async function POST(request: NextRequest) {
   if (!profile?.account_id) return NextResponse.json({ error: 'No account' }, { status: 403 })
 
   const body = await request.json()
-  const { title, description, start_at, end_at, contact_id, deal_id, attendee_emails, add_meet } = body
+  const { title, description, start_at, end_at, contact_id, deal_id, assigned_to, attendee_emails, add_meet } = body
 
   if (!title || !start_at || !end_at) {
     return NextResponse.json({ error: 'title, start_at and end_at are required' }, { status: 400 })
   }
-
-  const integration = await getIntegration(profile.account_id)
-  if (!integration) {
-    return NextResponse.json({ error: 'Google Calendar não conectado. Vá em Configurações → Agenda.' }, { status: 400 })
+  if (!assigned_to) {
+    return NextResponse.json({ error: 'assigned_to is required' }, { status: 400 })
   }
 
-  const accessToken = decrypt(integration.access_token)
-  const gcEvent = await createGoogleEvent(accessToken, {
-    title,
-    description,
-    startAt: start_at,
-    endAt: end_at,
-    attendeeEmails: attendee_emails ?? [],
-    addMeet: add_meet ?? false,
-    calendarId: integration.calendar_id,
-  })
+  let providerEventId: string | null = null
+  let meetLink: string | null = null
+  let calendarId = 'primary'
+  let provider = 'internal'
+
+  // Push to Google if integration is connected — non-blocking if it fails
+  const integration = await getIntegration(profile.account_id)
+  if (integration) {
+    try {
+      const accessToken = decrypt(integration.access_token)
+      const gcEvent = await createGoogleEvent(accessToken, {
+        title,
+        description,
+        startAt: start_at,
+        endAt: end_at,
+        attendeeEmails: attendee_emails ?? [],
+        addMeet: add_meet ?? false,
+        calendarId: integration.calendar_id,
+      })
+      providerEventId = gcEvent.id
+      meetLink = gcEvent.hangoutLink ?? null
+      calendarId = integration.calendar_id
+      provider = 'google'
+    } catch (err) {
+      console.error('[calendar/events POST] Google push failed, saving internally:', err)
+    }
+  }
 
   const { data: saved, error: dbErr } = await supabaseAdmin()
     .from('calendar_events')
@@ -71,14 +94,15 @@ export async function POST(request: NextRequest) {
       created_by: user.id,
       contact_id: contact_id ?? null,
       deal_id: deal_id ?? null,
-      provider: 'google',
-      provider_event_id: gcEvent.id,
-      calendar_id: integration.calendar_id,
+      assigned_to: assigned_to ?? null,
+      provider,
+      provider_event_id: providerEventId,
+      calendar_id: calendarId,
       title,
       description: description ?? null,
       start_at,
       end_at,
-      meet_link: gcEvent.hangoutLink ?? null,
+      meet_link: meetLink,
       attendees: attendee_emails?.map((e: string) => ({ email: e })) ?? [],
     })
     .select()

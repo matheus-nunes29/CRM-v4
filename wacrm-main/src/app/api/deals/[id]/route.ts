@@ -121,13 +121,46 @@ export async function PATCH(
   // ── Automations ────────────────────────────────────────────────────────────
 
   const automationStageId = resolvedStageId ?? fixedStageId
-  if (automationStageId && deal.contact_id && (stageChanged || statusMovedToFinal)) {
-    runAutomationsForTrigger({
-      accountId: profile.account_id,
-      triggerType: 'deal_stage_entered',
-      contactId: deal.contact_id,
-      context: { deal_stage_id: automationStageId },
-    }).catch((err) => console.error('[automations] deal_stage_entered error:', err))
+  if (deal.contact_id) {
+    // Entrou na Etapa
+    if (automationStageId && (stageChanged || statusMovedToFinal)) {
+      runAutomationsForTrigger({
+        accountId: profile.account_id,
+        triggerType: 'deal_stage_entered',
+        contactId: deal.contact_id,
+        context: { deal_stage_id: automationStageId, deal_id: deal.id },
+      }).catch((err) => console.error('[automations] deal_stage_entered error:', err))
+    }
+
+    // Saiu da Etapa (o stage anterior, quando há mudança real de etapa)
+    if (stageChanged && deal.stage_id) {
+      runAutomationsForTrigger({
+        accountId: profile.account_id,
+        triggerType: 'deal_stage_left',
+        contactId: deal.contact_id,
+        context: { deal_stage_id: deal.stage_id as string, deal_id: deal.id },
+      }).catch((err) => console.error('[automations] deal_stage_left error:', err))
+    }
+
+    // Negócio Ganho
+    if (effectiveStatus === 'won' && statusChanged) {
+      runAutomationsForTrigger({
+        accountId: profile.account_id,
+        triggerType: 'deal_won',
+        contactId: deal.contact_id,
+        context: { deal_id: deal.id },
+      }).catch((err) => console.error('[automations] deal_won error:', err))
+    }
+
+    // Negócio Perdido
+    if (effectiveStatus === 'lost' && statusChanged) {
+      runAutomationsForTrigger({
+        accountId: profile.account_id,
+        triggerType: 'deal_lost',
+        contactId: deal.contact_id,
+        context: { deal_id: deal.id },
+      }).catch((err) => console.error('[automations] deal_lost error:', err))
+    }
   }
 
   // ── Close conversations when deal enters Perdido ───────────────────────────

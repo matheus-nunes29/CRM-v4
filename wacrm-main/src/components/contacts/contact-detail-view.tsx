@@ -211,17 +211,17 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
       return;
     }
     setSavingDetails(true);
-    const { error } = await supabase
-      .from('contacts')
-      .update({
+    const res = await fetch(`/api/contacts/${contactId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
         name: editName.trim() || null,
         phone: editPhone.trim(),
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', contactId);
-    if (error) {
+      }),
+    });
+    if (!res.ok) {
       toast.error('Falha ao atualizar contato');
     } else {
       toast.success('Contato atualizado');
@@ -234,14 +234,17 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
   async function toggleTag(tagId: string) {
     setSavingTags(true);
     const isSelected = contactTagIds.includes(tagId);
-    if (isSelected) {
-      const { error } = await supabase
-        .from('contact_tags').delete().eq('contact_id', contactId).eq('tag_id', tagId);
-      if (!error) { setContactTagIds((prev) => prev.filter((id) => id !== tagId)); onUpdated(); }
-    } else {
-      const { error } = await supabase
-        .from('contact_tags').insert({ contact_id: contactId, tag_id: tagId });
-      if (!error) { setContactTagIds((prev) => [...prev, tagId]); onUpdated(); }
+    const method = isSelected ? 'DELETE' : 'POST';
+    const res = await fetch(`/api/contacts/${contactId}/tags`, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tag_id: tagId }),
+    });
+    if (res.ok) {
+      setContactTagIds((prev) =>
+        isSelected ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+      );
+      onUpdated();
     }
     setSavingTags(false);
   }

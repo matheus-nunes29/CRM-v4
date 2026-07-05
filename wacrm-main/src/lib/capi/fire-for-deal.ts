@@ -1,7 +1,7 @@
 /**
  * Shared utility: load pixel config + contact data, fire a Meta CAPI event,
  * and write a row to capi_dispatch_log. Used by both the deals API route and
- * the Evolution webhook (stage trigger automation).
+ * the deals webhook (stage trigger automation).
  */
 import { createClient } from '@supabase/supabase-js'
 import { fireCapiEvent } from './fire-event'

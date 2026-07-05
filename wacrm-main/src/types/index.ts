@@ -298,7 +298,7 @@ export interface MessageReaction {
   created_at: string;
 }
 
-export type WhatsAppProvider = 'meta' | 'evolution' | 'wapi';
+export type WhatsAppProvider = 'meta' | 'wapi';
 
 export interface WhatsAppConfig {
   id: string;
@@ -306,9 +306,9 @@ export interface WhatsAppConfig {
   /** Which provider backs this config. Defaults to 'meta' for existing rows. */
   provider: WhatsAppProvider;
   // ── Meta Official API fields ──────────────────────────────────────────
-  phone_number_id: string;
+  phone_number_id?: string | null;
   waba_id?: string;
-  access_token: string;
+  access_token?: string | null;
   verify_token?: string;
   status: 'connected' | 'disconnected';
   connected_at?: string;
@@ -327,6 +327,11 @@ export interface WhatsAppConfig {
   evolution_instance_name?: string;
   /** Encrypted with AES-256-GCM like access_token. */
   evolution_api_key?: string;
+  // ── W-API (unofficial) fields ─────────────────────────────────────────
+  wapi_instance_id?: string | null;
+  wapi_connected?: boolean;
+  wapi_connected_phone?: string | null;
+  wapi_connected_lid?: string | null;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
@@ -533,8 +538,19 @@ export type AutomationTriggerType =
   | 'new_contact_created'
   | 'conversation_assigned'
   | 'tag_added'
+  | 'tag_removed'
   | 'time_based'
-  | 'deal_stage_entered';
+  | 'deal_stage_entered'
+  | 'deal_stage_left'
+  | 'deal_created'
+  | 'deal_won'
+  | 'deal_lost'
+  | 'conversation_closed'
+  | 'contact_field_changed'
+  | 'broadcast_reply'
+  | 'conversation_idle'
+  | 'contact_inactive'
+  | 'deal_stagnant';
 
 export type AutomationStepType =
   | 'send_message'
@@ -571,12 +587,24 @@ export interface StageEnteredTriggerConfig {
   stage_id: string;
 }
 
+export interface InactivityTriggerConfig {
+  /** Number of hours (conversation_idle) or days (contact_inactive, deal_stagnant) without activity. */
+  threshold: number;
+}
+
+export interface ContactFieldChangedTriggerConfig {
+  /** Built-in column (name, email, company) or `custom:<id>`. Empty = any field. */
+  field?: string;
+}
+
 export type AutomationTriggerConfig =
   | Record<string, never>
   | KeywordMatchTriggerConfig
   | TagTriggerConfig
   | TimeBasedTriggerConfig
   | StageEnteredTriggerConfig
+  | InactivityTriggerConfig
+  | ContactFieldChangedTriggerConfig
   | Record<string, unknown>;
 
 export interface SendMessageStepConfig {

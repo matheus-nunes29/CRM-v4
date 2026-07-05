@@ -115,20 +115,55 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "close_conversation",
 ]
 
-const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: string }[] = [
-  { value: "new_message_received", label: "Nova Mensagem Recebida", hint: "Qualquer mensagem recebida" },
+const TRIGGER_GROUPS: { group: string; options: { value: AutomationTriggerType; label: string; hint: string }[] }[] = [
   {
-    value: "first_inbound_message",
-    label: "Primeira Mensagem do Contato",
-    hint: "Primeira vez que este contato envia mensagem para você (funciona também para contatos adicionados manualmente)",
+    group: "Mensagens",
+    options: [
+      { value: "new_message_received", label: "Nova Mensagem Recebida", hint: "Qualquer mensagem recebida de um contato" },
+      { value: "first_inbound_message", label: "Primeiro Contato", hint: "Primeira vez que este contato envia mensagem para você" },
+      { value: "keyword_match", label: "Palavra-chave Encontrada", hint: "Mensagem contém palavra(s)-chave específica(s)" },
+      { value: "broadcast_reply", label: "Resposta ao Disparo", hint: "Quando um contato responde a uma mensagem de campanha (broadcast)" },
+    ],
   },
-  { value: "keyword_match", label: "Palavra-chave Encontrada", hint: "Mensagem contém palavra(s)-chave específica(s)" },
-  { value: "new_contact_created", label: "Novo Contato Criado", hint: "Quando um contato é criado automaticamente a partir de uma mensagem recebida" },
-  { value: "conversation_assigned", label: "Conversa Atribuída", hint: "Quando atribuída a um agente" },
-  { value: "tag_added", label: "Tag Adicionada", hint: "Quando uma tag é adicionada a um contato" },
-  { value: "time_based", label: "Baseado em Tempo", hint: "Em um agendamento recorrente" },
-  { value: "deal_stage_entered", label: "Entrou na Etapa", hint: "Quando um negócio é movido para uma etapa específica da pipeline" },
+  {
+    group: "Contatos",
+    options: [
+      { value: "new_contact_created", label: "Novo Contato Criado", hint: "Quando um contato é criado a partir de uma mensagem recebida" },
+      { value: "tag_added", label: "Tag Adicionada", hint: "Quando uma tag é adicionada a um contato" },
+      { value: "tag_removed", label: "Tag Removida", hint: "Quando uma tag é removida de um contato" },
+      { value: "contact_field_changed", label: "Campo do Contato Alterado", hint: "Quando um campo (nome, email, empresa ou campo personalizado) é modificado" },
+      { value: "contact_inactive", label: "Contato Inativo", hint: "Contato sem atividade por um período configurável — verificado diariamente" },
+    ],
+  },
+  {
+    group: "Conversas",
+    options: [
+      { value: "conversation_assigned", label: "Conversa Atribuída", hint: "Quando uma conversa é atribuída a um agente" },
+      { value: "conversation_closed", label: "Conversa Encerrada", hint: "Quando uma conversa é marcada como fechada" },
+      { value: "conversation_idle", label: "Conversa Ociosa", hint: "Conversa sem resposta do agente por um período configurável — verificado a cada hora" },
+    ],
+  },
+  {
+    group: "Negócios (Pipeline)",
+    options: [
+      { value: "deal_created", label: "Negócio Criado", hint: "Quando um novo negócio é criado no pipeline" },
+      { value: "deal_stage_entered", label: "Entrou na Etapa", hint: "Quando um negócio entra em uma etapa específica da pipeline" },
+      { value: "deal_stage_left", label: "Saiu da Etapa", hint: "Quando um negócio sai de uma etapa específica da pipeline" },
+      { value: "deal_won", label: "Negócio Ganho", hint: "Quando um negócio é marcado como ganho" },
+      { value: "deal_lost", label: "Negócio Perdido", hint: "Quando um negócio é marcado como perdido" },
+      { value: "deal_stagnant", label: "Negócio Parado", hint: "Negócio sem movimentação por um período configurável — verificado diariamente" },
+    ],
+  },
+  {
+    group: "Tempo",
+    options: [
+      { value: "time_based", label: "Agendado (Recorrente)", hint: "Dispara em um horário fixo, todos os dias" },
+    ],
+  },
 ]
+
+const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: string }[] =
+  TRIGGER_GROUPS.flatMap((g) => g.options)
 
 function cid(): string {
   return (
@@ -797,10 +832,12 @@ function TriggerCard({
                 onChange={(e) => onTypeChange(e.target.value as AutomationTriggerType)}
                 className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
               >
-                {TRIGGER_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
+                {TRIGGER_GROUPS.map((g) => (
+                  <optgroup key={g.group} label={g.group}>
+                    {g.options.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
               <p className="mt-1 text-[11px] text-muted-foreground">
@@ -813,7 +850,7 @@ function TriggerCard({
                 onChange={onConfigChange}
               />
             )}
-            {type === "tag_added" && (
+            {(type === "tag_added" || type === "tag_removed") && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   Tag
@@ -834,11 +871,29 @@ function TriggerCard({
                 className="bg-muted text-foreground"
               />
             )}
-            {type === "deal_stage_entered" && (
+            {(type === "deal_stage_entered" || type === "deal_stage_left") && (
               <StageEnteredTriggerConfig
                 config={config}
                 onChange={onConfigChange}
               />
+            )}
+            {(type === "conversation_idle" || type === "contact_inactive" || type === "deal_stagnant") && (
+              <InactivityTriggerConfig
+                triggerType={type}
+                config={config}
+                onChange={onConfigChange}
+              />
+            )}
+            {type === "contact_field_changed" && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Campo monitorado <span className="font-normal">(opcional — em branco = qualquer campo)</span>
+                </label>
+                <ContactFieldSelect
+                  value={(config.field as string) ?? ""}
+                  onChange={(v) => onConfigChange({ ...config, field: v || undefined })}
+                />
+              </div>
             )}
           </div>
         )}
@@ -901,6 +956,42 @@ function StageEnteredTriggerConfig({
           value={(config.stage_id as string) ?? ""}
           onChange={handleStageChange}
         />
+      </div>
+    </div>
+  )
+}
+
+function InactivityTriggerConfig({
+  triggerType,
+  config,
+  onChange,
+}: {
+  triggerType: AutomationTriggerType
+  config: Record<string, unknown>
+  onChange: (c: Record<string, unknown>) => void
+}) {
+  const isHours = triggerType === "conversation_idle"
+  const unit = isHours ? "horas" : "dias"
+  const defaultVal = isHours ? 24 : 7
+  const threshold = (config.threshold as number) ?? defaultVal
+
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-muted-foreground">
+        Sem atividade por (em {unit})
+      </label>
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          min={1}
+          max={isHours ? 168 : 365}
+          value={threshold}
+          onChange={(e) =>
+            onChange({ ...config, threshold: Math.max(1, parseInt(e.target.value) || defaultVal) })
+          }
+          className="w-24 bg-muted text-foreground"
+        />
+        <span className="text-sm text-muted-foreground">{unit}</span>
       </div>
     </div>
   )

@@ -306,7 +306,7 @@ export default function NegociosPage() {
                   <TableRow
                     key={deal.id}
                     className="cursor-pointer"
-                    onClick={() => openEdit(deal)}
+                    onClick={() => router.push(`/negocios/${deal.id}`)}
                   >
                     <TableCell className="font-medium">{deal.title}</TableCell>
                     <TableCell className="tabular-nums text-foreground">

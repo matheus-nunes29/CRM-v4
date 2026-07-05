@@ -37,12 +37,15 @@ import {
   User,
   Tag,
   CalendarDays,
+  CalendarPlus,
+  Clock,
   AlignLeft,
   ChevronDown,
   MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ScheduleEventModal, type CalendarEvent } from "@/components/calendar/schedule-event-modal";
 
 interface DealFormProps {
   open: boolean;
@@ -159,6 +162,64 @@ function parseCurrencyDisplay(display: string): number {
   return parseFloat(display.replace(/\./g, "").replace(",", ".")) || 0;
 }
 
+function fmtEvDate(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" });
+}
+function fmtEvTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function DealEventRow({ ev, highlight, deleting, confirmDelete, onDelete, onConfirm, onCancelConfirm }: {
+  ev: CalendarEvent;
+  highlight?: boolean;
+  deleting: string | null;
+  confirmDelete: string | null;
+  onDelete: () => void;
+  onConfirm: () => void;
+  onCancelConfirm: () => void;
+}) {
+  const isConfirming = confirmDelete === ev.id;
+  return (
+    <div className={cn("flex items-start gap-3 px-5 py-3", highlight && "bg-primary/[0.03]")}>
+      <div className={cn(
+        "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold tabular-nums",
+        highlight ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+      )}>
+        {new Date(ev.start_at).getDate()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="truncate text-sm font-medium text-foreground leading-tight">{ev.title}</p>
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+          <Clock className="size-3 shrink-0" />
+          <span className="capitalize">{fmtEvDate(ev.start_at)}</span>
+          <span>·</span>
+          <span>{fmtEvTime(ev.start_at)}–{fmtEvTime(ev.end_at)}</span>
+        </p>
+      </div>
+      {isConfirming ? (
+        <div className="mt-0.5 flex shrink-0 items-center gap-1">
+          <button type="button" onClick={onCancelConfirm} className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted cursor-pointer">
+            Não
+          </button>
+          <button type="button" onClick={onConfirm} disabled={deleting === ev.id} className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer">
+            {deleting === ev.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Sim"}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={deleting === ev.id}
+          className="mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50 cursor-pointer"
+          aria-label="Remover agendamento"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function DealForm({
   open,
   onOpenChange,
@@ -190,7 +251,14 @@ export function DealForm({
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [outerTab, setOuterTab] = useState<'deal' | 'contact'>('deal');
+  const [outerTab, setOuterTab] = useState<'deal' | 'contact' | 'schedule'>('deal');
+
+  // Scheduling tab
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState<string | null>(null);
+  const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null);
 
   // Loss reason picker — shown when user clicks "Marcar como Perdido"
   const [lossReasons, setLossReasons] = useState<LossReason[]>([]);
@@ -255,6 +323,28 @@ export function DealForm({
     }
   }, [open, deal, defaultStageId, stages, defaultCurrency]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Load calendar events for existing deal
+  useEffect(() => {
+    if (!open || !deal?.id) {
+      setEvents([]);
+      setScheduleOpen(false);
+      setConfirmDeleteEvent(null);
+      return;
+    }
+    let cancelled = false;
+    setEventsLoading(true);
+    fetch(`/api/calendar/events?deal_id=${deal.id}`)
+      .then((r) => (r.ok ? r.json() : { events: [] }))
+      .then((d) => {
+        if (!cancelled) {
+          setEvents(d.events ?? []);
+          setEventsLoading(false);
+        }
+      })
+      .catch(() => { if (!cancelled) setEventsLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, deal?.id]);
 
   // Load supporting data once the sheet is open
   useEffect(() => {
@@ -327,31 +417,18 @@ export function DealForm({
         return;
       }
     } else {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) {
-        toast.error("Não autenticado");
-        setSaving(false);
-        return;
-      }
-      if (!accountId) {
-        toast.error("Seu perfil não está vinculado a uma conta.");
-        setSaving(false);
-        return;
-      }
-      const { data: newDeal, error } = await supabase
-        .from("deals")
-        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" })
-        .select("id")
-        .single();
-      if (error || !newDeal) {
+      const res = await fetch("/api/deals", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json() as { id?: string; error?: string };
+      if (!res.ok || !json.id) {
         toast.error("Falha ao criar negócio");
         setSaving(false);
         return;
       }
-      savedDealId = newDeal.id;
+      savedDealId = json.id;
     }
 
     // Save deal custom field values
@@ -408,6 +485,14 @@ export function DealForm({
     await handleStatusChange("lost", selectedLossReasonId || null);
   }
 
+  async function handleDeleteEvent(eventId: string) {
+    setDeletingEvent(eventId);
+    await fetch(`/api/calendar/events/${eventId}`, { method: "DELETE" });
+    setEvents((prev) => prev.filter((e) => e.id !== eventId));
+    setDeletingEvent(null);
+    setConfirmDeleteEvent(null);
+  }
+
   async function handleDelete() {
     if (!deal) return;
     setDeleting(true);
@@ -424,6 +509,7 @@ export function DealForm({
   }
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
@@ -445,22 +531,26 @@ export function DealForm({
           </div>
         </SheetHeader>
 
-        {/* ── Outer tab switcher (only when editing with a contact) ── */}
-        {deal && contactId && (
+        {/* ── Outer tab switcher (only when editing) ── */}
+        {deal && (
           <div className="shrink-0 border-b border-border/50 flex">
-            {(["deal", "contact"] as const).map((tab) => (
+            {([
+              { id: "deal", label: "Negócio" },
+              ...(contactId ? [{ id: "contact", label: "Contato" }] : []),
+              { id: "schedule", label: "Agenda" },
+            ] as { id: "deal" | "contact" | "schedule"; label: string }[]).map((tab) => (
               <button
-                key={tab}
+                key={tab.id}
                 type="button"
-                onClick={() => setOuterTab(tab)}
+                onClick={() => setOuterTab(tab.id)}
                 className={cn(
                   "flex-1 py-2.5 text-xs font-medium transition-colors border-b-2",
-                  outerTab === tab
+                  outerTab === tab.id
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
-                {tab === "deal" ? "Negócio" : "Contato"}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -470,6 +560,89 @@ export function DealForm({
         {outerTab === "contact" && deal && contactId ? (
           <div className="flex-1 min-h-0 overflow-hidden">
             <ContactDetailContent contactId={contactId} onUpdated={onSaved} onWhatsApp={openInboxForContact} />
+          </div>
+        ) : outerTab === "schedule" && deal ? (
+          <div className="flex-1 overflow-y-auto">
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold text-foreground">Agendamentos</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScheduleOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                <CalendarPlus className="h-3.5 w-3.5" />
+                Agendar
+              </button>
+            </div>
+
+            {eventsLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {!eventsLoading && events.length === 0 && (
+              <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                  <CalendarDays className="h-5 w-5 text-muted-foreground/50" />
+                </div>
+                <p className="text-sm font-medium text-foreground">Sem agendamentos</p>
+                <p className="text-xs text-muted-foreground">Clique em Agendar para criar o primeiro compromisso deste negócio.</p>
+              </div>
+            )}
+
+            {(() => {
+              const now = new Date();
+              const upcoming = events.filter((e) => new Date(e.end_at) >= now).sort((a, b) => a.start_at.localeCompare(b.start_at));
+              const past = events.filter((e) => new Date(e.end_at) < now).sort((a, b) => b.start_at.localeCompare(a.start_at));
+              return (
+                <>
+                  {!eventsLoading && upcoming.length > 0 && (
+                    <div>
+                      <p className="px-5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Próximos</p>
+                      <div className="divide-y divide-border">
+                        {upcoming.map((ev, i) => (
+                          <DealEventRow
+                            key={ev.id}
+                            ev={ev}
+                            highlight={i === 0}
+                            deleting={deletingEvent}
+                            confirmDelete={confirmDeleteEvent}
+                            onDelete={() => setConfirmDeleteEvent(ev.id)}
+                            onConfirm={() => handleDeleteEvent(ev.id)}
+                            onCancelConfirm={() => setConfirmDeleteEvent(null)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {!eventsLoading && past.length > 0 && (
+                    <div className="border-t border-border">
+                      <p className="px-5 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Realizados</p>
+                      <div className="divide-y divide-border opacity-60">
+                        {past.map((ev) => (
+                          <DealEventRow
+                            key={ev.id}
+                            ev={ev}
+                            deleting={deletingEvent}
+                            confirmDelete={confirmDeleteEvent}
+                            onDelete={() => setConfirmDeleteEvent(ev.id)}
+                            onConfirm={() => handleDeleteEvent(ev.id)}
+                            onCancelConfirm={() => setConfirmDeleteEvent(null)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            <div className="h-4" />
           </div>
         ) : (
         <>{/* ── Scrollable body ─────────────────────────────── */}
@@ -827,5 +1000,17 @@ export function DealForm({
         </>)}
       </SheetContent>
     </Sheet>
+
+    {deal && (
+      <ScheduleEventModal
+        open={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        dealId={deal.id}
+        contactId={contactId || undefined}
+        contactName={contacts.find((c) => c.id === contactId)?.name || undefined}
+        onCreated={(ev) => setEvents((prev) => [...prev, ev].sort((a, b) => a.start_at.localeCompare(b.start_at)))}
+      />
+    )}
+    </>
   );
 }

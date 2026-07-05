@@ -5,6 +5,7 @@ import {
   getGoogleUserEmail,
   encrypt,
 } from '@/lib/calendar/google'
+import { syncGoogleCalendar } from '@/lib/calendar/sync'
 
 function supabaseAdmin() {
   return createClient(
@@ -55,6 +56,11 @@ export async function GET(request: NextRequest) {
         },
         { onConflict: 'account_id,provider' },
       )
+
+    // Kick off initial sync in background — don't await, redirect immediately
+    syncGoogleCalendar(accountId).catch((err) =>
+      console.error('[calendar/callback] initial sync failed:', err),
+    )
 
     return NextResponse.redirect(`${redirectBase}&connected=1`)
   } catch (err) {

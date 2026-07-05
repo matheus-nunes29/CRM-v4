@@ -36,7 +36,62 @@ import {
   XCircle,
   AlertTriangle,
   Tag,
+  Download,
 } from 'lucide-react';
+
+// ── XLSX helpers ──────────────────────────────────────────────────────────────
+
+async function parseXlsxToRows(file: File): Promise<{
+  rows: import('@/lib/contacts/parse-contact-csv').ParsedContactRow[];
+  hasTagsColumn: boolean;
+  hasCompanyColumn: boolean;
+}> {
+  const XLSX = await import('xlsx');
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+
+  const { parseTagCell } = await import('@/lib/contacts/parse-contact-csv');
+
+  const get = (row: Record<string, unknown>, keys: string[]): string => {
+    for (const k of Object.keys(row)) {
+      if (keys.some(key => k.trim().toLowerCase() === key.toLowerCase()))
+        return String(row[k]).trim();
+    }
+    return '';
+  };
+
+  const rows = raw
+    .map(row => ({
+      phone:   get(row, ['telefone', 'phone', 'celular', 'whatsapp', 'tel']),
+      name:    get(row, ['nome', 'name', 'contato']) || undefined,
+      email:   get(row, ['email', 'e-mail']) || undefined,
+      company: get(row, ['empresa', 'company', 'organização', 'organizacao']) || undefined,
+      tagNames: parseTagCell(get(row, ['tags', 'tag'])),
+    }))
+    .filter(r => r.phone.length > 0);
+
+  const firstRow = raw[0] ?? {};
+  const keys = Object.keys(firstRow).map(k => k.trim().toLowerCase());
+  const hasTagsColumn    = keys.some(k => k === 'tags' || k === 'tag');
+  const hasCompanyColumn = keys.some(k => ['empresa', 'company', 'organização', 'organizacao'].includes(k));
+
+  return { rows, hasTagsColumn, hasCompanyColumn };
+}
+
+async function downloadXlsxTemplate() {
+  const XLSX = await import('xlsx');
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['telefone',        'nome',        'email',              'empresa',    'tags'],
+    ['+5511999999999', 'Maria Silva', 'maria@exemplo.com',  'Acme Ltda',  'cliente,vip'],
+    ['+5521988887777', 'João Costa',  '',                   '',           ''],
+  ]);
+  ws['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 24 }, { wch: 20 }, { wch: 16 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Contatos');
+  XLSX.writeFile(wb, 'template_importacao_contatos.xlsx');
+}
 
 const DEFAULT_TAG_COLOR = '#3b82f6';
 const PREVIEW_LIMIT = 5;
@@ -164,16 +219,32 @@ export function ImportModal({
     setFile(selected);
     setResult(null);
 
-    const text = await selected.text();
-    const {
-      rows,
-      hasTagsColumn: csvHasTags,
-      hasCompanyColumn: csvHasCompany,
-    } = parseContactCsv(text);
+    const isXlsx = /\.(xlsx|xls)$/i.test(selected.name);
+    let rows: import('@/lib/contacts/parse-contact-csv').ParsedContactRow[];
+    let csvHasTags: boolean;
+    let csvHasCompany: boolean;
+
+    if (isXlsx) {
+      try {
+        const parsed = await parseXlsxToRows(selected);
+        rows = parsed.rows;
+        csvHasTags = parsed.hasTagsColumn;
+        csvHasCompany = parsed.hasCompanyColumn;
+      } catch {
+        toast.error('Falha ao ler o arquivo .xlsx. Verifique se o arquivo não está corrompido.');
+        return;
+      }
+    } else {
+      const text = await selected.text();
+      const parsed = parseContactCsv(text);
+      rows = parsed.rows;
+      csvHasTags = parsed.hasTagsColumn;
+      csvHasCompany = parsed.hasCompanyColumn;
+    }
 
     if (rows.length === 0) {
       toast.error(
-        'Nenhuma linha válida encontrada. Verifique se o CSV tem o cabeçalho "phone".'
+        'Nenhuma linha válida encontrada. Verifique se a coluna "telefone" ou "phone" está preenchida.'
       );
       setParsedRows([]);
       setHasTagsColumn(false);
@@ -401,31 +472,29 @@ export function ImportModal({
       <DialogContent className="flex max-h-[min(90vh,720px)] flex-col gap-0 overflow-hidden border-border/80 bg-popover p-0 text-popover-foreground sm:max-w-2xl">
         <div className="shrink-0 space-y-4 border-b border-border/80 px-6 pt-6 pb-5">
           <DialogHeader className="gap-1.5">
-            <DialogTitle className="text-lg text-popover-foreground">
-              Importar Contatos
-            </DialogTitle>
+            <div className="flex items-start justify-between gap-3">
+              <DialogTitle className="text-lg text-popover-foreground">
+                Importar Contatos
+              </DialogTitle>
+              <button
+                type="button"
+                onClick={downloadXlsxTemplate}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Baixar template
+              </button>
+            </div>
             <DialogDescription className="leading-relaxed text-muted-foreground">
-              Envie um CSV com a coluna obrigatória{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">
-                phone
-              </code>{' '}
-              . Opcionais:{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">
-                name
-              </code>
-              ,{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">
-                email
-              </code>
-              ,{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">
-                company
-              </code>
-              ,{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">
-                tags
-              </code>{' '}
-              (separado por vírgulas; use aspas para células com múltiplas tags).
+              Aceita <strong className="text-foreground">.xlsx</strong> e <strong className="text-foreground">.csv</strong>.
+              Coluna obrigatória:{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">telefone</code>.
+              {' '}Opcionais:{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">nome</code>,{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">email</code>,{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">empresa</code>,{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-muted-foreground">tags</code>.
+              {' '}Baixe o template acima para começar.
             </DialogDescription>
           </DialogHeader>
 
@@ -466,10 +535,10 @@ export function ImportModal({
                   <Upload className="size-5 text-muted-foreground group-hover:text-foreground" />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Clique para escolher um arquivo CSV
+                  Clique para escolher um arquivo
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  .csv até o limite do seu navegador
+                  .xlsx ou .csv
                 </p>
               </>
             )}
@@ -478,7 +547,7 @@ export function ImportModal({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".xlsx,.xls,.csv,text/csv"
             onChange={handleFileChange}
             className="hidden"
           />

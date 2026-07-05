@@ -80,13 +80,14 @@ export interface CreateEventInput {
 
 export interface GoogleCalendarEvent {
   id: string
-  summary: string
+  summary?: string
   description?: string
-  start: { dateTime: string; timeZone?: string }
-  end: { dateTime: string; timeZone?: string }
+  status?: string
+  start: { dateTime?: string; date?: string; timeZone?: string }
+  end: { dateTime?: string; date?: string; timeZone?: string }
   hangoutLink?: string
   attendees?: { email: string; displayName?: string }[]
-  htmlLink: string
+  htmlLink?: string
 }
 
 export async function createGoogleEvent(
@@ -178,6 +179,91 @@ export async function getIntegration(accountId: string) {
   }
 
   return row
+}
+
+export interface GoogleEventListParams {
+  calendarId?: string
+  timeMin?: string
+  timeMax?: string
+  maxResults?: number
+  syncToken?: string
+}
+
+export async function listGoogleEvents(
+  accessToken: string,
+  params: GoogleEventListParams = {},
+): Promise<{ items: GoogleCalendarEvent[]; nextSyncToken?: string }> {
+  const { calendarId = 'primary', timeMin, timeMax, maxResults = 250, syncToken } = params
+  const p = new URLSearchParams({ maxResults: String(maxResults), singleEvents: 'true' })
+  if (syncToken) p.set('syncToken', syncToken)
+  else {
+    if (timeMin) p.set('timeMin', timeMin)
+    if (timeMax) p.set('timeMax', timeMax)
+  }
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${p}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  if (res.status === 410) throw new Error('SYNC_TOKEN_EXPIRED')
+  if (!res.ok) throw new Error(`Google Calendar list events failed: ${await res.text()}`)
+  const data = await res.json()
+  return { items: data.items ?? [], nextSyncToken: data.nextSyncToken }
+}
+
+export async function updateGoogleEvent(
+  accessToken: string,
+  providerEventId: string,
+  input: Partial<CreateEventInput>,
+  calendarId = 'primary',
+): Promise<GoogleCalendarEvent> {
+  const body: Record<string, unknown> = {}
+  if (input.title) body.summary = input.title
+  if (input.description !== undefined) body.description = input.description
+  if (input.startAt) body.start = { dateTime: input.startAt, timeZone: 'America/Sao_Paulo' }
+  if (input.endAt) body.end = { dateTime: input.endAt, timeZone: 'America/Sao_Paulo' }
+  if (input.attendeeEmails) body.attendees = input.attendeeEmails.map((email) => ({ email }))
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${providerEventId}?sendUpdates=all`,
+    {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  )
+  if (!res.ok) throw new Error(`Google Calendar update event failed: ${await res.text()}`)
+  return res.json()
+}
+
+export async function setupGoogleWatch(
+  accessToken: string,
+  calendarId = 'primary',
+  channelId: string,
+  webhookUrl: string,
+): Promise<{ id: string; resourceId: string; expiration: string }> {
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/watch`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: channelId, type: 'web_hook', address: webhookUrl }),
+    },
+  )
+  if (!res.ok) throw new Error(`Google Calendar watch setup failed: ${await res.text()}`)
+  return res.json()
+}
+
+export async function stopGoogleWatch(
+  accessToken: string,
+  channelId: string,
+  resourceId: string,
+): Promise<void> {
+  await fetch('https://www.googleapis.com/calendar/v3/channels/stop', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: channelId, resourceId }),
+  })
 }
 
 export { encrypt, decrypt }

@@ -2,35 +2,12 @@
  * GET /api/cron/broadcast-worker
  *
  * Vercel Cron — runs every minute.
- * Picks up pending broadcast_recipients whose scheduled_at has passed
- * and sends them via Evolution API (quick broadcasts).
+ * Finalizes completed broadcasts.
  */
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import {
-  sendTextMessage,
-  sendMediaMessage,
-  getSystemEvolutionConfig,
-  toEvolutionPhone,
-  type EvolutionMediaType,
-} from '@/lib/whatsapp/evolution-api'
-import {
-  getSystemWApiConfig,
-  sendWApiTextMessage,
-  sendWApiMediaMessage,
-  toWApiPhone,
-  type WApiMediaType,
-} from '@/lib/whatsapp/wapi'
-import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
-import { isInScheduleWindow, clampToWindow, type ScheduleWindow } from '@/lib/broadcast/schedule-windows'
-
-type MsgDef = {
-  body: string
-  media_type?: string | null
-  media_url?: string | null
-  delay_before_ms?: number
-}
+import { isInScheduleWindow, type ScheduleWindow } from '@/lib/broadcast/schedule-windows'
 
 export const maxDuration = 60
 
@@ -46,19 +23,7 @@ function adminDb() {
   return _admin
 }
 
-function resolveQuickVars(
-  body: string,
-  contact: { name?: string | null; phone?: string | null; company?: string | null },
-): string {
-  return body
-    .replace(/\{\{nome\}\}/gi, contact.name ?? '')
-    .replace(/\{\{telefone\}\}/gi, contact.phone ?? '')
-    .replace(/\{\{empresa\}\}/gi, contact.company ?? '')
-}
-
 async function handler(request: Request) {
-  // Accept calls from Vercel cron (Bearer CRON_SECRET) or Supabase pg_net
-  // (Bearer SUPABASE_SERVICE_ROLE_KEY). Both are server-side callers only.
   const auth = request.headers.get('authorization')?.replace('Bearer ', '')
   const validTokens = [
     process.env.CRON_SECRET,
@@ -68,14 +33,9 @@ async function handler(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Budget: stop processing new recipients 45s after start to stay within
-  // maxDuration=60s. Each Evolution API call can take 2-4s.
-  const deadline = Date.now() + 45_000
-
   const db = adminDb()
   const nowIso = new Date().toISOString()
 
-  // ── Only process recipients from actively-sending broadcasts ─────────────
   const { data: sendingBroadcasts } = await db
     .from('broadcasts')
     .select('id, schedule_windows, schedule_timezone')
@@ -91,243 +51,8 @@ async function handler(request: Request) {
   const sendingIds = eligibleBroadcasts.map((b: { id: string }) => b.id)
   if (!sendingIds.length) return NextResponse.json({ processed: 0 })
 
-  // ── Fetch due recipients (small batch to avoid timeout) ──────────────────
-  const { data: due } = await db
-    .from('broadcast_recipients')
-    .select('id, broadcast_id, contact_id, message_index')
-    .eq('status', 'pending')
-    .in('broadcast_id', sendingIds)
-    .lte('scheduled_at', nowIso)
-    .order('scheduled_at', { ascending: true })
-    .limit(10)
-
-  if (!due?.length) return NextResponse.json({ processed: 0 })
-
-  // ── Batch-load related data ───────────────────────────────────────────────
-  const broadcastIds = [...new Set(due.map((r: { broadcast_id: string }) => r.broadcast_id))]
-  const contactIds = [...new Set(due.map((r: { contact_id: string }) => r.contact_id))]
-
-  const [{ data: broadcasts }, { data: contacts }] = await Promise.all([
-    db
-      .from('broadcasts')
-      .select('id, account_id, quick_template_id, broadcast_type, schedule_windows, schedule_timezone')
-      .in('id', broadcastIds),
-    db
-      .from('contacts')
-      .select('id, phone, name, company')
-      .in('id', contactIds),
-  ])
-
-  const quickBroadcastIds = new Set(
-    (broadcasts ?? [])
-      .filter((b: { broadcast_type: string }) => b.broadcast_type === 'quick')
-      .map((b: { id: string }) => b.id),
-  )
-  const quickRecipients = due.filter((r: { broadcast_id: string }) => quickBroadcastIds.has(r.broadcast_id))
-
-  if (!quickRecipients.length) return NextResponse.json({ processed: 0 })
-
-  const broadcastMap = new Map((broadcasts ?? []).map((b: { id: string }) => [b.id, b]))
-  const contactMap = new Map((contacts ?? []).map((c: { id: string }) => [c.id, c]))
-
-  const scheduleMap = new Map<string, { windows: ScheduleWindow[]; timezone: string }>(
-    (broadcasts ?? []).map((b: { id: string; schedule_windows: unknown; schedule_timezone: string | null }) => [
-      b.id,
-      {
-        windows: (b.schedule_windows as ScheduleWindow[] | null) ?? [],
-        timezone: b.schedule_timezone ?? 'America/Sao_Paulo',
-      },
-    ]),
-  )
-
-  // Load templates
-  const templateIds = [...new Set(
-    quickRecipients
-      .map((r: { broadcast_id: string }) => (broadcastMap.get(r.broadcast_id) as { quick_template_id?: string })?.quick_template_id)
-      .filter(Boolean),
-  )]
-  const { data: templates } = await db
-    .from('quick_templates')
-    .select('id, body, media_type, media_url, messages')
-    .in('id', templateIds)
-  const templateMap = new Map((templates ?? []).map((t: { id: string }) => [t.id, t]))
-
-  // Load provider configs (evolution + wapi)
-  const accountIds = [...new Set(
-    quickRecipients
-      .map((r: { broadcast_id: string }) => (broadcastMap.get(r.broadcast_id) as { account_id?: string })?.account_id)
-      .filter(Boolean),
-  )]
-  const { data: configs } = await db
-    .from('whatsapp_config')
-    .select('account_id, provider, evolution_instance_name')
-    .in('account_id', accountIds)
-    .in('provider', ['evolution', 'wapi'])
-  const configMap = new Map((configs ?? []).map((c: { account_id: string }) => [c.account_id, c]))
-
-  // ── Process each recipient ────────────────────────────────────────────────
-  const affectedBroadcastIds = new Set<string>()
-  let processed = 0
-
-  for (const recipient of quickRecipients) {
-    // Stop before the function deadline to ensure DB finalize runs cleanly
-    if (Date.now() >= deadline) break
-    const sched = scheduleMap.get(recipient.broadcast_id) ?? { windows: [], timezone: 'America/Sao_Paulo' }
-    const broadcast = broadcastMap.get(recipient.broadcast_id) as {
-      id: string; account_id: string; quick_template_id: string
-    } | undefined
-    const contact = contactMap.get(recipient.contact_id) as {
-      id: string; phone: string | null; name: string | null; company: string | null
-    } | undefined
-
-    affectedBroadcastIds.add(recipient.broadcast_id)
-
-    if (!broadcast || !contact?.phone) {
-      await db.from('broadcast_recipients')
-        .update({ status: 'failed', error_message: 'Missing contact or broadcast data' })
-        .eq('id', recipient.id)
-      continue
-    }
-
-    const template = templateMap.get(broadcast.quick_template_id) as {
-      body: string; media_type: string | null; media_url: string | null; messages: unknown
-    } | undefined
-    const config = configMap.get(broadcast.account_id) as {
-      provider: string
-      evolution_instance_name: string
-    } | undefined
-
-    if (!template || !config) {
-      await db.from('broadcast_recipients')
-        .update({ status: 'failed', error_message: 'Template or WhatsApp config not found' })
-        .eq('id', recipient.id)
-      continue
-    }
-
-    const isWApi = config.provider === 'wapi'
-
-    if (!isWApi && !config.evolution_instance_name) {
-      await db.from('broadcast_recipients')
-        .update({ status: 'failed', error_message: 'Evolution instance name not configured' })
-        .eq('id', recipient.id)
-      continue
-    }
-
-    // Resolve the provider-specific send config
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let evoCfg: any = null
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let wapiCfg: any = null
-
-    if (isWApi) {
-      try {
-        wapiCfg = getSystemWApiConfig()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'W-API config error'
-        await db.from('broadcast_recipients')
-          .update({ status: 'failed', error_message: msg })
-          .eq('id', recipient.id)
-        continue
-      }
-    } else {
-      try {
-        evoCfg = getSystemEvolutionConfig(config.evolution_instance_name)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Evolution config error'
-        await db.from('broadcast_recipients')
-          .update({ status: 'failed', error_message: msg })
-          .eq('id', recipient.id)
-        continue
-      }
-    }
-
-    const sanitized = sanitizePhoneForMeta(contact.phone)
-    if (!isValidE164(sanitized)) {
-      await db.from('broadcast_recipients')
-        .update({ status: 'failed', error_message: 'Invalid phone number' })
-        .eq('id', recipient.id)
-      continue
-    }
-
-    const evoPhone = toEvolutionPhone(sanitized)
-
-    const msgs = template.messages as MsgDef[] | null
-    const sequence: MsgDef[] =
-      msgs && msgs.length > 0
-        ? msgs
-        : [{ body: template.body, media_type: template.media_type, media_url: template.media_url }]
-
-    // Send only the message at the current message_index (no sleep — delays are
-    // handled by rescheduling the recipient row for the next cron tick).
-    const msgIdx: number = (recipient as { message_index?: number }).message_index ?? 0
-    const msg = sequence[Math.min(msgIdx, sequence.length - 1)]
-    const text = resolveQuickVars(msg.body, contact)
-
-    let msgId = ''
-    try {
-      let result
-      if (isWApi) {
-        if (msg.media_url && msg.media_type) {
-          result = await sendWApiMediaMessage(
-            wapiCfg,
-            toWApiPhone(evoPhone),
-            msg.media_type as WApiMediaType,
-            msg.media_url,
-            msg.media_type !== 'audio' ? text : undefined,
-          )
-        } else {
-          result = await sendWApiTextMessage(wapiCfg, toWApiPhone(evoPhone), text)
-        }
-      } else {
-        if (msg.media_url && msg.media_type) {
-          result = await sendMediaMessage(
-            evoCfg,
-            evoPhone,
-            msg.media_type as EvolutionMediaType,
-            msg.media_url,
-            msg.media_type !== 'audio' ? text : undefined,
-          )
-        } else {
-          result = await sendTextMessage(evoCfg, evoPhone, text)
-        }
-      }
-      msgId = result.messageId || ''
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : 'Send failed'
-      await db.from('broadcast_recipients')
-        .update({ status: 'failed', error_message: `Msg ${msgIdx + 1}: ${errMsg}` })
-        .eq('id', recipient.id)
-      continue
-    }
-
-    const nextIdx = msgIdx + 1
-    if (nextIdx < sequence.length) {
-      // More messages remain — reschedule for the next message after its delay.
-      // The recipient stays 'pending' so the finalize check won't fire early.
-      const nextDelay = sequence[nextIdx].delay_before_ms ?? 1000
-      await db.from('broadcast_recipients')
-        .update({
-          message_index: nextIdx,
-          scheduled_at: new Date(
-            clampToWindow(Date.now() + nextDelay, sched.windows, sched.timezone)
-          ).toISOString(),
-          whatsapp_message_id: msgId || null,
-        })
-        .eq('id', recipient.id)
-    } else {
-      // Last message sent — mark the recipient as fully done.
-      await db.from('broadcast_recipients')
-        .update({
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-          whatsapp_message_id: msgId || null,
-        })
-        .eq('id', recipient.id)
-      processed++
-    }
-  }
-
-  // ── Finalize completed broadcasts ─────────────────────────────────────────
+  // Finalize completed broadcasts
+  const affectedBroadcastIds = new Set(sendingIds)
   for (const broadcastId of affectedBroadcastIds) {
     const { count: pendingCount } = await db
       .from('broadcast_recipients')
@@ -348,9 +73,8 @@ async function handler(request: Request) {
     }
   }
 
-  return NextResponse.json({ processed })
+  return NextResponse.json({ processed: 0 })
 }
 
-// pg_cron calls via net.http_post; Vercel cron calls via GET
 export async function GET(request: Request) { return handler(request) }
 export async function POST(request: Request) { return handler(request) }

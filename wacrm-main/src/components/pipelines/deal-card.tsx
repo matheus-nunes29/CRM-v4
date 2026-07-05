@@ -1,14 +1,20 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Calendar, Check, X } from "lucide-react";
+import { Calendar, CalendarDays, Check, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
+
+export interface NextEventInfo {
+  title: string;
+  start_at: string;
+}
 
 interface DealCardProps {
   deal: Deal;
   stage: PipelineStage | null;
   onEdit: (deal: Deal) => void;
   isOverlay?: boolean;
+  nextEvent?: NextEventInfo;
 }
 
 function formatDate(dateStr: string) {
@@ -25,7 +31,20 @@ function initials(name?: string, fallback?: string) {
   return source.charAt(0).toUpperCase();
 }
 
-export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
+function fmtNextEventDate(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay(d, today)) return `hoje · ${time}`;
+  if (sameDay(d, tomorrow)) return `amanhã · ${time}`;
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) + ` · ${time}`;
+}
+
+export function DealCard({ deal, stage, onEdit, isOverlay, nextEvent }: DealCardProps) {
   const contactLabel = deal.contact?.name || deal.contact?.phone || "Sem contato";
   const assigneeLabel = deal.assignee?.full_name || null;
 
@@ -130,6 +149,18 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
                 <span className="truncate">{cv.value}</span>
               </div>
             ))}
+        </div>
+      )}
+
+      {nextEvent && (
+        <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-2 py-1.5">
+          <CalendarDays className="h-3 w-3 shrink-0 text-primary/70" />
+          <span className="flex-1 truncate text-[10px] font-medium text-foreground/80 leading-tight">
+            {nextEvent.title}
+          </span>
+          <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums whitespace-nowrap">
+            {fmtNextEventDate(nextEvent.start_at)}
+          </span>
         </div>
       )}
 

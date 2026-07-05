@@ -170,13 +170,22 @@ export function validateTriggerForActivation(
     if (!nonEmpty(cfg.schedule)) {
       issues.push({ path: 'trigger.schedule', message: 'schedule is required' })
     }
-  } else if (triggerType === 'tag_added') {
+  } else if (triggerType === 'tag_added' || triggerType === 'tag_removed') {
     if (!nonEmpty(cfg.tag_id)) {
       issues.push({ path: 'trigger.tag_id', message: 'tag is required' })
     }
-  } else if (triggerType === 'deal_stage_entered') {
+  } else if (triggerType === 'deal_stage_entered' || triggerType === 'deal_stage_left') {
     if (!nonEmpty(cfg.stage_id)) {
       issues.push({ path: 'trigger.stage_id', message: 'stage is required' })
+    }
+  } else if (
+    triggerType === 'conversation_idle' ||
+    triggerType === 'contact_inactive' ||
+    triggerType === 'deal_stagnant'
+  ) {
+    const t = cfg.threshold
+    if (typeof t !== 'number' || t < 1) {
+      issues.push({ path: 'trigger.threshold', message: 'threshold must be a positive number' })
     }
   }
 

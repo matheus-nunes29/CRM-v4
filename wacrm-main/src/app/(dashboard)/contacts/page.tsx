@@ -339,23 +339,30 @@ export default function ContactsPage() {
     try {
       const ops: Promise<{ error: unknown }>[] = [];
 
-      // Add tags
-      if (bulkTagsToAdd.size > 0) {
-        const rows = ids.flatMap((contactId) =>
-          [...bulkTagsToAdd].map((tagId) => ({ contact_id: contactId, tag_id: tagId }))
-        );
-        ops.push(supabase.from('contact_tags').upsert(rows, { onConflict: 'contact_id,tag_id', ignoreDuplicates: true }) as unknown as Promise<{ error: unknown }>);
+      // Add tags via API so automation events fire per contact
+      for (const contactId of ids) {
+        for (const tagId of bulkTagsToAdd) {
+          ops.push(
+            fetch(`/api/contacts/${contactId}/tags`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ tag_id: tagId }),
+            }).then((r) => ({ error: r.ok ? null : `${r.status}` }))
+          );
+        }
       }
 
-      // Remove tags
-      if (bulkTagsToRemove.size > 0) {
-        ops.push(
-          supabase
-            .from('contact_tags')
-            .delete()
-            .in('contact_id', ids)
-            .in('tag_id', [...bulkTagsToRemove]) as unknown as Promise<{ error: unknown }>
-        );
+      // Remove tags via API so automation events fire per contact
+      for (const contactId of ids) {
+        for (const tagId of bulkTagsToRemove) {
+          ops.push(
+            fetch(`/api/contacts/${contactId}/tags`, {
+              method: 'DELETE',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ tag_id: tagId }),
+            }).then((r) => ({ error: r.ok ? null : `${r.status}` }))
+          );
+        }
       }
 
       // Update field

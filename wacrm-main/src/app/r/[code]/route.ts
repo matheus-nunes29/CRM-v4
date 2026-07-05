@@ -36,7 +36,7 @@ export async function GET(
   const gclid = url.searchParams.get('gclid')
 
   // Build pre-filled message: append #ref-CODE and optionally #gclid-VALUE
-  // so the Evolution webhook can extract both for attribution.
+  // so the webhook can extract both for attribution.
   let message = `${link.initial_message} #ref-${code}`
   if (gclid) message += ` #gclid-${gclid}`
 

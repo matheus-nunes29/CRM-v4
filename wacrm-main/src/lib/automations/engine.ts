@@ -10,6 +10,7 @@ import type {
   SendWebhookStepConfig,
   StageEnteredTriggerConfig,
   TagStepConfig,
+  TagTriggerConfig,
   UpdateContactFieldStepConfig,
   WaitStepConfig,
   CreateDealStepConfig,
@@ -29,14 +30,18 @@ export interface AutomationContext {
   conversation_id?: string
   /** Arbitrary variables accumulated during execution. */
   vars?: Record<string, unknown>
-  /** The tag id that was added, for tag_added trigger. */
+  /** The tag id that was added/removed, for tag_added/tag_removed trigger. */
   tag_id?: string
   /** Agent the conversation was assigned to, for conversation_assigned. */
   agent_id?: string
-  /** The pipeline stage a deal just entered, for deal_stage_entered trigger. */
+  /** The pipeline stage a deal just entered/left, for deal_stage_entered/left. */
   deal_stage_id?: string
   /** Contact's display name (WhatsApp pushName or stored name). */
   contact_name?: string
+  /** The field that changed, for contact_field_changed trigger. */
+  changed_field?: string
+  /** Deal id for deal-related triggers. */
+  deal_id?: string
 }
 
 export interface DispatchInput {
@@ -596,10 +601,21 @@ function triggerMatches(automation: Automation, ctx: AutomationContext | undefin
       return cfg.match_type === 'exact' ? haystack === k : haystack.includes(k)
     })
   }
-  if (automation.trigger_type === 'deal_stage_entered') {
+  if (automation.trigger_type === 'deal_stage_entered' || automation.trigger_type === 'deal_stage_left') {
     const cfg = automation.trigger_config as StageEnteredTriggerConfig
     if (!cfg?.stage_id) return false
     return ctx?.deal_stage_id === cfg.stage_id
+  }
+  if (automation.trigger_type === 'tag_added' || automation.trigger_type === 'tag_removed') {
+    const cfg = automation.trigger_config as TagTriggerConfig
+    if (!cfg?.tag_id) return false
+    return ctx?.tag_id === cfg.tag_id
+  }
+  if (automation.trigger_type === 'contact_field_changed') {
+    const cfg = automation.trigger_config as { field?: string }
+    // If no field configured, matches any field change.
+    if (!cfg?.field) return true
+    return ctx?.changed_field === cfg.field
   }
   return true
 }

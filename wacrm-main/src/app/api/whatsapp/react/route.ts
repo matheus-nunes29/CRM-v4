@@ -4,15 +4,14 @@ import { sendReactionMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
 import {
-  sendReactionMessage as evoSendReaction,
-  getSystemEvolutionConfig,
-  toEvolutionPhone,
-} from '@/lib/whatsapp/evolution-api';
-import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+
+const WAPI_INSTANCE_ID = process.env.WAPI_INSTANCE_ID ?? ''
+const WAPI_TOKEN = process.env.WAPI_TOKEN ?? ''
+const WAPI_BASE_URL = 'https://api.w-api.app'
 
 /**
  * POST /api/whatsapp/react
@@ -116,7 +115,7 @@ export async function POST(request: Request) {
     // WhatsApp config + access token. Account-scoped post-multi-user.
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('phone_number_id, access_token, provider, evolution_instance_name')
+      .select('phone_number_id, access_token, provider')
       .eq('account_id', accountId)
       .single();
 
@@ -127,23 +126,36 @@ export async function POST(request: Request) {
       );
     }
 
-    const provider = config.provider ?? 'meta';
-
     try {
-      if (provider === 'evolution') {
-        const evoCfg = getSystemEvolutionConfig(config.evolution_instance_name ?? '')
-        const evoPhone = toEvolutionPhone(sanitizePhoneForMeta(contact.phone))
-        const remoteJid = `${evoPhone}@s.whatsapp.net`
-        const fromMe =
-          targetMessage.sender_type === 'agent' ||
-          targetMessage.sender_type === 'bot'
-        await evoSendReaction(evoCfg, {
-          remoteJid,
-          fromMe,
-          messageId: targetMessage.message_id,
-          emoji,
+      if (config.provider === 'wapi') {
+        // W-API reaction
+        const rawPhone = contact.phone.replace(/\D/g, '')
+        const isRemove = emoji === ''
+        const endpoint = isRemove
+          ? `${WAPI_BASE_URL}/v1/message/remove-reaction?instanceId=${WAPI_INSTANCE_ID}`
+          : `${WAPI_BASE_URL}/v1/message/send-reaction?instanceId=${WAPI_INSTANCE_ID}`
+        const wapiBody = isRemove
+          ? { phone: rawPhone, messageId: targetMessage.message_id, delayMessage: 0 }
+          : { phone: rawPhone, messageId: targetMessage.message_id, reaction: emoji, delayMessage: 0 }
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${WAPI_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(wapiBody),
         })
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '')
+          const is403 = res.status === 403
+          throw new Error(
+            is403
+              ? 'Reações não estão disponíveis no plano W-API atual. Faça upgrade do plano para usar esta funcionalidade.'
+              : `W-API ${res.status}: ${txt.slice(0, 200)}`
+          )
+        }
       } else {
+        // Meta reaction
         const accessToken = decrypt(config.access_token);
         const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
         await sendReactionMessage({

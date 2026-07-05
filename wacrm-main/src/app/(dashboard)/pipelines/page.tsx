@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal, DealStatus } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
+import type { NextEventInfo } from "@/components/pipelines/deal-card";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
@@ -56,6 +57,7 @@ export default function PipelinesPage() {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nextEventsMap, setNextEventsMap] = useState<Record<string, NextEventInfo>>({});
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -118,6 +120,23 @@ export default function PipelinesPage() {
     },
     [supabase],
   );
+
+  const loadNextEventsForDeals = useCallback(async (dealIds: string[]) => {
+    if (!dealIds.length) { setNextEventsMap({}); return; }
+    const { data } = await supabase
+      .from("calendar_events")
+      .select("id, deal_id, title, start_at")
+      .in("deal_id", dealIds)
+      .gte("end_at", new Date().toISOString())
+      .order("start_at", { ascending: true });
+    const map: Record<string, NextEventInfo> = {};
+    for (const ev of data ?? []) {
+      if (ev.deal_id && !map[ev.deal_id]) {
+        map[ev.deal_id] = { title: ev.title, start_at: ev.start_at };
+      }
+    }
+    setNextEventsMap(map);
+  }, [supabase]);
 
   const seedDefaultPipeline = useCallback(async (): Promise<Pipeline | null> => {
     const {
@@ -201,11 +220,12 @@ export default function PipelinesPage() {
       if (cancelled) return;
       setStages(s);
       setDeals(d);
+      loadNextEventsForDeals(d.map((x) => x.id));
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedPipelineId, loadStages, loadDeals]);
+  }, [selectedPipelineId, loadStages, loadDeals, loadNextEventsForDeals]);
 
   const refreshPipelines = useCallback(async () => {
     const list = await loadPipelines();
@@ -222,8 +242,10 @@ export default function PipelinesPage() {
 
   const refreshDeals = useCallback(async () => {
     if (!selectedPipelineId) return;
-    setDeals(await loadDeals(selectedPipelineId));
-  }, [loadDeals, selectedPipelineId]);
+    const d = await loadDeals(selectedPipelineId);
+    setDeals(d);
+    loadNextEventsForDeals(d.map((x) => x.id));
+  }, [loadDeals, selectedPipelineId, loadNextEventsForDeals]);
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
@@ -445,6 +467,7 @@ export default function PipelinesPage() {
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}
+            nextEventsMap={nextEventsMap}
           />
         </>
       )}

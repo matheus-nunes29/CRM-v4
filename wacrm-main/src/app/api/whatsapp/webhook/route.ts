@@ -713,6 +713,36 @@ async function processMessage(
       },
     }).catch((err) => console.error('[automations] dispatch failed:', err))
   }
+
+  // broadcast_reply: fires if this contact has received a broadcast message
+  // in the last 7 days and is now replying.
+  if (!flowConsumed) {
+    ;(async () => {
+      try {
+        const db = supabaseAdmin()
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        const { count } = await db
+          .from('broadcast_recipients')
+          .select('id', { count: 'exact', head: true })
+          .eq('contact_id', contactRecord.id)
+          .in('status', ['sent', 'delivered', 'read'])
+          .gte('updated_at', sevenDaysAgo)
+        if ((count ?? 0) > 0) {
+          runAutomationsForTrigger({
+            accountId,
+            triggerType: 'broadcast_reply',
+            contactId: contactRecord.id,
+            context: {
+              message_text: inboundText,
+              conversation_id: conversation.id,
+            },
+          }).catch((err) => console.error('[automations] broadcast_reply error:', err))
+        }
+      } catch (err) {
+        console.error('[automations] broadcast_reply check failed:', err)
+      }
+    })()
+  }
 }
 
 async function parseMessageContent(

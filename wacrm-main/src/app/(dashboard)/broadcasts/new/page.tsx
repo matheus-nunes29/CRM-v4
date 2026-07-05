@@ -161,7 +161,7 @@ export default function NewBroadcastPage() {
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? 'Falha no disparo'); return; }
-      toast.success(`Disparo enviado — ${data.sentCount} enviados, ${data.failedCount} falhas.`);
+      toast.success('Disparo iniciado! Acompanhe o progresso na página do disparo.');
       router.push(`/broadcasts/${data.broadcastId}`);
     } catch {
       toast.error('Erro de rede. Tente novamente.');
@@ -207,9 +207,9 @@ export default function NewBroadcastPage() {
               <MessageSquare className="h-5 w-5 text-green-400" />
             </div>
             <div>
-              <p className="font-semibold text-foreground">Templates Rápidos</p>
+              <p className="font-semibold text-foreground">W-API (não oficial)</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Envia texto livre via API não oficial (Evolution). Sem aprovação, responde imediatamente.
+                Envia mensagens de texto livres via API não oficial. Não exige template aprovado.
               </p>
             </div>
           </button>
