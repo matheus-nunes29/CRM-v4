@@ -140,7 +140,7 @@ const TRIGGER_GROUPS: { group: string; options: { value: AutomationTriggerType; 
     options: [
       { value: "conversation_assigned", label: "Conversa Atribuída", hint: "Quando uma conversa é atribuída a um agente" },
       { value: "conversation_closed", label: "Conversa Encerrada", hint: "Quando uma conversa é marcada como fechada" },
-      { value: "conversation_idle", label: "Conversa Ociosa", hint: "Conversa sem resposta do agente por um período configurável — verificado a cada hora" },
+      { value: "conversation_idle", label: "Conversa Ociosa", hint: "Conversa sem resposta do agente por um período configurável — verificado diariamente às 9h" },
     ],
   },
   {
