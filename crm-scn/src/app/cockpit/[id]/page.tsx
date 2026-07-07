@@ -63,14 +63,15 @@ function getSlotDays(semana: string, mes: string): number {
   const [y, m] = mes.split('-').map(Number)
   const daysInMonth = new Date(y, m, 0).getDate()
   const lastMonday = mondays[mondays.length - 1]
+  const firstMondayDay = parseInt(mondays[0].split('-')[2])
   // closing slot: 1ª segunda do mês seguinte
   const nextM = m === 12 ? 1 : m + 1
   const nextY = m === 12 ? y + 1 : y
   const closingSemana = getFirstMondayOfMonth(`${nextY}-${String(nextM).padStart(2, '0')}`)
   if (semana === closingSemana) return daysInMonth - parseInt(lastMonday.split('-')[2]) + 1
-  // 1º slot de resultado: 2ª segunda do mês, cobre do dia 1 até o domingo anterior
-  if (mondays.length >= 2 && semana === mondays[1]) return parseInt(mondays[1].split('-')[2]) - 1
-  // slots regulares: sempre 7 dias
+  // slot parcial inicial: 1ª segunda do mês cobre do dia 1 até o dia anterior (quando > dia 1)
+  if (semana === mondays[0] && firstMondayDay > 1) return firstMondayDay - 1
+  // todos os demais slots: 7 dias
   return 7
 }
 function fmtMes(mes: string): string {
@@ -1872,8 +1873,9 @@ function TabHealthScore({ entries, metas, clienteId, onReload, canEdit, objetivo
   const objetivosMes = objetivos.filter(o => o.mes === mesAtual)
   const resultadosSemana = resultados.filter(r => r.semana === semanaAtual)
   // Gate: all objectives must have weekly results before saving Health Score
-  // Exceção: 1ª segunda do mês não tem slot de resultado (cobrindo mês anterior)
-  const isPrimeiraSegunda = semanaAtual === getFirstMondayOfMonth(mesAtual)
+  // Exceção: 1ª segunda do mês SÓ é ignorada quando ela cai no dia 1 (sem dias anteriores no mês)
+  const firstMondayDayAtual = parseInt(getFirstMondayOfMonth(mesAtual).split('-')[2])
+  const isPrimeiraSegunda = semanaAtual === getFirstMondayOfMonth(mesAtual) && firstMondayDayAtual === 1
   const objetivosSemFalta = isPrimeiraSegunda ? [] : objetivosMes.filter(o =>
     !resultadosSemana.some(r => r.objetivo_id === o.id && r.valor_realizado !== null)
   )
@@ -2677,18 +2679,26 @@ function TabMetas({ metas, projetos, clienteId, onReload, canEdit, objetivos, re
                 const nextMes = `${nextY}-${String(nextM).padStart(2,'0')}`
                 const closingSemana = getFirstMondayOfMonth(nextMes)
 
-                // slots regulares: 2ª segunda em diante (cada um cobre segunda anterior – domingo)
-                const resultSlots = mondays.slice(1).map((semana, idx, arr) => {
+                const firstMondayDay = parseInt(mondays[0].split('-')[2])
+                const hasPartialFirstWeek = firstMondayDay > 1
+
+                // slot parcial inicial: 1ª segunda cobre dia 1 até o dia anterior à 1ª segunda
+                const resultSlots: { semana: string; periodoStart: string; periodoEnd: string; isClosing: boolean }[] = []
+                if (hasPartialFirstWeek) {
+                  const endD = new Date(mondays[0] + 'T12:00:00'); endD.setDate(endD.getDate() - 1)
+                  const endFmt = `${endD.getFullYear()}-${String(endD.getMonth()+1).padStart(2,'0')}-${String(endD.getDate()).padStart(2,'0')}`
+                  resultSlots.push({ semana: mondays[0], periodoStart: `${selectedMes}-01`, periodoEnd: endFmt, isClosing: false })
+                }
+
+                // slots regulares: 2ª segunda em diante, cada um cobre a semana completa (seg–dom)
+                mondays.slice(1).forEach((semana, idx) => {
                   const prevD = new Date(semana + 'T12:00:00'); prevD.setDate(prevD.getDate() - 7)
                   const prevFmt = `${prevD.getFullYear()}-${String(prevD.getMonth()+1).padStart(2,'0')}-${String(prevD.getDate()).padStart(2,'0')}`
                   const sunD = new Date(semana + 'T12:00:00'); sunD.setDate(sunD.getDate() - 1)
                   const sunFmt = `${sunD.getFullYear()}-${String(sunD.getMonth()+1).padStart(2,'0')}-${String(sunD.getDate()).padStart(2,'0')}`
-                  return {
-                    semana,
-                    periodoStart: idx === 0 ? `${selectedMes}-01` : prevFmt,
-                    periodoEnd: sunFmt,
-                    isClosing: false,
-                  }
+                  // sem partial first week: primeiro slot regular ainda começa do dia 1
+                  const periodoStart = (idx === 0 && !hasPartialFirstWeek) ? `${selectedMes}-01` : prevFmt
+                  resultSlots.push({ semana, periodoStart, periodoEnd: sunFmt, isClosing: false })
                 })
 
                 // closing slot: 1ª segunda do mês seguinte, cobre do último Monday até fim do mês
