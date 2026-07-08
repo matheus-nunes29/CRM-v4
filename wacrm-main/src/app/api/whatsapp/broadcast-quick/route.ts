@@ -137,11 +137,13 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json()
-  const { name, quick_template_id, delay_seconds, audience } = body as {
+  const { name, quick_template_id, delay_seconds, audience, schedule_windows, schedule_timezone } = body as {
     name: string
     quick_template_id: string
     delay_seconds?: number
     audience: AudienceConfig
+    schedule_windows?: { start: string; end: string }[]
+    schedule_timezone?: string
   }
 
   if (!name?.trim() || !quick_template_id || !audience) {
@@ -197,6 +199,8 @@ export async function POST(request: Request) {
       template_name: (template as { name: string }).name,
       template_language: 'pt_BR',
       delay_seconds: delaySec,
+      schedule_windows: schedule_windows?.length ? schedule_windows : null,
+      schedule_timezone: schedule_timezone ?? 'America/Sao_Paulo',
       wapi_instance_id: WAPI_INSTANCE_ID,
       wapi_token: WAPI_TOKEN,
       status: 'sending',

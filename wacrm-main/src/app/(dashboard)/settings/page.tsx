@@ -12,6 +12,7 @@ import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { QuickTemplateManager } from '@/components/settings/quick-template-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
+import { ProductsPanel } from '@/components/settings/products-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
@@ -57,6 +58,7 @@ export default function SettingsPage() {
     'quick-templates': <QuickTemplateManager />,
     tracking: <TrackingLinksManager />,
     fields: <FieldsAndTagsPanel />,
+    products: <ProductsPanel />,
     deals: <DealsSettings />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,

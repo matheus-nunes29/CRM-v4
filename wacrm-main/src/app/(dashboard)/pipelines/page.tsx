@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GitBranch, Plus, ChevronDown, Settings } from "lucide-react";
+import { ChevronDown, GitBranch, Plus, Settings, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
@@ -58,6 +58,8 @@ export default function PipelinesPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [nextEventsMap, setNextEventsMap] = useState<Record<string, NextEventInfo>>({});
+  const [ownerFilter, setOwnerFilter] = useState<string>("");
+  const [members, setMembers] = useState<{ user_id: string; full_name: string }[]>([]);
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -73,6 +75,13 @@ export default function PipelinesPage() {
 
   // Guard against double-seeding (React StrictMode double-effect in dev).
   const seedAttempted = useRef(false);
+
+  useEffect(() => {
+    fetch('/api/account/members')
+      .then(r => r.json())
+      .then(j => setMembers(j.members ?? []))
+      .catch(() => {})
+  }, []);
 
   const loadPipelines = useCallback(async () => {
     const { data, error } = await supabase
@@ -344,6 +353,9 @@ export default function PipelinesPage() {
   }
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
+  const visibleDeals = ownerFilter
+    ? deals.filter((d) => (d as Deal & { assigned_to?: string }).assigned_to === ownerFilter)
+    : deals;
 
   if (loading) {
     return (
@@ -401,6 +413,13 @@ export default function PipelinesPage() {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem
+                onClick={() => setNewPipelineOpen(true)}
+                className="text-popover-foreground"
+              >
+                <Plus className="mr-2 h-3.5 w-3.5" />
+                Adicionar Pipeline
+              </DropdownMenuItem>
               {selectedPipeline && (
                 <DropdownMenuItem
                   onClick={() => setSettingsOpen(true)}
@@ -415,16 +434,22 @@ export default function PipelinesPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <GatedButton
-            variant="outline"
-            canAct={canEditSettings}
-            gateReason="create pipelines"
-            onClick={() => setNewPipelineOpen(true)}
-            className="border-border bg-card text-foreground hover:bg-muted"
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Adicionar Pipeline
-          </GatedButton>
+          {members.length > 0 && (
+            <div className="relative flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+              <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <select
+                value={ownerFilter}
+                onChange={e => setOwnerFilter(e.target.value)}
+                className="appearance-none bg-transparent pr-5 text-sm text-foreground focus:outline-none"
+              >
+                <option value="">Toda equipe</option>
+                {members.map(m => (
+                  <option key={m.user_id} value={m.user_id}>{m.full_name || m.user_id}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+          )}
           <GatedButton
             canAct={canCreateDeals}
             gateReason="create deals"
@@ -460,10 +485,10 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineAnalytics stages={stages} deals={deals} />
+          <PipelineAnalytics stages={stages} deals={visibleDeals} />
           <PipelineBoard
             stages={stages}
-            deals={deals}
+            deals={visibleDeals}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}

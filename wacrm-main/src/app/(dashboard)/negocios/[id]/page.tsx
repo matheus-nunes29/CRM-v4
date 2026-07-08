@@ -7,11 +7,12 @@ import { useAuth } from '@/hooks/use-auth'
 import { formatCurrency } from '@/lib/currency'
 import {
   ArrowLeft, Briefcase, CalendarDays, CalendarPlus,
-  Clock, Loader2, Pencil, Tag, Trash2, User,
+  Clock, Loader2, Pencil, Tag, Trash2, User, History,
 } from 'lucide-react'
 import type { Deal, PipelineStage } from '@/types'
 import { Button } from '@/components/ui/button'
 import { DealForm } from '@/components/pipelines/deal-form'
+import { DealItemsPanel } from '@/components/pipelines/deal-items-panel'
 import { ScheduleEventModal, type CalendarEvent } from '@/components/calendar/schedule-event-modal'
 import { cn } from '@/lib/utils'
 
@@ -47,6 +48,7 @@ export default function DealDetailPage({ params }: Props) {
 
   const [deal, setDeal]     = useState<DealDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [liveValue, setLiveValue] = useState<number | null>(null)
   const [stages, setStages]   = useState<PipelineStage[]>([])
   const [formOpen, setFormOpen] = useState(false)
 
@@ -54,6 +56,14 @@ export default function DealDetailPage({ params }: Props) {
   const [eventsLoading, setEvLoad]    = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [deletingEvent, setDeleting]  = useState<string | null>(null)
+
+  type StageHistoryRow = {
+    id: string
+    entered_at: string
+    exited_at: string | null
+    stage: { id: string; name: string; color: string } | null
+  }
+  const [stageHistory, setStageHistory] = useState<StageHistoryRow[]>([])
 
   const fetchDeal = useCallback(async () => {
     setLoading(true)
@@ -69,6 +79,20 @@ export default function DealDetailPage({ params }: Props) {
         const { data: s } = await supabase.from('pipeline_stages').select('*').eq('pipeline_id', data.pipeline_id).order('position', { ascending: true })
         setStages((s as PipelineStage[]) ?? [])
       }
+      const { data: hist } = await supabase
+        .from('deal_stage_history')
+        .select('id, entered_at, exited_at, stage:pipeline_stages(id,name,color)')
+        .eq('deal_id', id)
+        .order('entered_at', { ascending: true })
+      // Supabase returns nested one-to-one joins as arrays; unwrap stage
+      const normalized = (hist ?? []).map((row: {
+        id: string; entered_at: string; exited_at: string | null
+        stage: { id: string; name: string; color: string }[] | { id: string; name: string; color: string } | null
+      }) => ({
+        ...row,
+        stage: Array.isArray(row.stage) ? (row.stage[0] ?? null) : row.stage,
+      })) as StageHistoryRow[]
+      setStageHistory(normalized)
     }
     setLoading(false)
   }, [id, supabase])
@@ -146,11 +170,14 @@ export default function DealDetailPage({ params }: Props) {
                 {statusMeta.label}
               </span>
             </div>
-            {deal.value != null && deal.value > 0 && (
-              <p className="text-2xl font-bold text-foreground">
-                {formatCurrency(deal.value, deal.currency ?? defaultCurrency)}
-              </p>
-            )}
+            {(() => {
+              const displayValue = liveValue ?? deal.value
+              return displayValue != null && displayValue > 0 ? (
+                <p className="text-2xl font-bold text-foreground">
+                  {formatCurrency(displayValue, deal.currency ?? defaultCurrency)}
+                </p>
+              ) : null
+            })()}
           </div>
 
           {/* Info grid */}
@@ -181,6 +208,68 @@ export default function DealDetailPage({ params }: Props) {
             <div className="rounded-xl border border-border bg-card p-4 space-y-1.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Observações</p>
               <p className="whitespace-pre-wrap text-sm text-foreground">{deal.notes}</p>
+            </div>
+          )}
+
+          {/* Items (products/services) */}
+          <DealItemsPanel
+            dealId={deal.id}
+            currency={deal.currency ?? defaultCurrency}
+            onValueChange={setLiveValue}
+          />
+
+          {/* Stage history timeline */}
+          {stageHistory.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <History className="size-4 text-muted-foreground" />
+                <p className="text-sm font-semibold text-foreground">Histórico de etapas</p>
+              </div>
+              <ol className="relative border-l border-border ml-2 space-y-0">
+                {stageHistory.map((row, i) => {
+                  const color = row.stage?.color ?? '#6b7280'
+                  const isLast = i === stageHistory.length - 1
+                  const durationMs = row.exited_at
+                    ? new Date(row.exited_at).getTime() - new Date(row.entered_at).getTime()
+                    : Date.now() - new Date(row.entered_at).getTime()
+                  const durationDays = Math.floor(durationMs / 86_400_000)
+                  const durationHours = Math.floor((durationMs % 86_400_000) / 3_600_000)
+                  const durationLabel = durationDays > 0
+                    ? `${durationDays}d ${durationHours}h`
+                    : durationHours > 0
+                    ? `${durationHours}h`
+                    : '< 1h'
+
+                  return (
+                    <li key={row.id} className="pb-5 pl-5 last:pb-0">
+                      {/* dot */}
+                      <span
+                        className="absolute -left-[5px] mt-1 size-2.5 rounded-full border-2 border-background"
+                        style={{ backgroundColor: isLast && !row.exited_at ? color : '#6b7280' }}
+                      />
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-foreground leading-tight">
+                            {row.stage?.name ?? '—'}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {new Date(row.entered_at).toLocaleDateString('pt-BR', {
+                              day: '2-digit', month: 'short', year: 'numeric',
+                            })}
+                            {' '}
+                            {new Date(row.entered_at).toLocaleTimeString('pt-BR', {
+                              hour: '2-digit', minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground bg-muted/60 rounded px-1.5 py-0.5 mt-0.5">
+                          {durationLabel}
+                        </span>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
             </div>
           )}
         </div>

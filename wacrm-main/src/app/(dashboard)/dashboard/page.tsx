@@ -1,22 +1,30 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { formatCurrency } from '@/lib/currency'
 import {
-  MessageSquare,
-  UserPlus,
-  DollarSign,
-  Send,
-  Loader2,
-  Megaphone,
-  MousePointerClick,
-  Users,
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
   Briefcase,
-  Trophy,
-  Copy,
   Check,
+  ChevronDown,
+  Clock,
+  Copy,
+  DollarSign,
+  ExternalLink,
+  Megaphone,
+  MessageSquare,
+  MousePointerClick,
+  Send,
+  Trophy,
+  TrendingUp,
+  UserPlus,
+  Users,
+  XCircle,
 } from 'lucide-react'
 
 import {
@@ -25,6 +33,7 @@ import {
   loadMetrics,
   loadPipelineDonut,
   loadResponseTime,
+  type DashboardPeriod,
 } from '@/lib/dashboard/queries'
 import type {
   ActivityItem,
@@ -44,20 +53,70 @@ import { ActivityFeed } from '@/components/dashboard/activity-feed'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
-type RangeDays = 7 | 30 | 90
+// ── Types ──────────────────────────────────────────────────────
 
-// ── Campaign stats ────────────────────────────────────────────
+interface Member { user_id: string; full_name: string; avatar_url: string | null }
+
+interface FunnelStage {
+  stage_id: string
+  stage_name: string
+  stage_color: string | null
+  open_count: number
+  avg_days: number | null
+  won_from_stage: number
+  lost_from_stage: number
+}
+interface FunnelSummary {
+  total_created: number; total_open: number; total_won: number; total_lost: number
+  win_rate: number; won_value: number; lost_value: number; open_value: number
+  delta_win_rate: number | null; prev_win_rate: number | null
+}
+interface FunnelData { funnel: FunnelStage[]; summary: FunnelSummary }
+interface FunnelPipeline { id: string; name: string }
+
+// ── Helpers ────────────────────────────────────────────────────
+
+const PERIOD_OPTIONS: { value: DashboardPeriod; label: string }[] = [
+  { value: '7d', label: '7 dias' },
+  { value: '30d', label: '30 dias' },
+  { value: '90d', label: '90 dias' },
+]
+
+function fmtBRL(v: number, currency = 'BRL') {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v)
+}
+function convRate(won: number, total: number) {
+  if (total === 0) return '—'
+  return `${Math.round((won / total) * 100)}%`
+}
+function deltaLabel(delta: number, suffix: string): string {
+  if (delta === 0) return `Sem variação ${suffix}`
+  return `${delta > 0 ? '+' : ''}${delta.toLocaleString('pt-BR')} ${suffix}`
+}
+function fmtDays(d: number | null) {
+  if (d === null) return '—'
+  return d < 1 ? '< 1d' : `${Math.round(d)}d`
+}
+
+function DeltaBadge({ delta }: { delta: number | null }) {
+  if (delta === null) return null
+  const pct = Math.round(delta * 100)
+  if (pct === 0) return <span className="text-xs text-muted-foreground">sem variação</span>
+  const up = pct > 0
+  return (
+    <span className={cn('flex items-center gap-0.5 text-xs font-medium', up ? 'text-emerald-400' : 'text-rose-400')}>
+      {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+      {Math.abs(pct)}pp vs anterior
+    </span>
+  )
+}
+
+// ── Campaign stats (unchanged) ────────────────────────────────
 
 interface CampaignStat {
-  id: string
-  name: string
-  code: string
-  utm_source: string | null
-  click_count: number
-  leads_total: number
-  deals_total: number
-  deals_won: number
-  revenue_won: number
+  id: string; name: string; code: string; utm_source: string | null
+  click_count: number; leads_total: number; deals_total: number
+  deals_won: number; revenue_won: number
 }
 
 function StatCard({ label, value, icon: Icon }: { label: string; value: string | number; icon: React.ElementType }) {
@@ -86,15 +145,6 @@ function CopyBtn({ text }: { text: string }) {
   )
 }
 
-function fmtBRL(v: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
-}
-
-function convRate(won: number, total: number) {
-  if (total === 0) return '—'
-  return `${Math.round((won / total) * 100)}%`
-}
-
 function CampanhasTab() {
   const supabase = createClient()
   const [stats, setStats] = useState<CampaignStat[]>([])
@@ -121,7 +171,7 @@ function CampanhasTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
       </div>
     )
   }
@@ -173,11 +223,11 @@ function CampanhasTab() {
                       )}
                     </p>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-foreground">{s.click_count.toLocaleString('pt-BR')}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-foreground">{s.leads_total.toLocaleString('pt-BR')}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-foreground">{s.deals_total.toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{s.click_count.toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{s.leads_total.toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{s.deals_total.toLocaleString('pt-BR')}</td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    <span className={cn('font-medium', s.deals_won > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                    <span className={cn('font-medium', s.deals_won > 0 ? 'text-emerald-400' : 'text-muted-foreground')}>
                       {s.deals_won.toLocaleString('pt-BR')}
                     </span>
                   </td>
@@ -185,7 +235,7 @@ function CampanhasTab() {
                     {convRate(s.deals_won, s.deals_total)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums hidden lg:table-cell">
-                    <span className={cn('font-medium', Number(s.revenue_won) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                    <span className={cn('font-medium', Number(s.revenue_won) > 0 ? 'text-emerald-400' : 'text-muted-foreground')}>
                       {fmtBRL(Number(s.revenue_won))}
                     </span>
                   </td>
@@ -199,149 +249,367 @@ function CampanhasTab() {
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────
+// ── Mini funnel section ────────────────────────────────────────
+
+function MiniFunnelSection({ period, funnelPipelines, funnelPipelineId, setFunnelPipelineId, funnelData, funnelLoading }: {
+  period: DashboardPeriod
+  funnelPipelines: FunnelPipeline[]
+  funnelPipelineId: string | null
+  setFunnelPipelineId: (id: string) => void
+  funnelData: FunnelData | null
+  funnelLoading: boolean
+}) {
+  const barsRef = useRef<HTMLDivElement>(null)
+  const [animated, setAnimated] = useState(false)
+  useEffect(() => {
+    setAnimated(false)
+    const t = setTimeout(() => setAnimated(true), 100)
+    return () => clearTimeout(t)
+  }, [funnelData])
+
+  const summary = funnelData?.summary
+  const funnel = funnelData?.funnel ?? []
+  const maxOpen = Math.max(...funnel.map(s => s.open_count), 1)
+  const firstCount = funnel[0]?.open_count ?? 1
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      {/* Header */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="size-4 text-primary" />
+          <h2 className="text-sm font-semibold">Funil de Vendas</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          {funnelPipelines.length > 1 && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5">
+              <select
+                value={funnelPipelineId ?? ''}
+                onChange={e => setFunnelPipelineId(e.target.value)}
+                className="bg-transparent text-xs font-medium text-foreground focus:outline-none"
+              >
+                {funnelPipelines.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <Link
+            href="/funil"
+            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
+          >
+            Ver completo <ExternalLink className="size-3" />
+          </Link>
+        </div>
+      </div>
+
+      {funnelLoading ? (
+        <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">
+          Carregando...
+        </div>
+      ) : !summary ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+          <TrendingUp className="size-8 text-muted-foreground/30" />
+          <p className="text-xs text-muted-foreground">Nenhuma pipeline selecionada.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-5 lg:flex-row lg:gap-8">
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-2 gap-3 lg:w-56 lg:shrink-0 lg:grid-cols-1">
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-[11px] text-muted-foreground">Taxa de vitória</p>
+              <p className="mt-0.5 text-xl font-bold">{Math.round(summary.win_rate * 100)}%</p>
+              <DeltaBadge delta={summary.delta_win_rate} />
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-[11px] text-muted-foreground">Valor ganho</p>
+              <p className="mt-0.5 text-xl font-bold text-emerald-400">{fmtBRL(summary.won_value)}</p>
+              <p className="text-[11px] text-muted-foreground">{summary.total_won} negócios</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-[11px] text-muted-foreground">Criados no período</p>
+              <p className="mt-0.5 text-xl font-bold">{summary.total_created}</p>
+              <p className="text-[11px] text-muted-foreground">{summary.total_open} em aberto</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-[11px] text-muted-foreground">Valor perdido</p>
+              <p className="mt-0.5 text-xl font-bold text-rose-400">{fmtBRL(summary.lost_value)}</p>
+              <p className="text-[11px] text-muted-foreground">{summary.total_lost} negócios</p>
+            </div>
+          </div>
+
+          {/* Funnel bars */}
+          <div ref={barsRef} className="flex flex-1 flex-col gap-2.5">
+            {funnel.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">Sem dados para o período.</p>
+            ) : funnel.map((stage, i) => {
+              const pct = (stage.open_count / maxOpen) * 100
+              const conversion = firstCount > 0 ? Math.round((stage.open_count / firstCount) * 100) : 0
+              const color = stage.stage_color ?? '#6b7280'
+              return (
+                <div key={stage.stage_id} className="flex items-center gap-3">
+                  <div className="flex flex-1 flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-medium">{stage.stage_name}</span>
+                      <div className="flex shrink-0 items-center gap-2 text-xs">
+                        {i > 0 && (
+                          <span className="text-muted-foreground tabular-nums">{conversion}%</span>
+                        )}
+                        <span className="font-semibold tabular-nums">{stage.open_count}</span>
+                      </div>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-border/40">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          background: color,
+                          width: `${pct}%`,
+                          transform: animated ? 'scaleX(1)' : 'scaleX(0)',
+                          transformOrigin: 'left',
+                          transition: animated
+                            ? `transform 600ms cubic-bezier(0.4,0,0.2,1) ${i * 70}ms`
+                            : 'none',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="hidden w-28 shrink-0 items-center justify-end gap-2 text-[11px] text-muted-foreground sm:flex">
+                    <span title="Tempo médio"><Clock className="mr-0.5 inline size-3" />{fmtDays(stage.avg_days)}</span>
+                    <span className="text-emerald-400" title="Ganhos"><Trophy className="inline size-3" />{stage.won_from_stage}</span>
+                    <span className="text-rose-400" title="Perdidos"><XCircle className="inline size-3" />{stage.lost_from_stage}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main page ──────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { defaultCurrency } = useAuth()
+
+  // ── Filters ──
+  const [period, setPeriod] = useState<DashboardPeriod>('30d')
+  const [ownerId, setOwnerId] = useState<string>('')
+  const [members, setMembers] = useState<Member[]>([])
+
+  // ── Overview data ──
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
-
-  const [range, setRange] = useState<RangeDays>(30)
-  const [series, setSeries] = useState<Record<RangeDays, ConversationsSeriesPoint[] | null>>({
-    7: null,
-    30: null,
-    90: null,
-  })
+  const [series, setSeries] = useState<ConversationsSeriesPoint[] | null>(null)
   const [seriesLoading, setSeriesLoading] = useState(true)
-
-  const [pipeline, setPipeline] = useState<PipelineDonutData | null>(null)
+  const [pipeline, setPipelineDonut] = useState<PipelineDonutData | null>(null)
   const [pipelineLoading, setPipelineLoading] = useState(true)
-
   const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
-
   const [activity, setActivity] = useState<ActivityItem[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(true)
 
+  // ── Funnel data ──
+  const [funnelPipelines, setFunnelPipelines] = useState<FunnelPipeline[]>([])
+  const [funnelPipelineId, setFunnelPipelineId] = useState<string | null>(null)
+  const [funnelData, setFunnelData] = useState<FunnelData | null>(null)
+  const [funnelLoading, setFunnelLoading] = useState(false)
+
+  // ── Load members once ──
+  useEffect(() => {
+    fetch('/api/account/members')
+      .then(r => r.json())
+      .then(j => setMembers((j.members ?? []) as Member[]))
+      .catch(() => {})
+  }, [])
+
+  // ── Load funnel pipelines once ──
+  useEffect(() => {
+    fetch('/api/reports/pipeline-funnel')
+      .then(r => r.json())
+      .then(j => {
+        if (j.pipelines?.length) {
+          setFunnelPipelines(j.pipelines)
+          setFunnelPipelineId(j.pipelines[0].id)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // ── Load funnel when pipeline or period changes ──
+  useEffect(() => {
+    if (!funnelPipelineId) return
+    setFunnelLoading(true)
+    setFunnelData(null)
+    fetch(`/api/reports/pipeline-funnel?pipeline_id=${funnelPipelineId}&period=${period}`)
+      .then(r => r.json())
+      .then(j => { setFunnelData(j); setFunnelLoading(false) })
+      .catch(() => setFunnelLoading(false))
+  }, [funnelPipelineId, period])
+
+  // ── Load metrics/charts when filters change ──
   const loadAll = useCallback(() => {
     const db = createClient()
+    const filters = { period, ownerId: ownerId || undefined }
+    const days = period === '7d' ? 7 : period === '90d' ? 90 : 30
 
-    void loadMetrics(db)
-      .then((m) => setMetrics(m))
-      .catch((err) => console.error('[dashboard] metrics failed:', err))
+    setMetricsLoading(true)
+    setSeriesLoading(true)
+    setPipelineLoading(true)
+    setResponseTimeLoading(true)
+    setActivityLoading(true)
+
+    void loadMetrics(db, filters)
+      .then(m => setMetrics(m))
+      .catch(err => console.error('[dashboard] metrics:', err))
       .finally(() => setMetricsLoading(false))
 
-    void loadConversationsSeries(db, 30)
-      .then((s) => setSeries((prev) => ({ ...prev, 30: s })))
-      .catch((err) => console.error('[dashboard] series failed:', err))
+    void loadConversationsSeries(db, days)
+      .then(s => setSeries(s))
+      .catch(err => console.error('[dashboard] series:', err))
       .finally(() => setSeriesLoading(false))
 
-    void loadPipelineDonut(db)
-      .then((p) => setPipeline(p))
-      .catch((err) => console.error('[dashboard] pipeline failed:', err))
+    void loadPipelineDonut(db, ownerId || undefined)
+      .then(p => setPipelineDonut(p))
+      .catch(err => console.error('[dashboard] donut:', err))
       .finally(() => setPipelineLoading(false))
 
     void loadResponseTime(db)
-      .then((r) => setResponseTime(r))
-      .catch((err) => console.error('[dashboard] response time failed:', err))
+      .then(r => setResponseTime(r))
+      .catch(err => console.error('[dashboard] response time:', err))
       .finally(() => setResponseTimeLoading(false))
 
     void loadActivity(db, 50)
-      .then((a) => setActivity(a))
-      .catch((err) => console.error('[dashboard] activity failed:', err))
+      .then(a => setActivity(a))
+      .catch(err => console.error('[dashboard] activity:', err))
       .finally(() => setActivityLoading(false))
-  }, [])
+  }, [period, ownerId])
 
-  useEffect(() => {
-    loadAll()
-  }, [loadAll])
+  useEffect(() => { loadAll() }, [loadAll])
 
-  const handleRangeChange = useCallback(
-    (r: RangeDays) => {
-      setRange(r)
-      if (series[r] !== null) return
-      setSeriesLoading(true)
-      const db = createClient()
-      loadConversationsSeries(db, r)
-        .then((s) => setSeries((prev) => ({ ...prev, [r]: s })))
-        .catch((err) => console.error('[dashboard] series failed:', err))
-        .finally(() => setSeriesLoading(false))
-    },
-    [series],
-  )
+  // ── Metric card titles adapt to period ──
+  const periodLabel = period === '7d' ? '7 dias' : period === '90d' ? '90 dias' : '30 dias'
+  const vsLabel = `vs. período anterior`
+
+  const seriesForChart = series ? {
+    7: period === '7d' ? series : null,
+    30: period === '30d' ? series : null,
+    90: period === '90d' ? series : null,
+  } : { 7: null, 30: null, 90: null }
+
+  const rangeDays: 7 | 30 | 90 = period === '7d' ? 7 : period === '90d' ? 90 : 30
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Análises em tempo real de conversas, contatos, negócios, disparos e automações.
-        </p>
+      {/* ── Header + filters ── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Visão geral de conversas, contatos, negócios e funil de vendas.
+          </p>
+        </div>
+
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Period pills */}
+          <div className="flex rounded-lg border border-border bg-card p-0.5">
+            {PERIOD_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setPeriod(opt.value)}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  period === opt.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Owner select */}
+          {members.length > 0 && (
+            <div className="relative flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5">
+              <Users className="size-3.5 shrink-0 text-muted-foreground" />
+              <select
+                value={ownerId}
+                onChange={e => setOwnerId(e.target.value)}
+                className="appearance-none bg-transparent pr-5 text-xs font-medium text-foreground focus:outline-none"
+              >
+                <option value="">Toda equipe</option>
+                {members.map(m => (
+                  <option key={m.user_id} value={m.user_id}>{m.full_name || m.user_id}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 size-3 text-muted-foreground" />
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* ── Tabs ── */}
       <Tabs defaultValue="overview">
-        <TabsList className="bg-transparent h-10 gap-0 rounded-none px-0 border-b border-border w-full justify-start">
+        <TabsList className="h-10 w-full justify-start gap-0 rounded-none border-b border-border bg-transparent px-0">
           {[
             { value: 'overview', label: 'Visão Geral' },
+            { value: 'funil', label: 'Funil de Vendas' },
             { value: 'campanhas', label: 'Campanhas' },
           ].map(({ value, label }) => (
             <TabsTrigger
               key={value}
               value={value}
-              className="rounded-none h-10 px-4 text-sm font-medium text-muted-foreground whitespace-nowrap
-                border-b-2 border-transparent
+              className="h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 text-sm font-medium text-muted-foreground whitespace-nowrap
                 data-[state=active]:border-primary data-[state=active]:text-primary
-                hover:text-foreground transition-colors bg-transparent"
+                hover:text-foreground transition-colors"
             >
               {label}
             </TabsTrigger>
           ))}
         </TabsList>
 
+        {/* ── Overview ── */}
         <TabsContent value="overview" className="mt-5 space-y-5">
-          {/* Metric cards */}
+          {/* KPI cards */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {metricsLoading || !metrics ? (
               Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
             ) : (
               <>
                 <MetricCard
-                  title="Conversas Ativas"
-                  value={metrics.activeConversations.current.toLocaleString()}
+                  title={`Conversas (${periodLabel})`}
+                  value={metrics.activeConversations.current.toLocaleString('pt-BR')}
                   icon={MessageSquare}
                   delta={{
-                    sign: metrics.activeConversations.previous,
-                    label: deltaLabel(metrics.activeConversations.previous, 'novas hoje vs ontem'),
+                    sign: metrics.activeConversations.current - metrics.activeConversations.previous,
+                    label: deltaLabel(metrics.activeConversations.current - metrics.activeConversations.previous, vsLabel),
                   }}
                 />
                 <MetricCard
-                  title="Novos Contatos Hoje"
-                  value={metrics.newContactsToday.current.toLocaleString()}
+                  title={`Contatos (${periodLabel})`}
+                  value={metrics.newContactsToday.current.toLocaleString('pt-BR')}
                   icon={UserPlus}
                   delta={{
                     sign: metrics.newContactsToday.current - metrics.newContactsToday.previous,
-                    label: deltaLabel(
-                      metrics.newContactsToday.current - metrics.newContactsToday.previous,
-                      'vs ontem',
-                    ),
+                    label: deltaLabel(metrics.newContactsToday.current - metrics.newContactsToday.previous, vsLabel),
                   }}
                 />
                 <MetricCard
-                  title="Valor de Negócios Abertos"
+                  title="Negócios em aberto"
                   value={formatCurrency(metrics.openDealsValue, defaultCurrency)}
                   icon={DollarSign}
-                  subtitle={`${metrics.openDealsCount} negócio${metrics.openDealsCount === 1 ? '' : 's'} aberto${metrics.openDealsCount === 1 ? '' : 's'}`}
+                  subtitle={`${metrics.openDealsCount} negócio${metrics.openDealsCount === 1 ? '' : 's'}`}
                 />
                 <MetricCard
-                  title="Mensagens Enviadas Hoje"
-                  value={metrics.messagesSentToday.current.toLocaleString()}
+                  title={`Mensagens enviadas (${periodLabel})`}
+                  value={metrics.messagesSentToday.current.toLocaleString('pt-BR')}
                   icon={Send}
                   delta={{
                     sign: metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
-                    label: deltaLabel(
-                      metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
-                      'vs ontem',
-                    ),
+                    label: deltaLabel(metrics.messagesSentToday.current - metrics.messagesSentToday.previous, vsLabel),
                   }}
                 />
               </>
@@ -350,13 +618,14 @@ export default function DashboardPage() {
 
           <QuickActions />
 
+          {/* Conversations chart + Pipeline donut */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             <div className="h-full lg:col-span-3">
               <ConversationsChart
-                series={series}
+                series={seriesForChart}
                 loading={seriesLoading}
-                range={range}
-                onRangeChange={handleRangeChange}
+                range={rangeDays}
+                onRangeChange={() => {}}
               />
             </div>
             <div className="h-full lg:col-span-2">
@@ -372,16 +641,23 @@ export default function DashboardPage() {
           <ActivityFeed items={activity} loading={activityLoading} />
         </TabsContent>
 
+        {/* ── Funil ── */}
+        <TabsContent value="funil" className="mt-5">
+          <MiniFunnelSection
+            period={period}
+            funnelPipelines={funnelPipelines}
+            funnelPipelineId={funnelPipelineId}
+            setFunnelPipelineId={setFunnelPipelineId}
+            funnelData={funnelData}
+            funnelLoading={funnelLoading}
+          />
+        </TabsContent>
+
+        {/* ── Campanhas ── */}
         <TabsContent value="campanhas" className="mt-5">
           <CampanhasTab />
         </TabsContent>
       </Tabs>
     </div>
   )
-}
-
-function deltaLabel(delta: number, suffix: string): string {
-  if (delta === 0) return `Sem variação ${suffix}`
-  const sign = delta > 0 ? '+' : ''
-  return `${sign}${delta.toLocaleString()} ${suffix}`
 }

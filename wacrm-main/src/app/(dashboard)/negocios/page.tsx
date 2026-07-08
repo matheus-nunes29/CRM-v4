@@ -30,6 +30,7 @@ import {
   Megaphone,
   Pencil,
   Search,
+  Users,
 } from 'lucide-react'
 import { DealForm } from '@/components/pipelines/deal-form'
 import { cn } from '@/lib/utils'
@@ -52,6 +53,8 @@ interface PipelineWithStages extends Pipeline {
   stages: PipelineStage[]
 }
 
+interface Member { user_id: string; full_name: string }
+
 export default function NegociosPage() {
   const supabase = createClient()
   const searchParams = useSearchParams()
@@ -63,6 +66,8 @@ export default function NegociosPage() {
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
   const [statusFilter, setStatusFilter] = useState<DealStatus | 'all'>('all')
+  const [ownerFilter, setOwnerFilter] = useState<string>('')
+  const [members, setMembers] = useState<Member[]>([])
 
   const [pipelinesMap, setPipelinesMap] = useState<Record<string, PipelineWithStages>>({})
   const [trackingLinksMap, setTrackingLinksMap] = useState<Record<string, TrackingLink>>({})
@@ -119,6 +124,7 @@ export default function NegociosPage() {
 
     if (term) query = query.ilike('title', `%${term}%`)
     if (statusFilter !== 'all') query = query.eq('status', statusFilter)
+    if (ownerFilter) query = query.eq('assigned_to', ownerFilter)
 
     const { data, count, error } = await query
 
@@ -132,7 +138,7 @@ export default function NegociosPage() {
     setDeals((data as DealRow[]) ?? [])
     setTotalCount(count ?? 0)
     setLoading(false)
-  }, [supabase, page, search, statusFilter])
+  }, [supabase, page, search, statusFilter, ownerFilter])
 
   useEffect(() => {
     fetchPipelines()
@@ -141,11 +147,15 @@ export default function NegociosPage() {
       for (const l of data ?? []) map[l.id] = l
       setTrackingLinksMap(map)
     })
+    fetch('/api/account/members')
+      .then(r => r.json())
+      .then(j => setMembers((j.members ?? []) as Member[]))
+      .catch(() => {})
   }, [fetchPipelines, supabase])
 
   useEffect(() => {
     setPage(0)
-  }, [search, statusFilter])
+  }, [search, statusFilter, ownerFilter])
 
   useEffect(() => {
     fetchDeals()
@@ -259,6 +269,22 @@ export default function NegociosPage() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {members.length > 0 && (
+          <div className="relative flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm">
+            <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <select
+              value={ownerFilter}
+              onChange={e => setOwnerFilter(e.target.value)}
+              className="appearance-none bg-transparent pr-5 text-sm text-foreground focus:outline-none"
+            >
+              <option value="">Toda equipe</option>
+              {members.map(m => (
+                <option key={m.user_id} value={m.user_id}>{m.full_name || m.user_id}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+        )}
       </div>
 
       {/* Table */}

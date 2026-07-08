@@ -364,6 +364,18 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
                   <span className="truncate max-w-[160px]">{trackingLink.name}</span>
                 </span>
               )}
+              {contact.created_at && (
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <CalendarDays className="size-3 shrink-0" />
+                  <span>
+                    {new Date(contact.created_at).toLocaleDateString('pt-BR', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
         </div>

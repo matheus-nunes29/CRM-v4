@@ -51,6 +51,8 @@ import {
   X,
   Tags,
   Megaphone,
+  Check,
+  Minus,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
@@ -78,8 +80,9 @@ export default function ContactsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  // Tag filter — contacts shown must have ANY of these tags (OR).
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  // Tag filter — include (contact must have ≥1) and exclude (must have none).
+  const [includedTagIds, setIncludedTagIds] = useState<string[]>([]);
+  const [excludedTagIds, setExcludedTagIds] = useState<string[]>([]);
   // Campaign filter — contacts from a specific tracking link.
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [trackingLinks, setTrackingLinks] = useState<TrackingLink[]>([]);
@@ -131,7 +134,11 @@ export default function ContactsPage() {
       setTagsMap(map);
       // Drop any filter selections whose tag no longer exists (e.g. a tag
       // deleted elsewhere) so it can't linger invisibly in the query.
-      setSelectedTagIds((prev) => {
+      setIncludedTagIds((prev) => {
+        const pruned = prev.filter((id) => map[id]);
+        return pruned.length === prev.length ? prev : pruned;
+      });
+      setExcludedTagIds((prev) => {
         const pruned = prev.filter((id) => map[id]);
         return pruned.length === prev.length ? prev : pruned;
       });
@@ -158,13 +165,14 @@ export default function ContactsPage() {
     let contactRows: Contact[];
     let count: number;
 
-    if (selectedTagIds.length > 0) {
+    if (includedTagIds.length > 0 || excludedTagIds.length > 0) {
       // Tag filter active — resolve it server-side (join + distinct +
       // windowed total count + pagination) so a tag covering many
       // contacts can't silently truncate the result or overflow an IN
-      // clause. See migration 025_filter_contacts_by_tags.
+      // clause. See migrations 025 + 037.
       const { data, error } = await supabase.rpc('filter_contacts_by_tags', {
-        p_tag_ids: selectedTagIds,
+        p_tag_ids: includedTagIds,
+        p_exclude_tag_ids: excludedTagIds,
         p_search: term || null,
         p_limit: PAGE_SIZE,
         p_offset: from,
@@ -239,7 +247,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, selectedTagIds, selectedCampaignId, tagsMap]);
+  }, [supabase, page, search, includedTagIds, excludedTagIds, selectedCampaignId, tagsMap]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -425,21 +433,36 @@ export default function ContactsPage() {
   const allTags = Object.values(tagsMap).sort((a, b) =>
     a.name.localeCompare(b.name)
   );
-  const hasActiveFilters = search.trim().length > 0 || selectedTagIds.length > 0 || !!selectedCampaignId;
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    includedTagIds.length > 0 ||
+    excludedTagIds.length > 0 ||
+    !!selectedCampaignId;
   const trackingLinksMap = Object.fromEntries(trackingLinks.map((l) => [l.id, l]));
   const selectedCampaign = selectedCampaignId ? trackingLinksMap[selectedCampaignId] : null;
 
-  function toggleTagFilter(tagId: string) {
-    setSelectedTagIds((prev) =>
-      prev.includes(tagId)
-        ? prev.filter((id) => id !== tagId)
-        : [...prev, tagId]
-    );
+  function getTagFilterState(tagId: string): 'neutral' | 'include' | 'exclude' {
+    if (includedTagIds.includes(tagId)) return 'include';
+    if (excludedTagIds.includes(tagId)) return 'exclude';
+    return 'neutral';
+  }
+
+  function cycleTagFilter(tagId: string) {
+    const state = getTagFilterState(tagId);
+    if (state === 'neutral') {
+      setIncludedTagIds((prev) => [...prev, tagId]);
+    } else if (state === 'include') {
+      setIncludedTagIds((prev) => prev.filter((id) => id !== tagId));
+      setExcludedTagIds((prev) => [...prev, tagId]);
+    } else {
+      setExcludedTagIds((prev) => prev.filter((id) => id !== tagId));
+    }
     setPage(0);
   }
 
   function clearTagFilters() {
-    setSelectedTagIds([]);
+    setIncludedTagIds([]);
+    setExcludedTagIds([]);
     setPage(0);
   }
 
@@ -560,18 +583,18 @@ export default function ContactsPage() {
             >
               <Filter className="size-4" />
               Filtrar por tags
-              {selectedTagIds.length > 0 && (
+              {(includedTagIds.length > 0 || excludedTagIds.length > 0) && (
                 <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
-                  {selectedTagIds.length}
+                  {includedTagIds.length + excludedTagIds.length}
                 </span>
               )}
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-64 p-0">
+            <PopoverContent align="start" className="w-68 p-0">
               <div className="flex items-center justify-between px-3 py-2 border-b border-border">
                 <span className="text-sm font-medium text-popover-foreground">
                   Filtrar por tags
                 </span>
-                {selectedTagIds.length > 0 && (
+                {(includedTagIds.length > 0 || excludedTagIds.length > 0) && (
                   <button
                     onClick={clearTagFilters}
                     className="text-xs text-muted-foreground hover:text-foreground"
@@ -585,27 +608,57 @@ export default function ContactsPage() {
                   Nenhuma tag ainda.
                 </p>
               ) : (
-                <div className="max-h-64 overflow-y-auto py-1">
-                  {allTags.map((tag) => (
-                    <label
-                      key={tag.id}
-                      className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-muted/50"
-                    >
-                      <Checkbox
-                        checked={selectedTagIds.includes(tag.id)}
-                        onCheckedChange={() => toggleTagFilter(tag.id)}
-                        aria-label={`Filtrar por ${tag.name}`}
-                      />
-                      <span
-                        className="size-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: tag.color }}
-                      />
-                      <span className="text-sm text-popover-foreground truncate">
-                        {tag.name}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <>
+                  <div className="max-h-64 overflow-y-auto py-1">
+                    {allTags.map((tag) => {
+                      const state = getTagFilterState(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => cycleTagFilter(tag.id)}
+                          className="flex w-full items-center gap-2.5 px-3 py-1.5 hover:bg-muted/50 text-left"
+                          aria-label={`Alternar filtro ${tag.name}`}
+                        >
+                          {/* Three-state icon */}
+                          <span
+                            className={`size-5 shrink-0 rounded flex items-center justify-center transition-colors ${
+                              state === 'include'
+                                ? 'bg-emerald-500/20 text-emerald-600'
+                                : state === 'exclude'
+                                ? 'bg-destructive/15 text-destructive'
+                                : 'border border-border text-transparent'
+                            }`}
+                          >
+                            {state === 'include' && <Check className="size-3.5" />}
+                            {state === 'exclude' && <Minus className="size-3.5" />}
+                          </span>
+                          <span
+                            className="size-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          <span
+                            className={`text-sm truncate ${
+                              state === 'exclude'
+                                ? 'line-through text-muted-foreground'
+                                : 'text-popover-foreground'
+                            }`}
+                          >
+                            {tag.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="border-t border-border px-3 py-2 flex items-center gap-3 text-[11px] text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Check className="size-3 text-emerald-600" /> incluir
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Minus className="size-3 text-destructive" /> excluir
+                    </span>
+                  </div>
+                </>
               )}
             </PopoverContent>
           </Popover>
@@ -670,25 +723,42 @@ export default function ContactsPage() {
         </div>
 
         {/* Active filter chips */}
-        {(selectedTagIds.length > 0 || !!selectedCampaignId) && (
+        {(includedTagIds.length > 0 || excludedTagIds.length > 0 || !!selectedCampaignId) && (
           <div className="flex flex-wrap items-center gap-1.5">
-            {selectedTagIds.map((id) => {
+            {includedTagIds.map((id) => {
               const tag = tagsMap[id];
               if (!tag) return null;
               return (
                 <span
-                  key={id}
+                  key={`inc-${id}`}
                   className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
-                  style={{
-                    backgroundColor: tag.color + '20',
-                    color: tag.color,
-                  }}
+                  style={{ backgroundColor: tag.color + '20', color: tag.color }}
                 >
                   {tag.name}
                   <button
-                    onClick={() => toggleTagFilter(id)}
+                    onClick={() => cycleTagFilter(id)}
                     aria-label={`Remover filtro ${tag.name}`}
                     className="hover:opacity-70"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              );
+            })}
+            {excludedTagIds.map((id) => {
+              const tag = tagsMap[id];
+              if (!tag) return null;
+              return (
+                <span
+                  key={`exc-${id}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive line-through"
+                >
+                  {tag.name}
+                  <button
+                    onClick={() => cycleTagFilter(id)}
+                    aria-label={`Remover filtro excluir ${tag.name}`}
+                    className="hover:opacity-70 no-underline"
+                    style={{ textDecoration: 'none' }}
                   >
                     <X className="size-3" />
                   </button>

@@ -743,6 +743,66 @@ async function processMessage(
       }
     })()
   }
+
+  // Auto-create deal: fires on the contact's first-ever inbound message when
+  // any pipeline in this account has auto_create_deal=true and the contact
+  // has no open deal globally (across all pipelines).
+  if (isFirstInboundMessage) {
+    ;(async () => {
+      try {
+        const db = supabaseAdmin()
+
+        // 1. Find the first pipeline with auto_create_deal enabled
+        const { data: pipelines } = await db
+          .from('pipelines')
+          .select('id')
+          .eq('account_id', accountId)
+          .eq('auto_create_deal', true)
+          .limit(1)
+        if (!pipelines?.length) return
+
+        // 2. Global dedup — skip if contact already has any open deal
+        const { count: openCount } = await db
+          .from('deals')
+          .select('id', { count: 'exact', head: true })
+          .eq('contact_id', contactRecord.id)
+          .in('status', ['open', 'active'])
+        if ((openCount ?? 0) > 0) return
+
+        const pipelineId = pipelines[0].id
+
+        // 3. Find the new_lead stage; fall back to lowest-position stage
+        const { data: stages } = await db
+          .from('pipeline_stages')
+          .select('id, fixed_role, position')
+          .eq('pipeline_id', pipelineId)
+          .order('position', { ascending: true })
+        if (!stages?.length) return
+        const stage = stages.find((s: { id: string; fixed_role: string | null; position: number }) => s.fixed_role === 'new_lead') ?? stages[0]
+
+        // 4. Use account's default currency (same as automation engine does)
+        const { data: acct } = await db
+          .from('accounts')
+          .select('default_currency')
+          .eq('id', accountId)
+          .maybeSingle()
+
+        await db.from('deals').insert({
+          account_id: accountId,
+          user_id: configOwnerUserId,
+          pipeline_id: pipelineId,
+          stage_id: stage.id,
+          contact_id: contactRecord.id,
+          title: contactRecord.name || senderPhone,
+          value: 0,
+          currency: acct?.default_currency ?? 'USD',
+          status: 'open',
+        })
+      } catch (err) {
+        console.error('[auto_create_deal] failed:', err)
+      }
+    })()
+  }
 }
 
 async function parseMessageContent(

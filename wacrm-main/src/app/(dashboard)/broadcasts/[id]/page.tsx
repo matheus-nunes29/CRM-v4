@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
@@ -72,38 +72,85 @@ interface FunnelStep {
   color: string;
 }
 
-/**
- * Pure-CSS funnel chart: decreasing-width rounded bars.
- * Width is relative to the largest step (typically Sent) so we
- * always render a full bar at the top and proportional tails.
- */
+const FUNNEL_GRADIENTS = [
+  'bg-gradient-to-r from-zinc-700 to-zinc-500',
+  'bg-gradient-to-r from-emerald-500 to-teal-400',
+  'bg-gradient-to-r from-blue-600 to-sky-400',
+  'bg-gradient-to-r from-violet-600 to-purple-400',
+];
+
 function FunnelChart({ steps }: { steps: FunnelStep[] }) {
+  const [animated, setAnimated] = useState(false);
+  const [prefersReduced, setPrefersReduced] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReduced(mq.matches);
+    if (mq.matches) {
+      setAnimated(true);
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setAnimated(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const max = Math.max(...steps.map((s) => s.value), 1);
+
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <h3 className="mb-4 text-sm font-medium text-foreground">Funil</h3>
-      <div className="space-y-2">
-        {steps.map((step) => {
-          const pctOfMax = Math.max(5, Math.round((step.value / max) * 100));
+    <div ref={ref} className="rounded-xl border border-border bg-card p-5">
+      <h3 className="mb-5 text-sm font-semibold text-foreground">
+        Funil de Conversão
+      </h3>
+      <div className="space-y-3">
+        {steps.map((step, i) => {
+          const pctOfMax =
+            step.value === 0
+              ? 0
+              : Math.max(5, Math.round((step.value / max) * 100));
           const pctOfSent =
             steps[0].value > 0
               ? Math.round((step.value / steps[0].value) * 100)
               : 0;
+          const gradient =
+            FUNNEL_GRADIENTS[i] ?? FUNNEL_GRADIENTS[FUNNEL_GRADIENTS.length - 1];
+
           return (
             <div key={step.label} className="flex items-center gap-3">
-              <span className="w-20 shrink-0 text-xs text-muted-foreground">
+              <span className="w-24 shrink-0 text-right text-xs font-medium text-muted-foreground">
                 {step.label}
               </span>
-              <div className="relative h-7 flex-1 rounded-full bg-muted">
+              <div className="relative h-7 flex-1 overflow-hidden rounded-full bg-muted/50">
                 <div
-                  className={`h-7 rounded-full ${step.color} transition-[width] duration-500`}
-                  style={{ width: `${pctOfMax}%` }}
+                  className={`absolute inset-y-0 left-0 origin-left rounded-full ${gradient}`}
+                  style={{
+                    width: `${pctOfMax}%`,
+                    transform: animated ? 'scaleX(1)' : 'scaleX(0)',
+                    transition:
+                      animated && !prefersReduced
+                        ? `transform 700ms cubic-bezier(0.4,0,0.2,1) ${i * 120}ms`
+                        : 'none',
+                  }}
                 />
-                <span className="absolute inset-0 flex items-center px-3 text-xs font-medium text-foreground">
-                  {step.value.toLocaleString()}
-                  <span className="ml-2 text-muted-foreground/80">
-                    ({pctOfSent}%)
-                  </span>
+                <div className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-b from-white/10 to-transparent" />
+              </div>
+              <div className="flex w-20 shrink-0 items-baseline justify-end gap-1.5">
+                <span className="text-sm font-semibold tabular-nums text-foreground">
+                  {step.value.toLocaleString('pt-BR')}
+                </span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {pctOfSent}%
                 </span>
               </div>
             </div>
@@ -267,10 +314,10 @@ export default function BroadcastDetailPage() {
       .eq('id', broadcastId);
     setDeleting(false);
     if (delErr) {
-      toast.error(`Failed to delete: ${delErr.message}`);
+      toast.error(`Erro ao excluir: ${delErr.message}`);
       return;
     }
-    toast.success('Broadcast deleted');
+    toast.success('Disparo excluído');
     router.push('/broadcasts');
   }
 
