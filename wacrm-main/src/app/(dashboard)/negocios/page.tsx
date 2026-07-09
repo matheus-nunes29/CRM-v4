@@ -33,6 +33,7 @@ import {
   Users,
 } from 'lucide-react'
 import { DealForm } from '@/components/pipelines/deal-form'
+import { DealModal } from '@/components/pipelines/deal-modal'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 25
@@ -75,6 +76,11 @@ export default function NegociosPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editDeal, setEditDeal] = useState<DealRow | null>(null)
   const [editDealStages, setEditDealStages] = useState<PipelineStage[] | null>(null)
+
+  // Deal modal (view/inline edit)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalDealId, setModalDealId] = useState<string | null>(null)
+  const [modalStages, setModalStages] = useState<PipelineStage[]>([])
 
   const fetchSeq = useRef(0)
 
@@ -332,7 +338,11 @@ export default function NegociosPage() {
                   <TableRow
                     key={deal.id}
                     className="cursor-pointer"
-                    onClick={() => router.push(`/negocios/${deal.id}`)}
+                    onClick={() => {
+                      setModalDealId(deal.id)
+                      setModalStages(pipelinesMap[deal.pipeline_id]?.stages ?? [])
+                      setModalOpen(true)
+                    }}
                   >
                     <TableCell className="font-medium">{deal.title}</TableCell>
                     <TableCell className="tabular-nums text-foreground">
@@ -430,6 +440,15 @@ export default function NegociosPage() {
           </div>
         )}
       </div>
+
+      <DealModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        dealId={modalDealId}
+        initialStages={modalStages}
+        members={members}
+        onRefresh={fetchDeals}
+      />
 
       {editDeal && (currentFormPipeline || editDealStages) && (
         <DealForm

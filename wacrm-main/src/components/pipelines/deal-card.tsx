@@ -1,7 +1,7 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Calendar, CalendarDays, Check, X } from "lucide-react";
+import { ArrowRight, Calendar, CalendarDays, Check, Trophy, X, XCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 
 export interface NextEventInfo {
@@ -15,6 +15,10 @@ interface DealCardProps {
   onEdit: (deal: Deal) => void;
   isOverlay?: boolean;
   nextEvent?: NextEventInfo;
+  nextStageId?: string;
+  onQuickWin?: (deal: Deal) => void;
+  onQuickLose?: (deal: Deal) => void;
+  onQuickMoveNext?: (deal: Deal) => void;
 }
 
 function formatDate(dateStr: string) {
@@ -44,11 +48,14 @@ function fmtNextEventDate(iso: string) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) + ` · ${time}`;
 }
 
-export function DealCard({ deal, stage, onEdit, isOverlay, nextEvent }: DealCardProps) {
+export function DealCard({ deal, stage, onEdit, isOverlay, nextEvent, nextStageId, onQuickWin, onQuickLose, onQuickMoveNext }: DealCardProps) {
   const contactLabel = deal.contact?.name || deal.contact?.phone || "Sem contato";
   const assigneeLabel = deal.assignee?.full_name || null;
+  const isOpen = !deal.status || deal.status === 'open'
+  const showQuickActions = !isOverlay && (onQuickWin || onQuickLose || onQuickMoveNext)
 
   return (
+    <div className={`group relative w-full`}>
     <button
       type="button"
       onClick={(e) => {
@@ -58,7 +65,7 @@ export function DealCard({ deal, stage, onEdit, isOverlay, nextEvent }: DealCard
         e.stopPropagation();
         onEdit(deal);
       }}
-      className={`group relative w-full cursor-pointer rounded-xl border border-border/50 bg-muted/70 pl-4 pr-3 py-3 text-left shadow-sm transition-all ${
+      className={`relative w-full cursor-pointer rounded-xl border border-border/50 bg-muted/70 pl-4 pr-3 py-3 text-left shadow-sm transition-all ${
         isOverlay
           ? "shadow-xl"
           : "hover:-translate-y-0.5 hover:border-border hover:bg-muted hover:shadow-lg"
@@ -175,5 +182,42 @@ export function DealCard({ deal, stage, onEdit, isOverlay, nextEvent }: DealCard
         </div>
       )}
     </button>
+
+    {/* Quick action bar — visible on hover */}
+    {showQuickActions && (
+      <div className="absolute -bottom-7 left-0 right-0 z-10 hidden group-hover:flex items-center gap-1 rounded-b-xl border border-t-0 border-border bg-card/95 px-2 py-1 backdrop-blur-sm shadow-md">
+        {isOpen && onQuickWin && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onQuickWin(deal) }}
+            title="Marcar como Ganho"
+            className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+          >
+            <Trophy className="size-2.5" /> Ganhar
+          </button>
+        )}
+        {isOpen && onQuickLose && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onQuickLose(deal) }}
+            title="Marcar como Perdido"
+            className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors"
+          >
+            <XCircle className="size-2.5" /> Perder
+          </button>
+        )}
+        {isOpen && onQuickMoveNext && nextStageId && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onQuickMoveNext(deal) }}
+            title="Próxima etapa"
+            className="ml-auto flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            Próxima etapa <ArrowRight className="size-2.5" />
+          </button>
+        )}
+      </div>
+    )}
+    </div>
   );
 }

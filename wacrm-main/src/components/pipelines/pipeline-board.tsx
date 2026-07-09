@@ -27,6 +27,8 @@ interface PipelineBoardProps {
   onDealMoved: (dealId: string, newStageId: string) => void;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  onQuickWin?: (deal: Deal) => void;
+  onQuickLose?: (deal: Deal) => void;
   nextEventsMap?: Record<string, NextEventInfo>;
 }
 
@@ -43,6 +45,8 @@ export function PipelineBoard({
   onDealMoved,
   onAddDeal,
   onEditDeal,
+  onQuickWin,
+  onQuickLose,
   nextEventsMap,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
@@ -132,11 +136,15 @@ export function PipelineBoard({
             <StageColumn
               key={stage.id}
               stage={stage}
+              allStages={sortedStages}
               deals={stageDeals}
               totalValue={totalValue}
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              onDealMoved={onDealMoved}
+              onQuickWin={onQuickWin}
+              onQuickLose={onQuickLose}
               nextEventsMap={nextEventsMap}
             />
           );
@@ -148,6 +156,7 @@ export function PipelineBoard({
             <StageColumn
               key={lostStage.id}
               stage={lostStage}
+              allStages={sortedStages}
               deals={dealsByStage.get(lostStage.id) ?? []}
               totalValue={(dealsByStage.get(lostStage.id) ?? []).reduce(
                 (s, d) => s + Number(d.value || 0),
@@ -156,6 +165,9 @@ export function PipelineBoard({
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              onDealMoved={onDealMoved}
+              onQuickWin={onQuickWin}
+              onQuickLose={onQuickLose}
               nextEventsMap={nextEventsMap}
               onCollapse={() => {
                 setLostExpanded(false);
@@ -253,24 +265,37 @@ export function PipelineBoard({
 
 function StageColumn({
   stage,
+  allStages,
   deals,
   totalValue,
   currency,
   onAddDeal,
   onEditDeal,
+  onDealMoved,
   onCollapse,
+  onQuickWin,
+  onQuickLose,
   nextEventsMap,
 }: {
   stage: PipelineStage;
+  allStages: PipelineStage[];
   deals: Deal[];
   totalValue: number;
   currency: string;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  onDealMoved: (dealId: string, stageId: string) => void;
   onCollapse?: () => void;
+  onQuickWin?: (deal: Deal) => void;
+  onQuickLose?: (deal: Deal) => void;
   nextEventsMap?: Record<string, NextEventInfo>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+
+  // Compute next stage for each deal in this column
+  const flowStages = allStages.filter(s => s.fixed_role !== 'lost')
+  const thisIndex = flowStages.findIndex(s => s.id === stage.id)
+  const nextStage = thisIndex >= 0 && thisIndex < flowStages.length - 1 ? flowStages[thisIndex + 1] : null
 
   return (
     // On mobile each column is `w-[85vw]` (with a reasonable min/max)
@@ -329,6 +354,10 @@ function StageColumn({
               stage={stage}
               onEdit={onEditDeal}
               nextEvent={nextEventsMap?.[deal.id]}
+              nextStageId={nextStage?.id}
+              onQuickWin={onQuickWin}
+              onQuickLose={onQuickLose}
+              onQuickMoveNext={nextStage ? (d) => onDealMoved(d.id, nextStage.id) : undefined}
             />
           ))
         )}
@@ -352,11 +381,19 @@ function DraggableDealCard({
   stage,
   onEdit,
   nextEvent,
+  nextStageId,
+  onQuickWin,
+  onQuickLose,
+  onQuickMoveNext,
 }: {
   deal: Deal;
   stage: PipelineStage;
   onEdit: (deal: Deal) => void;
   nextEvent?: NextEventInfo;
+  nextStageId?: string;
+  onQuickWin?: (deal: Deal) => void;
+  onQuickLose?: (deal: Deal) => void;
+  onQuickMoveNext?: (deal: Deal) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: deal.id,
@@ -368,8 +405,18 @@ function DraggableDealCard({
       {...listeners}
       {...attributes}
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: "none" }}
+      className="mb-7 last:mb-0"
     >
-      <DealCard deal={deal} stage={stage} onEdit={onEdit} nextEvent={nextEvent} />
+      <DealCard
+        deal={deal}
+        stage={stage}
+        onEdit={onEdit}
+        nextEvent={nextEvent}
+        nextStageId={nextStageId}
+        onQuickWin={onQuickWin}
+        onQuickLose={onQuickLose}
+        onQuickMoveNext={onQuickMoveNext}
+      />
     </div>
   );
 }

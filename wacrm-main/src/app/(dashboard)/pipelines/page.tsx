@@ -6,6 +6,7 @@ import type { Pipeline, PipelineStage, Deal, DealStatus } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import type { NextEventInfo } from "@/components/pipelines/deal-card";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
+import { DealModal } from "@/components/pipelines/deal-modal";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
 import { Button } from "@/components/ui/button";
@@ -67,8 +68,12 @@ export default function PipelinesPage() {
   const [creating, setCreating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Deal form state is lifted here so both the top-bar "Add Deal" and
-  // the per-column "+" trigger the same Sheet.
+  // Modal (view deal) — opens on card click
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalDealId, setModalDealId] = useState<string | null>(null);
+  const [modalDeal, setModalDeal] = useState<Deal | null>(null);
+
+  // Deal form (create/edit)
   const [dealFormOpen, setDealFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [defaultStageId, setDefaultStageId] = useState<string>("");
@@ -297,11 +302,30 @@ export default function PipelinesPage() {
     [stages],
   );
 
+  // Click on card → open modal
   const handleEditDeal = useCallback((deal: Deal) => {
-    setEditingDeal(deal);
-    setDefaultStageId(deal.stage_id);
-    setDealFormOpen(true);
+    setModalDeal(deal);
+    setModalDealId(deal.id);
+    setModalOpen(true);
   }, []);
+
+  const handleQuickWin = useCallback(async (deal: Deal) => {
+    await fetch(`/api/deals/${deal.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'won' }),
+    });
+    refreshDeals();
+  }, [refreshDeals]);
+
+  const handleQuickLose = useCallback(async (deal: Deal) => {
+    await fetch(`/api/deals/${deal.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'lost' }),
+    });
+    refreshDeals();
+  }, [refreshDeals]);
 
   async function handleCreatePipeline() {
     const name = newPipelineName.trim();
@@ -492,6 +516,8 @@ export default function PipelinesPage() {
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}
+            onQuickWin={handleQuickWin}
+            onQuickLose={handleQuickLose}
             nextEventsMap={nextEventsMap}
           />
         </>
@@ -553,7 +579,19 @@ export default function PipelinesPage() {
         />
       )}
 
-      {/* Deal Form (Sheet) */}
+      {/* Deal Modal — opens on card click, stays on pipeline page */}
+      <DealModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        dealId={modalDealId}
+        initialDeal={modalDeal}
+        initialStages={stages}
+        members={members}
+        onDealMoved={(dealId, stageId) => { handleDealMoved(dealId, stageId) }}
+        onRefresh={refreshDeals}
+      />
+
+      {/* Deal Form (Sheet) — for create & full edit */}
       <DealForm
         open={dealFormOpen}
         onOpenChange={setDealFormOpen}
