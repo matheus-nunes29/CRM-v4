@@ -192,7 +192,7 @@ export function PipelineBoard({
                 {lostStage.name}
               </span>
               {(dealsByStage.get(lostStage.id) ?? []).length > 0 && (
-                <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-400">
+                <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
                   {(dealsByStage.get(lostStage.id) ?? []).length}
                 </span>
               )}
@@ -211,9 +211,6 @@ export function PipelineBoard({
           <div className="opacity-90">
             <DealCard
               deal={activeDeal}
-              stage={
-                sortedStages.find((s) => s.id === activeDeal.stage_id) ?? null
-              }
               onEdit={() => {}}
               isOverlay
             />
@@ -351,7 +348,6 @@ function StageColumn({
             <DraggableDealCard
               key={deal.id}
               deal={deal}
-              stage={stage}
               onEdit={onEditDeal}
               nextEvent={nextEventsMap?.[deal.id]}
               nextStageId={nextStage?.id}
@@ -378,7 +374,6 @@ function StageColumn({
 
 function DraggableDealCard({
   deal,
-  stage,
   onEdit,
   nextEvent,
   nextStageId,
@@ -387,7 +382,6 @@ function DraggableDealCard({
   onQuickMoveNext,
 }: {
   deal: Deal;
-  stage: PipelineStage;
   onEdit: (deal: Deal) => void;
   nextEvent?: NextEventInfo;
   nextStageId?: string;
@@ -409,7 +403,6 @@ function DraggableDealCard({
     >
       <DealCard
         deal={deal}
-        stage={stage}
         onEdit={onEdit}
         nextEvent={nextEvent}
         nextStageId={nextStageId}

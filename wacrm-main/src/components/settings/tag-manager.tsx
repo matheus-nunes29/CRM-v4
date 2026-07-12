@@ -25,15 +25,17 @@ import {
 import { cn } from '@/lib/utils';
 import type { Tag } from '@/types';
 
+// Paleta on-brand (Ateliê de Confiança) — mesma família terrosa usada
+// nos estágios de pipeline, nunca o azul/roxo/rosa genérico de SaaS.
 const PRESET_COLORS = [
-  { name: 'Vermelho', value: '#ef4444' },
-  { name: 'Laranja', value: '#f97316' },
-  { name: 'Âmbar', value: '#f59e0b' },
-  { name: 'Esmeralda', value: '#10b981' },
-  { name: 'Ciano', value: '#06b6d4' },
-  { name: 'Azul', value: '#3b82f6' },
-  { name: 'Violeta', value: '#8b5cf6' },
-  { name: 'Rosa', value: '#ec4899' },
+  { name: 'Musgo Profundo', value: '#33563C' },
+  { name: 'Musgo Claro', value: '#6E9266' },
+  { name: 'Verde-azulado', value: '#35695C' },
+  { name: 'Ouro Velho', value: '#9B7C50' },
+  { name: 'Caramelo', value: '#A57543' },
+  { name: 'Terracota', value: '#AE593A' },
+  { name: 'Vinho', value: '#81393B' },
+  { name: 'Ardósia', value: '#565F65' },
 ];
 
 /**

@@ -118,21 +118,21 @@ function SelectField({
 function StatusBadge({ status }: { status: DealStatus | undefined }) {
   if (!status || status === "open") {
     return (
-      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-500">
+      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
         Em aberto
       </span>
     );
   }
   if (status === "won") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-500">
+      <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
         <Check className="h-2.5 w-2.5" />
         Ganho
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-400">
+    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
       <X className="h-2.5 w-2.5" />
       Perdido
     </span>
@@ -694,7 +694,7 @@ export function DealForm({
                         type="button"
                         onClick={openInboxForContact}
                         title="Abrir conversa no WhatsApp"
-                        className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+                        className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium text-[#25D366] hover:bg-[#25D366]/10 transition-colors"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
                         WhatsApp
@@ -835,8 +835,8 @@ export function DealForm({
                       "flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-medium transition-all cursor-pointer",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                       deal.status === "won"
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500 cursor-default"
-                        : "border-border bg-muted/40 text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/8 hover:text-emerald-500",
+                        ? "border-primary/40 bg-primary/10 text-primary cursor-default"
+                        : "border-border bg-muted/40 text-muted-foreground hover:border-primary/30 hover:bg-primary/8 hover:text-primary",
                       !!statusAction && deal.status !== "won" && "opacity-50 cursor-not-allowed",
                     )}
                   >
@@ -860,8 +860,8 @@ export function DealForm({
                       "flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-medium transition-all cursor-pointer",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                       deal.status === "lost"
-                        ? "border-red-500/40 bg-red-500/10 text-red-400 cursor-default"
-                        : "border-border bg-muted/40 text-muted-foreground hover:border-red-500/30 hover:bg-red-500/8 hover:text-red-400",
+                        ? "border-destructive/40 bg-destructive/10 text-destructive cursor-default"
+                        : "border-border bg-muted/40 text-muted-foreground hover:border-destructive/30 hover:bg-destructive/8 hover:text-destructive",
                       !!statusAction && deal.status !== "lost" && "opacity-50 cursor-not-allowed",
                     )}
                   >

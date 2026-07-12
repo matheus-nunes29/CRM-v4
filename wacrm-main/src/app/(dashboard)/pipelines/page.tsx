@@ -38,13 +38,15 @@ import { GatedButton } from "@/components/ui/gated-button";
 // not on different copy.
 
 // Spec-defined seed — name, color, position, and fixed_role per the product spec.
+// Colors on-brand (Ateliê de Confiança palette) instead of generic
+// SaaS rainbow; "Perdido" reuses the app's own --destructive red.
 const SPEC_DEFAULT_STAGES = [
-  { name: "Novo Lead",        color: "#3b82f6", position: 0,    fixed_role: 'new_lead' as const },
-  { name: "Qualificado",      color: "#eab308", position: 1,    fixed_role: null },
-  { name: "Proposta Enviada", color: "#f97316", position: 2,    fixed_role: null },
-  { name: "Negociação",       color: "#8b5cf6", position: 3,    fixed_role: null },
-  { name: "Ganho",            color: "#22c55e", position: 9998, fixed_role: 'won' as const },
-  { name: "Perdido",          color: "#ef4444", position: 9999, fixed_role: 'lost' as const },
+  { name: "Novo Lead",        color: "#6E9266", position: 0,    fixed_role: 'new_lead' as const },
+  { name: "Qualificado",      color: "#A57543", position: 1,    fixed_role: null },
+  { name: "Proposta Enviada", color: "#AE593A", position: 2,    fixed_role: null },
+  { name: "Negociação",       color: "#81393B", position: 3,    fixed_role: null },
+  { name: "Ganho",            color: "#528A54", position: 9998, fixed_role: 'won' as const },
+  { name: "Perdido",          color: "#E7000B", position: 9999, fixed_role: 'lost' as const },
 ];
 
 export default function PipelinesPage() {

@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-12T00:00:00Z",
+  "title": "Design System: wacrm — Pyvo CRM",
+  "extensions": {
+    "colorMeta": {
+      "floresta": {
+        "role": "primary",
+        "displayName": "Verde-musgo sofisticado",
+        "canonical": "oklch(0.32 0.049 151.2)",
+        "tonalRamp": [
+          "oklch(0.10 0.020 151)",
+          "oklch(0.147 0.026 151)",
+          "oklch(0.32 0.049 151.2)",
+          "oklch(0.280 0.040 151)",
+          "oklch(0.370 0.035 151)",
+          "oklch(0.500 0.045 151)",
+          "oklch(0.600 0.035 151)",
+          "oklch(0.735 0.098 81.2)"
+        ]
+      },
+      "ouro-velho": {
+        "role": "secondary",
+        "displayName": "Dourado de fim de tarde (envelhecido)",
+        "canonical": "oklch(0.605 0.072 75)",
+        "tonalRamp": [
+          "oklch(0.30 0.040 75)",
+          "oklch(0.42 0.055 75)",
+          "oklch(0.53 0.065 75)",
+          "oklch(0.605 0.072 75)",
+          "oklch(0.68 0.075 75)",
+          "oklch(0.735 0.098 81.2)",
+          "oklch(0.80 0.055 78)",
+          "oklch(0.88 0.035 80)"
+        ]
+      },
+      "ouro-claro": {
+        "role": "secondary",
+        "displayName": "Dourado claro (contraste sobre fundo escuro)",
+        "canonical": "oklch(0.735 0.098 81.2)",
+        "tonalRamp": [
+          "oklch(0.40 0.055 75)",
+          "oklch(0.53 0.065 75)",
+          "oklch(0.605 0.072 75)",
+          "oklch(0.68 0.075 75)",
+          "oklch(0.735 0.098 81.2)",
+          "oklch(0.80 0.055 78)",
+          "oklch(0.88 0.035 80)",
+          "oklch(0.94 0.020 82)"
+        ]
+      },
+      "cream": {
+        "role": "neutral",
+        "displayName": "Cream — luz ambiente",
+        "canonical": "oklch(0.939 0.022 82)",
+        "tonalRamp": [
+          "oklch(0.60 0.030 82)",
+          "oklch(0.70 0.028 82)",
+          "oklch(0.80 0.026 82)",
+          "oklch(0.842 0.042 81.7)",
+          "oklch(0.87 0.025 82)",
+          "oklch(0.918 0.020 82)",
+          "oklch(0.939 0.022 82)",
+          "oklch(0.97 0.010 82)"
+        ]
+      },
+      "areia": {
+        "role": "neutral",
+        "displayName": "Areia — borda/apoio",
+        "canonical": "oklch(0.842 0.042 81.7)",
+        "tonalRamp": [
+          "oklch(0.30 0.030 80)",
+          "oklch(0.45 0.032 80)",
+          "oklch(0.60 0.032 80)",
+          "oklch(0.715 0.058 78)",
+          "oklch(0.842 0.042 81.7)",
+          "oklch(0.88 0.025 80)",
+          "oklch(0.92 0.020 82)",
+          "oklch(0.96 0.012 82)"
+        ]
+      },
+      "folha-profunda": {
+        "role": "neutral",
+        "displayName": "Folha Profunda — fundo escuro",
+        "canonical": "oklch(0.242 0.029 156.1)",
+        "tonalRamp": [
+          "oklch(0.08 0.018 151)",
+          "oklch(0.115 0.022 151)",
+          "oklch(0.147 0.026 151)",
+          "oklch(0.32 0.049 151.2)",
+          "oklch(0.230 0.036 151)",
+          "oklch(0.271 0.033 151)",
+          "oklch(0.370 0.035 151)",
+          "oklch(0.50 0.030 151)"
+        ]
+      },
+      "tinta": {
+        "role": "neutral",
+        "displayName": "Tinta — texto no modo claro",
+        "canonical": "oklch(0.21 0.008 84.6)",
+        "tonalRamp": [
+          "oklch(0.05 0.005 58)",
+          "oklch(0.21 0.008 84.6)",
+          "oklch(0.25 0.010 58)",
+          "oklch(0.40 0.014 58)",
+          "oklch(0.50 0.022 74)",
+          "oklch(0.65 0.020 74)",
+          "oklch(0.80 0.015 78)",
+          "oklch(0.92 0.010 82)"
+        ]
+      },
+      "destructive": {
+        "role": "error",
+        "displayName": "Vermelho de erro/destrutivo",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "tonalRamp": [
+          "oklch(0.30 0.150 27)",
+          "oklch(0.40 0.190 27)",
+          "oklch(0.50 0.220 27)",
+          "oklch(0.577 0.245 27.325)",
+          "oklch(0.65 0.220 27)",
+          "oklch(0.72 0.180 27)",
+          "oklch(0.82 0.120 27)",
+          "oklch(0.92 0.060 27)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display (Italiana)",
+        "purpose": "Exclusivo do wordmark PYVO. Nunca em copy de produto."
+      },
+      "heading": {
+        "displayName": "Heading (Space Grotesk)",
+        "purpose": "Título de página."
+      },
+      "title": {
+        "displayName": "Title (Space Grotesk)",
+        "purpose": "Título de card/seção."
+      },
+      "body": {
+        "displayName": "Body (DM Sans)",
+        "purpose": "Texto padrão de interface — a maioria dos componentes."
+      },
+      "label": {
+        "displayName": "Label (DM Sans)",
+        "purpose": "Metadados, badges, chips de status."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Transições padrão de cor/estado em botões, links e itens de navegação."
+      },
+      {
+        "name": "duration-sidebar",
+        "value": "200ms",
+        "purpose": "Slide-in/out da sidebar mobile."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "CTA principal — fundo Floresta, texto cream, altura 32px.",
+      "html": "<button class=\"ds-btn-primary\">Salvar</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; gap: 6px; border-radius: 8px; border: none; background: oklch(0.32 0.049 151.2); color: oklch(0.939 0.022 82); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; transition: background-color 0.15s ease, transform 0.1s ease; } .ds-btn-primary:hover { background: oklch(0.363 0.054 151.2); } .ds-btn-primary:focus-visible { outline: none; border: 1px solid oklch(0.32 0.049 151.2); box-shadow: 0 0 0 3px oklch(0.207 0.033 151 / 0.5); } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Ação secundária — borda Areia, fundo transparente.",
+      "html": "<button class=\"ds-btn-outline\">Cancelar</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid oklch(0.842 0.042 81.7); background: transparent; color: oklch(0.21 0.008 84.6); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; transition: background-color 0.15s ease; } .ds-btn-outline:hover { background: oklch(0.918 0.020 82); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de texto padrão — borda Areia, foco em anel Floresta.",
+      "html": "<input class=\"ds-input\" placeholder=\"Nome do contato\" />",
+      "css": ".ds-input { width: 100%; height: 32px; padding: 4px 10px; border-radius: 8px; border: 1px solid oklch(0.842 0.042 81.7); background: transparent; color: oklch(0.21 0.008 84.6); font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; transition: border-color 0.15s ease, box-shadow 0.15s ease; } .ds-input::placeholder { color: oklch(0.50 0.022 74); } .ds-input:focus-visible { border-color: oklch(0.32 0.049 151.2); box-shadow: 0 0 0 3px oklch(0.207 0.033 151 / 0.5); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Container padrão — sem sombra, separado por anel sutil.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Título</div><div class=\"ds-card-body\">Conteúdo do card.</div></div>",
+      "css": ".ds-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 12px; background: oklch(1 0 0); color: oklch(0.21 0.008 84.6); box-shadow: inset 0 0 0 1px oklch(0.115 0.007 58 / 0.1); } .ds-card-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 500; } .ds-card-body { font-family: 'DM Sans', sans-serif; font-size: 14px; color: oklch(0.50 0.022 74); }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Pílula de status/papel — ex. 'Beta', 'Proprietário'.",
+      "html": "<span class=\"ds-badge\">Beta</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; height: 20px; padding: 2px 8px; border-radius: 9999px; border: 1px solid oklch(0.735 0.098 81.2 / 0.4); background: oklch(0.735 0.098 81.2 / 0.1); color: oklch(0.605 0.072 75); font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "sidebar-nav-item",
+      "description": "Item de navegação — ativo com borda esquerda dourada.",
+      "html": "<a class=\"ds-nav-item ds-nav-item--active\">Dashboard</a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-left: 2px solid transparent; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: oklch(0.715 0.058 78); transition: background-color 0.15s ease, color 0.15s ease; background: oklch(0.32 0.049 151.2); } .ds-nav-item:hover { background: oklch(0.348 0.05 151.2 / 0.5); color: oklch(0.735 0.098 81.2); } .ds-nav-item--active { border-left-color: oklch(0.735 0.098 81.2); background: oklch(0.348 0.05 151.2); color: oklch(0.735 0.098 81.2); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "O Ateliê de Confiança",
+    "overview": "O sistema visual da Pyvo se comporta como um ateliê bem cuidado, não como um painel de SaaS. O verde-musgo sofisticado da Floresta e o dourado de fim de tarde do Ouro Velho fazem o papel da madeira e do latão de um espaço artesanal: materiais que envelhecem bem e transmitem mérito, não brilho fácil. O cream e a areia dão o respiro de um ambiente iluminado naturalmente, nunca clínico ou frio — mesmo sendo, no fim das contas, software para donas de clínica de estética.\n\nA usuária não é gestora de formação; é uma esteticista que constrói um negócio sem nunca ter sido ensinada a lê-lo. A interface existe para tornar visível o que estava escondido — sem intimidar. Cada tela resolve uma pergunta de cada vez, ecoando o método de 'uma restrição por mês' que sustenta o produto: não é falta de dados, é falta de foco.\n\nEste sistema rejeita explicitamente o clichê de SaaS genérico — dashboards azul/roxo, gradientes decorativos, grades de cards idênticos, o 'hero metric' de startup. Também rejeita a frieza hospitalar: mesmo tratando de números e processos, o tom é de cuidado humano, não de sistema administrativo impessoal.",
+    "keyCharacteristics": [
+      "Paleta terrosa e premium (floresta + ouro), nunca tech-saturada (azul/roxo/neon)",
+      "Sidebar sempre escura — um 'corredor' fixo e confiável, independente do modo claro/escuro do conteúdo",
+      "Componentes discretos e precisos: pouco ornamento, cantos moderadamente arredondados, foco no conteúdo",
+      "Cards sem sombra — profundidade vem de um anel sutil (ring-1 ring-foreground/10), não de box-shadow",
+      "Tipografia em três papéis bem separados: Italiana só para a wordmark, Space Grotesk para títulos, DM Sans para corpo/microcopy"
+    ],
+    "rules": [
+      {
+        "name": "A Regra do Ouro Raro",
+        "body": "Ouro Velho/Claro nunca vira cor de fundo de área grande. É reservado para o item ativo, o CTA de maior prioridade da tela, ou o beta/status chip — sua raridade é o que sustenta o efeito 'premium'.",
+        "section": "colors"
+      },
+      {
+        "name": "A Regra da Sidebar Constante",
+        "body": "A sidebar é sempre Floresta escura, mesmo quando o conteúdo principal está em modo claro — é o 'corredor' fixo do ateliê, o ponto de orientação que não muda com o tema.",
+        "section": "colors"
+      },
+      {
+        "name": "A Regra do Wordmark Único",
+        "body": "Italiana aparece em exatamente um lugar por tela: o logo. Uma segunda ocorrência em copy de produto é diluição, não reforço.",
+        "section": "typography"
+      },
+      {
+        "name": "A Regra do Anel, Não da Sombra",
+        "body": "Separação de superfície é comunicada por um anel de 1px em foreground/10, nunca por box-shadow difusa.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do manter a sidebar sempre em Floresta escura, mesmo quando o conteúdo está em modo claro — é o 'corredor' fixo do ateliê.",
+      "Do reservar Ouro Velho/Claro para estados ativos e o CTA de maior prioridade — a raridade é o que sustenta a sensação premium.",
+      "Do usar ring-1 ring-foreground/10 para separar superfícies, nunca box-shadow.",
+      "Do manter Italiana exclusiva ao wordmark; Space Grotesk para títulos; DM Sans para todo o resto.",
+      "Do escrever microcopy e estados vazios com calor humano — a usuária é esteticista, não gestora, e o produto vende 'controle e tranquilidade', não 'método' ou 'assessoria'."
+    ],
+    "donts": [
+      "Don't usar gradientes decorativos, background-clip: text, ou paleta azul/roxo — é o clichê de SaaS genérico que este sistema rejeita explicitamente.",
+      "Don't empilhar grades de cards idênticos com ícone + título + texto.",
+      "Don't usar o 'hero metric' de startup (número grande + label pequeno + gradiente de fundo) como padrão de dashboard.",
+      "Don't deixar a interface parecer fria ou hospitalar — o tom é de cuidado humano, não de sistema clínico impessoal.",
+      "Don't aplicar box-shadow a um card em repouso — profundidade vem do anel de contorno.",
+      "Don't usar mais de um Italiana por tela."
+    ]
+  }
+}

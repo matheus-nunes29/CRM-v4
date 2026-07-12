@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
@@ -10,20 +10,30 @@ import { toast } from 'sonner'
 import {
   X, Pencil, Check, Trophy, XCircle, ArrowRight, RotateCcw,
   Loader2, CalendarDays, User, MessageSquare, Clock, CalendarPlus,
-  Tag, Building2, Phone, Mail, StickyNote, ExternalLink,
-  Briefcase, ChevronRight,
+  ExternalLink, History, Trash2, Tag,
 } from 'lucide-react'
-import type { Deal, PipelineStage, Contact, Tag as TagType, CustomField, ContactNote } from '@/types'
+// WhatsApp icon (inline SVG — not in lucide)
+const WhatsAppIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+  </svg>
+)
+import type { Deal, PipelineStage } from '@/types'
 import { DealItemsPanel } from './deal-items-panel'
+import { DealCustomFieldsPanel } from './deal-custom-fields-panel'
+import { ContactDetailContent } from '@/components/contacts/contact-detail-view'
+import { ScheduleEventModal, type CalendarEvent } from '@/components/calendar/schedule-event-modal'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Member { user_id: string; full_name: string }
-interface CalEvent { id: string; title: string; start_at: string; end_at: string }
-interface ContactDetail extends Contact {
-  custom_values?: { value: string | null; field: CustomField }[]
+
+type StageHistoryRow = {
+  id: string
+  entered_at: string
+  exited_at: string | null
+  stage: { id: string; name: string; color: string } | null
 }
-interface DealStub { id: string; title: string; value: number; status: string; stage: { name: string } | null }
 
 export interface DealModalProps {
   open: boolean
@@ -65,8 +75,8 @@ function fixedKey(s: PipelineStage) {
 
 const STATUS_META = {
   open: { label: 'Em andamento', cls: 'bg-primary/10 text-primary' },
-  won:  { label: 'Ganho',        cls: 'bg-emerald-600/10 text-emerald-600' },
-  lost: { label: 'Perdido',      cls: 'bg-rose-500/10 text-rose-500' },
+  won:  { label: 'Ganho',        cls: 'bg-primary/15 text-primary' },
+  lost: { label: 'Perdido',      cls: 'bg-destructive/10 text-destructive' },
 } as const
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -102,14 +112,13 @@ export function DealModal({
   const [liveValue, setLiveValue] = useState<number | null>(null)
 
   // Events
-  const [events, setEvents] = useState<CalEvent[]>([])
+  const [events, setEvents] = useState<CalendarEvent[]>([])
   const [evLoading, setEvLoading] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [deletingEvent, setDeletingEvent] = useState<string | null>(null)
 
-  // Contact tab
-  const [contactDetail, setContactDetail] = useState<ContactDetail | null>(null)
-  const [contactNotes, setContactNotes] = useState<ContactNote[]>([])
-  const [contactDeals, setContactDeals] = useState<DealStub[]>([])
-  const [contactLoading, setContactLoading] = useState(false)
+  // Stage history
+  const [stageHistory, setStageHistory] = useState<StageHistoryRow[]>([])
 
   const currency = deal?.currency ?? defaultCurrency
   const sortedStages = [...stages].sort((a, b) => fixedKey(a) - fixedKey(b))
@@ -137,6 +146,19 @@ export function DealModal({
         const { data: s } = await supabase.from('pipeline_stages').select('*').eq('pipeline_id', data.pipeline_id).order('position')
         setStages((s ?? []) as PipelineStage[])
       }
+      const { data: hist } = await supabase
+        .from('deal_stage_history')
+        .select('id, entered_at, exited_at, stage:pipeline_stages(id,name,color)')
+        .eq('deal_id', id)
+        .order('entered_at', { ascending: true })
+      const normalized = (hist ?? []).map((row: {
+        id: string; entered_at: string; exited_at: string | null
+        stage: { id: string; name: string; color: string }[] | { id: string; name: string; color: string } | null
+      }) => ({
+        ...row,
+        stage: Array.isArray(row.stage) ? (row.stage[0] ?? null) : row.stage,
+      })) as StageHistoryRow[]
+      setStageHistory(normalized)
     }
     setDataLoading(false)
   }, [supabase, stages.length])
@@ -150,14 +172,19 @@ export function DealModal({
 
   // ── Open/close lifecycle ─────────────────────────────────────────────────
 
+  const deleteEvent = useCallback(async (eventId: string) => {
+    setDeletingEvent(eventId)
+    await fetch(`/api/calendar/events/${eventId}`, { method: 'DELETE' })
+    setEvents(prev => prev.filter(e => e.id !== eventId))
+    setDeletingEvent(null)
+  }, [])
+
   useEffect(() => {
     if (!open) {
       setTab('deal')
       setEditMode(false)
-      setContactDetail(null)
-      setContactNotes([])
-      setContactDeals([])
       setEvents([])
+      setStageHistory([])
       setLiveValue(null)
       return
     }
@@ -214,6 +241,26 @@ export function DealModal({
     onRefresh?.()
   }
 
+  // ── Open inbox for contact ───────────────────────────────────────────────
+
+  const openInboxForContact = useCallback(async () => {
+    const contactId = (deal as Deal & { contact?: { id: string } })?.contact?.id
+    if (!contactId) return
+    const { data } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('contact_id', contactId)
+      .order('last_message_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (data?.id) {
+      onOpenChange(false)
+      router.push(`/inbox?c=${data.id}`)
+    } else {
+      toast.error('Nenhuma conversa encontrada para este contato')
+    }
+  }, [deal, supabase, router, onOpenChange])
+
   // ── Status change ────────────────────────────────────────────────────────
 
   async function changeStatus(s: 'won' | 'lost' | 'open') {
@@ -250,52 +297,6 @@ export function DealModal({
     setMovingStage(null)
   }
 
-  // ── Contact tab ──────────────────────────────────────────────────────────
-
-  const fetchContactData = useCallback(async (contactId: string, currentDealId: string) => {
-    setContactLoading(true)
-    const [{ data: contactData }, { data: notesData }, { data: dealsData }] = await Promise.all([
-      supabase
-        .from('contacts')
-        .select('*, contact_tags(tags(id,name,color)), custom_values:contact_custom_values(value, field:custom_fields(id,field_name,field_type,entity_type,show_on_card))')
-        .eq('id', contactId)
-        .single(),
-      supabase.from('contact_notes').select('*').eq('contact_id', contactId).order('created_at', { ascending: false }),
-      supabase
-        .from('deals')
-        .select('id, title, value, status, stage:pipeline_stages(id,name)')
-        .eq('contact_id', contactId)
-        .neq('id', currentDealId)
-        .order('created_at', { ascending: false })
-        .limit(10),
-    ])
-
-    if (contactData) {
-      // Flatten contact_tags → tags
-      const raw = contactData as Record<string, unknown>
-      const ct = raw.contact_tags as { tags: unknown }[] | undefined
-      if (ct) {
-        raw.tags = ct.map((x) => x.tags).filter(Boolean)
-        delete raw.contact_tags
-      }
-      setContactDetail(raw as unknown as ContactDetail)
-    }
-    setContactNotes((notesData ?? []) as ContactNote[])
-
-    // Unwrap stage array from supabase join
-    const ds = (dealsData ?? []).map((d: Record<string, unknown>) => ({
-      ...d,
-      stage: Array.isArray(d.stage) ? (d.stage[0] ?? null) : d.stage,
-    })) as DealStub[]
-    setContactDeals(ds)
-    setContactLoading(false)
-  }, [supabase])
-
-  useEffect(() => {
-    if (tab === 'contact' && deal?.contact_id && !contactDetail) {
-      fetchContactData(deal.contact_id, deal.id)
-    }
-  }, [tab, deal, contactDetail, fetchContactData])
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -409,7 +410,7 @@ export function DealModal({
           </div>
 
           {/* ── Scrollable body ──────────────────────────────────────── */}
-          <div className="flex-1 overflow-y-auto">
+          <div className={cn("flex-1", tab === 'contact' ? "flex flex-col overflow-hidden" : "overflow-y-auto")}>
             {dataLoading && !deal ? (
               <div className="flex h-64 items-center justify-center">
                 <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -438,26 +439,41 @@ export function DealModal({
                 evLoading={evLoading}
                 upcoming={upcoming}
                 past={past}
+                deletingEvent={deletingEvent}
+                stageHistory={stageHistory}
                 onChangeStatus={changeStatus}
                 onMoveStage={moveStage}
                 onValueChange={setLiveValue}
+                onDeleteEvent={deleteEvent}
+                onSchedule={() => setScheduleOpen(true)}
+                onOpenInbox={openInboxForContact}
                 onOpenFull={() => { onOpenChange(false); router.push(`/negocios/${deal?.id}`) }}
               />
-            ) : (
-              <ContactTab
-                contact={(deal?.contact ?? null) as Contact | null}
-                contactDetail={contactDetail}
-                contactNotes={contactNotes}
-                contactDeals={contactDeals}
-                loading={contactLoading}
-                currentDealValue={displayValue}
-                currency={currency}
-                onOpenContact={() => { onOpenChange(false); router.push(`/contacts/${deal?.contact_id}`) }}
+            ) : deal?.contact_id ? (
+              <ContactDetailContent
+                key={deal.contact_id}
+                contactId={deal.contact_id}
+                onUpdated={() => onRefresh?.()}
               />
+            ) : (
+              <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
+                <User className="size-8 opacity-30" />
+                <p className="text-sm">Nenhum contato vinculado</p>
+              </div>
             )}
           </div>
         </div>
       </div>
+      {deal && (
+        <ScheduleEventModal
+          open={scheduleOpen}
+          onClose={() => setScheduleOpen(false)}
+          dealId={deal.id}
+          contactId={(deal as Deal & { contact?: { id: string } }).contact?.id}
+          contactName={(deal as Deal & { contact?: { name: string | null } }).contact?.name ?? undefined}
+          onCreated={(ev) => setEvents(prev => [...prev, ev].sort((a, b) => a.start_at.localeCompare(b.start_at)))}
+        />
+      )}
     </>
   )
 }
@@ -468,7 +484,8 @@ function DealTab({
   deal, stages, flowStages, currentIdx, nextStage, displayValue, currency,
   members, editMode, editNotes, setEditNotes, editDate, setEditDate,
   editAssignee, setEditAssignee, statusLoading, movingStage, isWon, isLost,
-  evLoading, upcoming, past, onChangeStatus, onMoveStage, onValueChange, onOpenFull,
+  evLoading, upcoming, past, deletingEvent, stageHistory,
+  onChangeStatus, onMoveStage, onValueChange, onDeleteEvent, onSchedule, onOpenInbox, onOpenFull,
 }: {
   deal: Deal | null
   stages: PipelineStage[]
@@ -490,11 +507,16 @@ function DealTab({
   isWon: boolean
   isLost: boolean
   evLoading: boolean
-  upcoming: CalEvent[]
-  past: CalEvent[]
+  upcoming: CalendarEvent[]
+  past: CalendarEvent[]
+  deletingEvent: string | null
+  stageHistory: StageHistoryRow[]
   onChangeStatus: (s: 'won' | 'lost' | 'open') => void
   onMoveStage: (id: string) => void
   onValueChange: (v: number) => void
+  onDeleteEvent: (id: string) => void
+  onSchedule: () => void
+  onOpenInbox: () => void
   onOpenFull: () => void
 }) {
   if (!deal) return null
@@ -546,7 +568,7 @@ function DealTab({
                 )}>
                   {isMoving
                     ? <Loader2 className="size-2.5 animate-spin" />
-                    : <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: isCurrent ? 'white' : (isPast ? 'rgb(var(--primary))' : s.color) }} />
+                    : <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: isCurrent ? 'white' : (isPast ? 'var(--primary)' : s.color) }} />
                   }
                   {s.name}
                 </span>
@@ -564,7 +586,7 @@ function DealTab({
               type="button"
               disabled={statusLoading}
               onClick={() => onChangeStatus('won')}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 py-2.5 text-sm font-semibold text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
             >
               {statusLoading ? <Loader2 className="size-4 animate-spin" /> : <Trophy className="size-4" />}
               Ganhar
@@ -573,7 +595,7 @@ function DealTab({
               type="button"
               disabled={statusLoading}
               onClick={() => onChangeStatus('lost')}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-500 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
             >
               {statusLoading ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
               Perder
@@ -607,7 +629,7 @@ function DealTab({
       <div className="grid gap-2 sm:grid-cols-2">
         {/* Contact */}
         {deal.contact && (
-          <div className="col-span-2 flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
               {initials(deal.contact.name ?? deal.contact.phone)}
             </div>
@@ -619,6 +641,46 @@ function DealTab({
               )}
             </div>
             <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
+          </div>
+        )}
+
+        {deal.contact && (
+          <button
+            type="button"
+            onClick={onOpenInbox}
+            className="flex items-center gap-3 rounded-xl border border-[#25D366]/40 bg-[#25D366]/5 p-3 text-left hover:bg-[#25D366]/10 transition-colors"
+          >
+            <WhatsAppIcon className="size-4 shrink-0 text-[#25D366]" />
+            <div className="min-w-0">
+              <p className="text-[10px] text-muted-foreground">WhatsApp</p>
+              <p className="text-sm font-medium text-[#25D366]">Falar no WhatsApp</p>
+            </div>
+          </button>
+        )}
+
+        {/* Current stage */}
+        {(deal as Deal & { stage?: { name: string } }).stage && (
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+            <Tag className="size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] text-muted-foreground">Etapa</p>
+              <p className="truncate text-sm font-medium text-foreground">
+                {(deal as Deal & { stage?: { name: string } }).stage!.name}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Created at */}
+        {deal.created_at && (
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+            <Clock className="size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] text-muted-foreground">Criado em</p>
+              <p className="truncate text-sm font-medium text-foreground">
+                {fmtDate(deal.created_at)}
+              </p>
+            </div>
           </div>
         )}
 
@@ -688,6 +750,9 @@ function DealTab({
       {/* Items */}
       <DealItemsPanel dealId={deal.id} currency={currency} onValueChange={onValueChange} />
 
+      {/* Custom fields */}
+      <DealCustomFieldsPanel dealId={deal.id} />
+
       {/* Events */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -697,11 +762,11 @@ function DealTab({
           </div>
           <button
             type="button"
-            onClick={onOpenFull}
+            onClick={onSchedule}
             className="flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <CalendarPlus className="size-3.5" />
-            Ver tudo
+            Agendar
           </button>
         </div>
         {evLoading ? (
@@ -712,12 +777,75 @@ function DealTab({
             <p className="text-xs text-muted-foreground">Sem agendamentos</p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
-            {upcoming.slice(0, 3).map((ev, i) => <EventRow key={ev.id} ev={ev} highlight={i === 0} />)}
-            {upcoming.length === 0 && past.length > 0 && <EventRow ev={past[0]} />}
+          <div>
+            {upcoming.length > 0 && (
+              <>
+                <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Próximos</p>
+                <div className="divide-y divide-border">
+                  {upcoming.map((ev, i) => (
+                    <EventRow key={ev.id} ev={ev} highlight={i === 0} deleting={deletingEvent} onDelete={onDeleteEvent} />
+                  ))}
+                </div>
+              </>
+            )}
+            {past.length > 0 && (
+              <>
+                <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-t border-border">Realizados</p>
+                <div className="divide-y divide-border opacity-60">
+                  {past.map(ev => (
+                    <EventRow key={ev.id} ev={ev} deleting={deletingEvent} onDelete={onDeleteEvent} />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
+
+      {/* Stage history */}
+      {stageHistory.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <History className="size-4 text-muted-foreground" />
+            <p className="text-sm font-semibold text-foreground">Histórico de etapas</p>
+          </div>
+          <ol className="relative border-l border-border ml-2 space-y-0">
+            {stageHistory.map((row, i) => {
+              const color = row.stage?.color ?? '#6b7280'
+              const isLast = i === stageHistory.length - 1
+              const durationMs = row.exited_at
+                ? new Date(row.exited_at).getTime() - new Date(row.entered_at).getTime()
+                : Date.now() - new Date(row.entered_at).getTime()
+              const durationDays = Math.floor(durationMs / 86_400_000)
+              const durationHours = Math.floor((durationMs % 86_400_000) / 3_600_000)
+              const durationLabel = durationDays > 0
+                ? `${durationDays}d ${durationHours}h`
+                : durationHours > 0 ? `${durationHours}h` : '< 1h'
+              return (
+                <li key={row.id} className="pb-5 pl-5 last:pb-0">
+                  <span
+                    className="absolute -left-[5px] mt-1 size-2.5 rounded-full border-2 border-background"
+                    style={{ backgroundColor: isLast && !row.exited_at ? color : '#6b7280' }}
+                  />
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground leading-tight">{row.stage?.name ?? '—'}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {new Date(row.entered_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {' '}
+                        {new Date(row.entered_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground bg-muted/60 rounded px-1.5 py-0.5 mt-0.5">
+                      {durationLabel}
+                    </span>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        </div>
+      )}
 
       {/* Full page link */}
       <button
@@ -732,175 +860,14 @@ function DealTab({
   )
 }
 
-// ─── Contact Tab ──────────────────────────────────────────────────────────────
-
-function ContactTab({
-  contact, contactDetail, contactNotes, contactDeals, loading, currentDealValue, currency, onOpenContact,
-}: {
-  contact: Contact | null
-  contactDetail: ContactDetail | null
-  contactNotes: ContactNote[]
-  contactDeals: DealStub[]
-  loading: boolean
-  currentDealValue: number
-  currency: string
-  onOpenContact: () => void
-}) {
-  if (!contact) {
-    return (
-      <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
-        <User className="size-8 opacity-30" />
-        <p className="text-sm">Nenhum contato vinculado</p>
-      </div>
-    )
-  }
-
-  if (loading) {
-    return <div className="flex h-48 items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
-  }
-
-  const tags = (contactDetail?.tags ?? contact.tags ?? []) as TagType[]
-  const customValues = (contactDetail?.custom_values ?? []).filter(cv => cv.field.entity_type === 'contact' && cv.value)
-
-  return (
-    <div className="space-y-5 px-5 py-5">
-
-      {/* Contact header */}
-      <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4">
-        <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
-          {initials(contactDetail?.name ?? contact.name)}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-base font-bold text-foreground">{contactDetail?.name ?? contact.name ?? '—'}</p>
-          {contact.phone && (
-            <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
-              <Phone className="size-3.5" />
-              {contact.phone}
-            </p>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onOpenContact}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors"
-        >
-          <ExternalLink className="size-3.5" />
-          Ver contato
-        </button>
-      </div>
-
-      {/* Details */}
-      <div className="grid gap-2 sm:grid-cols-2">
-        {(contactDetail?.email ?? contact.email) && (
-          <InfoRow icon={<Mail className="size-3.5" />} label="E-mail" value={contactDetail?.email ?? contact.email ?? ''} />
-        )}
-        {(contactDetail?.company ?? contact.company) && (
-          <InfoRow icon={<Building2 className="size-3.5" />} label="Empresa" value={contactDetail?.company ?? contact.company ?? ''} />
-        )}
-        {contact.created_at && (
-          <InfoRow icon={<CalendarDays className="size-3.5" />} label="Cadastrado em" value={fmtDate(contact.created_at)} />
-        )}
-        {(contactDetail?.utm_source ?? contact.utm_source) && (
-          <InfoRow icon={<Tag className="size-3.5" />} label="Origem" value={contactDetail?.utm_source ?? contact.utm_source ?? ''} />
-        )}
-      </div>
-
-      {/* Tags */}
-      {tags.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Tags</p>
-          <div className="flex flex-wrap gap-1.5">
-            {tags.map((t) => (
-              <span
-                key={t.id}
-                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                style={{ backgroundColor: t.color + '22', color: t.color, border: `1px solid ${t.color}44` }}
-              >
-                <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
-                {t.name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Custom fields */}
-      {customValues.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Campos personalizados</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {customValues.map(cv => (
-              <InfoRow key={cv.field.id} icon={<StickyNote className="size-3.5" />} label={cv.field.field_name} value={cv.value ?? ''} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Contact notes */}
-      {contactNotes.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Notas do contato</p>
-          <div className="space-y-2">
-            {contactNotes.slice(0, 3).map(n => (
-              <div key={n.id} className="rounded-xl border border-border bg-card p-3">
-                <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{n.note_text}</p>
-                <p className="mt-1 text-[10px] text-muted-foreground">{fmtDate(n.created_at)}</p>
-              </div>
-            ))}
-            {contactNotes.length > 3 && (
-              <p className="text-xs text-muted-foreground text-center">+{contactNotes.length - 3} notas adicionais</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Other deals */}
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Outros negócios {contactDeals.length > 0 && `(${contactDeals.length})`}
-        </p>
-        {contactDeals.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic">Nenhum outro negócio</p>
-        ) : (
-          <div className="space-y-1.5">
-            {contactDeals.map(d => {
-              const st = STATUS_META[(d.status as keyof typeof STATUS_META) ?? 'open']
-              return (
-                <div key={d.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
-                  <Briefcase className="size-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{d.title}</p>
-                    <p className="text-xs text-muted-foreground">{d.stage?.name ?? '—'}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(d.value, currency)}</span>
-                    <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold', st.cls)}>{st.label}</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── Small helpers ─────────────────────────────────────────────────────────────
 
-function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
-      <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span>
-      <div className="min-w-0">
-        <p className="text-[10px] text-muted-foreground">{label}</p>
-        <p className="text-sm font-medium text-foreground break-words">{value}</p>
-      </div>
-    </div>
-  )
-}
-
-function EventRow({ ev, highlight }: { ev: CalEvent; highlight?: boolean }) {
+function EventRow({ ev, highlight, deleting, onDelete }: {
+  ev: CalendarEvent
+  highlight?: boolean
+  deleting: string | null
+  onDelete: (id: string) => void
+}) {
   return (
     <div className={cn('flex items-start gap-3 px-4 py-3', highlight && 'bg-primary/[0.03]')}>
       <div className={cn(
@@ -916,6 +883,17 @@ function EventRow({ ev, highlight }: { ev: CalEvent; highlight?: boolean }) {
           {fmtDateTime(ev.start_at)}
         </p>
       </div>
+      <button
+        type="button"
+        onClick={() => onDelete(ev.id)}
+        disabled={deleting === ev.id}
+        className="mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+        aria-label="Remover agendamento"
+      >
+        {deleting === ev.id
+          ? <Loader2 className="size-3.5 animate-spin" />
+          : <Trash2 className="size-3.5" />}
+      </button>
     </div>
   )
 }

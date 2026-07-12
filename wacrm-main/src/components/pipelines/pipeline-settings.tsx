@@ -44,17 +44,20 @@ function fixedSettingsSortKey(stage: import("@/types").PipelineStage): number {
   return stage.position;
 }
 
+// Paleta de estágio on-brand (Ateliê de Confiança) — variações terrosas
+// dentro da família Floresta/Ouro/Terracota, nunca o azul/roxo/rosa
+// genérico de SaaS. Ver DESIGN.md "Regra do Ouro Raro".
 const STAGE_COLORS = [
-  "#3b82f6",
-  "#6366f1",
-  "#8b5cf6",
-  "#ec4899",
-  "#f43f5e",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
-  "#14b8a6",
-  "#06b6d4",
+  "#33563C", // Musgo Profundo
+  "#6E9266", // Musgo Claro
+  "#35695C", // Verde-azulado
+  "#9B7C50", // Ouro Velho
+  "#A57543", // Caramelo
+  "#AE593A", // Terracota
+  "#81393B", // Vinho
+  "#A06B62", // Argila
+  "#797065", // Areia Escura
+  "#565F65", // Ardósia
 ];
 
 interface PipelineSettingsProps {

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Deal, PipelineStage } from "@/types";
+import type { Deal } from "@/types";
 import { ArrowRight, Calendar, CalendarDays, Check, Trophy, X, XCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 
@@ -11,7 +11,6 @@ export interface NextEventInfo {
 
 interface DealCardProps {
   deal: Deal;
-  stage: PipelineStage | null;
   onEdit: (deal: Deal) => void;
   isOverlay?: boolean;
   nextEvent?: NextEventInfo;
@@ -48,7 +47,7 @@ function fmtNextEventDate(iso: string) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) + ` · ${time}`;
 }
 
-export function DealCard({ deal, stage, onEdit, isOverlay, nextEvent, nextStageId, onQuickWin, onQuickLose, onQuickMoveNext }: DealCardProps) {
+export function DealCard({ deal, onEdit, isOverlay, nextEvent, nextStageId, onQuickWin, onQuickLose, onQuickMoveNext }: DealCardProps) {
   const contactLabel = deal.contact?.name || deal.contact?.phone || "Sem contato";
   const assigneeLabel = deal.assignee?.full_name || null;
   const isOpen = !deal.status || deal.status === 'open'
@@ -65,19 +64,12 @@ export function DealCard({ deal, stage, onEdit, isOverlay, nextEvent, nextStageI
         e.stopPropagation();
         onEdit(deal);
       }}
-      className={`relative w-full cursor-pointer rounded-xl border border-border/50 bg-muted/70 pl-4 pr-3 py-3 text-left shadow-sm transition-all ${
+      className={`relative w-full cursor-pointer rounded-xl border border-border/50 bg-muted/70 px-4 py-3 text-left transition-all ${
         isOverlay
           ? "shadow-xl"
-          : "hover:-translate-y-0.5 hover:border-border hover:bg-muted hover:shadow-lg"
+          : "hover:-translate-y-0.5 hover:border-border hover:bg-muted"
       }`}
     >
-      {/* 4px left accent bar using stage color */}
-      <span
-        aria-hidden
-        className="absolute left-0 top-0 h-full w-1 rounded-l-xl"
-        style={{ backgroundColor: stage?.color ?? "#94a3b8" }}
-      />
-
       <div className="flex items-start justify-between gap-2">
         <h4 className="flex-1 text-sm font-semibold leading-snug text-foreground break-words">
           {deal.title}
@@ -89,7 +81,7 @@ export function DealCard({ deal, stage, onEdit, isOverlay, nextEvent, nextStageI
           </span>
         )}
         {deal.status === "lost" && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive">
             <X className="h-3 w-3" />
             Perdido
           </span>

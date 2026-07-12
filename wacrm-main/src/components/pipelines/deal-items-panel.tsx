@@ -302,7 +302,7 @@ export function DealItemsPanel({ dealId, currency = 'BRL', onValueChange }: Prop
                     <button
                       type="button"
                       onClick={saveEdit}
-                      className="flex size-6 items-center justify-center rounded text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                      className="flex size-6 items-center justify-center rounded text-primary hover:bg-primary/10 transition-colors"
                     >
                       <Check className="size-3.5" />
                     </button>

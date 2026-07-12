@@ -110,13 +110,13 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
           tooltip="Soma dos valores de todos os negócios neste pipeline, excluindo negócios marcados como Perdido."
         />
         <Metric
-          icon={<Target className="h-4 w-4 text-blue-400" />}
+          icon={<Target className="h-4 w-4 text-muted-foreground" />}
           label="Tamanho Médio"
           value={formatCurrency(stats.avgValue, defaultCurrency)}
           tooltip="Valor do Pipeline dividido pelo Total de Negócios — o valor médio de um único negócio não perdido."
         />
         <Metric
-          icon={<TrendingUp className="h-4 w-4 text-purple-400" />}
+          icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
           label="Valor Ponderado"
           value={formatCurrency(stats.weightedValue, defaultCurrency)}
           tooltip="Receita esperada: valor de cada negócio aberto × probabilidade da etapa. Primeira etapa ≈ 10%, etapas progridem até 90%, Ganho = 100%. Negócios perdidos são excluídos."
@@ -128,7 +128,7 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
           tooltip="Negócios marcados como Ganho desde o primeiro dia do mês atual."
         />
         <Metric
-          icon={<XCircle className="h-4 w-4 text-red-400" />}
+          icon={<XCircle className="h-4 w-4 text-destructive" />}
           label="Perdidos Este Mês"
           value={String(stats.lostThisMonth)}
           tooltip="Negócios marcados como Perdido desde o primeiro dia do mês atual."

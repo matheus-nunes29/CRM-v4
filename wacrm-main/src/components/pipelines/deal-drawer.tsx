@@ -52,8 +52,8 @@ function fmtNextEvent(iso: string) {
 
 const STATUS_META = {
   open: { label: 'Em andamento', className: 'bg-primary/10 text-primary' },
-  won:  { label: 'Ganho',        className: 'bg-emerald-600/10 text-emerald-600' },
-  lost: { label: 'Perdido',      className: 'bg-rose-500/10 text-rose-500' },
+  won:  { label: 'Ganho',        className: 'bg-primary/15 text-primary' },
+  lost: { label: 'Perdido',      className: 'bg-destructive/10 text-destructive' },
 } as const
 
 function fixedKey(s: PipelineStage) {
@@ -257,7 +257,7 @@ export function DealDrawer({ open, onOpenChange, deal, stages, onDealMoved, onEd
                       : (
                         <span
                           className="size-1.5 rounded-full shrink-0"
-                          style={{ backgroundColor: isCurrent ? 'currentColor' : (isPast ? 'rgb(var(--primary))' : stage.color) }}
+                          style={{ backgroundColor: isCurrent ? 'currentColor' : (isPast ? 'var(--primary)' : stage.color) }}
                         />
                       )
                     }
@@ -281,7 +281,7 @@ export function DealDrawer({ open, onOpenChange, deal, stages, onDealMoved, onEd
                     type="button"
                     disabled={statusLoading}
                     onClick={() => changeStatus('won')}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 py-2.5 text-sm font-semibold text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
                   >
                     {statusLoading ? <Loader2 className="size-4 animate-spin" /> : <Trophy className="size-4" />}
                     Ganhar
@@ -290,7 +290,7 @@ export function DealDrawer({ open, onOpenChange, deal, stages, onDealMoved, onEd
                     type="button"
                     disabled={statusLoading}
                     onClick={() => changeStatus('lost')}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-500 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
                   >
                     {statusLoading ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
                     Perder
