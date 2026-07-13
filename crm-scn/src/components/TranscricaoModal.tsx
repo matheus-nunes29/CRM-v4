@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { X, Search, ChevronUp, ChevronDown, FileText, Loader2 } from 'lucide-react'
+import { X, Search, ChevronUp, ChevronDown, FileText, Loader2, Download } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 const R = '#E8001C'
@@ -206,6 +206,19 @@ export default function TranscricaoModal({ transcricao, empresa, leadId, qualifi
               ))}
             </div>
           )}
+          <button
+            onClick={() => {
+              const filename = `transcricao${empresa ? '-' + empresa.replace(/\s+/g, '-').toLowerCase() : ''}.txt`
+              const blob = new Blob([rawText], { type: 'text/plain;charset=utf-8' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url; a.download = filename; a.click()
+              URL.revokeObjectURL(url)
+            }}
+            title="Baixar transcrição (.txt)"
+            style={{ background: 'rgba(255,255,255,.12)', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: WHITE, flexShrink: 0 }}>
+            <Download size={14} />
+          </button>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,.12)', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: WHITE, flexShrink: 0 }}>
             <X size={14} />
           </button>
