@@ -498,6 +498,9 @@ function LeadPageInner() {
       if (!form.closer) errs.closer = 'Obrigatório para Reunião Agendada'
       if (!form.segmento) errs.segmento = 'Obrigatório para Reunião Agendada'
       if (bantScore < 3) errs.bant = 'BANT mínimo 3 para Reunião Agendada'
+      if (!(form as any).link_site?.trim()) errs.link_site = 'Obrigatório para Reunião Agendada'
+      if (!(form as any).link_instagram?.trim()) errs.link_instagram = 'Obrigatório para Reunião Agendada'
+      if (!(form as any).link_biblioteca_anuncios?.trim()) errs.link_biblioteca_anuncios = 'Obrigatório para Reunião Agendada'
     }
     if (form.data_ra) {
       if (!form.email?.trim()) errs.email = 'Obrigatório quando há data de RA'
@@ -508,7 +511,7 @@ function LeadPageInner() {
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
       if (errs.data_ra || errs.bant) setActiveTab('qualificacao')
-      else if (errs.closer) setActiveTab('negociacao')
+      else if (errs.closer || errs.link_site || errs.link_instagram || errs.link_biblioteca_anuncios) setActiveTab('negociacao')
       return
     }
     setSaving(true)
@@ -1265,6 +1268,51 @@ function LeadPageInner() {
                       </div>
                       <ChevronRight size={14} color={GRAY3} />
                     </button>
+                  )
+                })()}
+
+                {/* ── Links da empresa (site / instagram / biblioteca de anúncios) ── */}
+                {(() => {
+                  const isRA = form.situacao_pre_vendas === 'REUNIÃO AGENDADA'
+                  const links = [
+                    { key: 'link_site',                label: 'Site',                   placeholder: 'https://site.com.br',              icon: Globe,        color: '#7C3AED' },
+                    { key: 'link_instagram',            label: 'Instagram',              placeholder: 'https://instagram.com/...',         icon: AtSign,       color: '#E1306C' },
+                    { key: 'link_biblioteca_anuncios',  label: 'Biblioteca de Anúncios', placeholder: 'https://facebook.com/ads/library/', icon: Layers,       color: '#1877F2' },
+                  ] as const
+                  return (
+                    <div style={{ border: `1.5px solid ${isRA && (errors.link_site || errors.link_instagram || errors.link_biblioteca_anuncios) ? R : BORDER}`, borderRadius: 10, padding: '14px 16px', background: WHITE }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: GRAY3, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
+                        Links da Empresa{isRA && <span style={{ color: R }}> *</span>}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {links.map(({ key, label, placeholder, icon: Icon, color }) => {
+                          const val = (form as any)[key] || ''
+                          const err = errors[key]
+                          return (
+                            <div key={key}>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: err ? R : GRAY2, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <Icon size={10} color={err ? R : color} />{label}{isRA && <span style={{ color: R }}>*</span>}
+                              </div>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <input
+                                  style={{ ...inputStyle, flex: 1, fontSize: 12, borderColor: err ? R : BORDER }}
+                                  value={val}
+                                  onChange={e => { set(key, e.target.value); if (errors[key]) setErrors((p: any) => { const n = { ...p }; delete n[key]; return n }) }}
+                                  placeholder={placeholder}
+                                />
+                                {val && (
+                                  <a href={val} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: 'flex', alignItems: 'center', padding: '0 10px', borderRadius: 6, border: `1px solid ${BORDER}`, color, background: WHITE, textDecoration: 'none' }}>
+                                    <ExternalLink size={12} />
+                                  </a>
+                                )}
+                              </div>
+                              {err && <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: R }}><AlertCircle size={11} /><span>{err}</span></div>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
                   )
                 })()}
 
