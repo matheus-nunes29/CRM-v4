@@ -27,6 +27,9 @@ const WAPI_TOKEN = process.env.WAPI_TOKEN ?? ''
 const WAPI_API_KEY = process.env.WAPI_API_KEY ?? ''
 const WAPI_BASE_URL = 'https://api.w-api.app'
 
+const EVOLUTION_SERVER_URL = (process.env.EVOLUTION_SERVER_URL ?? '').replace(/\/$/, '')
+const EVOLUTION_GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY ?? ''
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
@@ -289,6 +292,92 @@ export async function POST(request: Request) {
         success: true,
         message_id: msgRecord?.id,
         whatsapp_message_id: wapiMessageId,
+      })
+    }
+
+    // ── Evolution API path ────────────────────────────────────────────────
+    if (config.provider === 'evolution') {
+      if (!EVOLUTION_SERVER_URL || !EVOLUTION_GLOBAL_API_KEY || !config.evolution_instance_name) {
+        return NextResponse.json(
+          { error: 'Evolution API not configured for this account.' },
+          { status: 503 },
+        )
+      }
+
+      const instanceKey = config.evolution_api_key ? decrypt(config.evolution_api_key) : EVOLUTION_GLOBAL_API_KEY
+      const targetPhone = sanitizedPhone.replace(/\D/g, '')
+
+      let evolutionMessageId = ''
+      try {
+        let endpoint = `${EVOLUTION_SERVER_URL}/message/sendText/${config.evolution_instance_name}`
+        let evoBody: Record<string, unknown> = { number: targetPhone, text: content_text }
+
+        if (isMediaKind && media_url) {
+          const mediaTypeMap: Record<string, string> = {
+            image: 'image',
+            video: 'video',
+            audio: 'audio',
+            document: 'document',
+          }
+          endpoint = `${EVOLUTION_SERVER_URL}/message/sendMedia/${config.evolution_instance_name}`
+          evoBody = {
+            number: targetPhone,
+            mediatype: mediaTypeMap[message_type] ?? 'image',
+            media: media_url,
+            caption: content_text || undefined,
+            ...(message_type === 'document' && filename ? { fileName: filename } : {}),
+          }
+        }
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { apikey: instanceKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify(evoBody),
+        })
+        const raw = await res.text()
+        console.log(`[evolution/send] ${endpoint} → ${res.status} | ${raw.slice(0, 300)}`)
+        let data: Record<string, unknown>
+        try { data = JSON.parse(raw) as Record<string, unknown> } catch { data = { _raw: raw.slice(0, 200) } }
+        if (!res.ok) throw new Error(String(data.message ?? data.error ?? `Evolution API ${res.status}`))
+        const key = data.key as Record<string, unknown> | undefined
+        evolutionMessageId = String(key?.id ?? data.id ?? '')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Evolution API error'
+        console.error('[evolution/send] failed:', message)
+        return NextResponse.json({ error: `Evolution API error: ${message}` }, { status: 502 })
+      }
+
+      const { data: msgRecord, error: msgError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id,
+          sender_type: 'agent',
+          content_type: message_type,
+          content_text: content_text || null,
+          media_url: media_url || null,
+          message_id: evolutionMessageId || null,
+          status: 'sent',
+        })
+        .select()
+        .single()
+
+      if (msgError) {
+        console.error('[evolution/send] messages insert error:', msgError)
+      }
+
+      await supabase
+        .from('conversations')
+        .update({
+          last_message_text: content_text || `[${message_type}]`,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', conversation_id)
+
+      return NextResponse.json({
+        success: true,
+        message_id: msgRecord?.id,
+        whatsapp_message_id: evolutionMessageId,
       })
     }
 

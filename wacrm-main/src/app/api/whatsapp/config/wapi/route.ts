@@ -4,7 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 const WAPI_INSTANCE_ID = process.env.WAPI_INSTANCE_ID ?? ''
 const WAPI_TOKEN = process.env.WAPI_TOKEN ?? ''
 const WAPI_BASE_URL = 'https://api.w-api.app'
-const WAPI_WEBHOOK_URL = 'https://fkbwxhjjlsjgpwttgbdw.supabase.co/functions/v1/webhook-whatsapp'
+const WAPI_WEBHOOK_URL = process.env.NEXT_PUBLIC_APP_URL
+  ? `${process.env.NEXT_PUBLIC_APP_URL}/api/whatsapp/webhook/wapi`
+  : 'https://wacrm-bice.vercel.app/api/whatsapp/webhook/wapi'
 
 const wapiHeaders = () => ({
   Authorization: `Bearer ${WAPI_TOKEN}`,

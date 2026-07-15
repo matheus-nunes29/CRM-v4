@@ -13,6 +13,9 @@ const WAPI_INSTANCE_ID = process.env.WAPI_INSTANCE_ID ?? ''
 const WAPI_TOKEN = process.env.WAPI_TOKEN ?? ''
 const WAPI_BASE_URL = 'https://api.w-api.app'
 
+const EVOLUTION_SERVER_URL = (process.env.EVOLUTION_SERVER_URL ?? '').replace(/\/$/, '')
+const EVOLUTION_GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY ?? ''
+
 /**
  * POST /api/whatsapp/react
  *
@@ -115,7 +118,7 @@ export async function POST(request: Request) {
     // WhatsApp config + access token. Account-scoped post-multi-user.
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('phone_number_id, access_token, provider')
+      .select('phone_number_id, access_token, provider, evolution_instance_name, evolution_api_key')
       .eq('account_id', accountId)
       .single();
 
@@ -153,6 +156,36 @@ export async function POST(request: Request) {
               ? 'Reações não estão disponíveis no plano W-API atual. Faça upgrade do plano para usar esta funcionalidade.'
               : `W-API ${res.status}: ${txt.slice(0, 200)}`
           )
+        }
+      } else if (config.provider === 'evolution') {
+        // Evolution API reaction — needs the full Baileys message key, not
+        // just the message id, so reconstruct remoteJid/fromMe from what
+        // we already have on the row.
+        if (!EVOLUTION_SERVER_URL || !config.evolution_instance_name) {
+          throw new Error('Evolution API not configured for this account.')
+        }
+        const instanceKey = config.evolution_api_key ? decrypt(config.evolution_api_key) : EVOLUTION_GLOBAL_API_KEY
+        const remoteJid = contact.phone.endsWith('@g.us')
+          ? contact.phone
+          : `${contact.phone.replace(/\D/g, '')}@s.whatsapp.net`
+        const res = await fetch(
+          `${EVOLUTION_SERVER_URL}/message/sendReaction/${config.evolution_instance_name}`,
+          {
+            method: 'POST',
+            headers: { apikey: instanceKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: {
+                remoteJid,
+                fromMe: targetMessage.sender_type === 'agent',
+                id: targetMessage.message_id,
+              },
+              reaction: emoji,
+            }),
+          },
+        )
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '')
+          throw new Error(`Evolution API ${res.status}: ${txt.slice(0, 200)}`)
         }
       } else {
         // Meta reaction

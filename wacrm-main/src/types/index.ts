@@ -109,6 +109,10 @@ export interface Contact {
   gclid?: string;
   created_at: string;
   updated_at: string;
+  /** True when this contact represents a WhatsApp group (phone = group JID). */
+  is_group?: boolean;
+  /** Responsible user for this contact — synced to all linked deals on change. */
+  assigned_to?: string | null;
   /** Populated via nested join (contact_tags → tags) when loaded with tag data. */
   tags?: Tag[];
 }
@@ -284,6 +288,10 @@ export interface Message {
    * cue (renders with a "↩ button reply" affordance).
    */
   interactive_reply_id?: string;
+  /** Sender's display name inside a WhatsApp group (null for 1-on-1 convos). */
+  group_sender_name?: string | null;
+  /** Sender's phone inside a WhatsApp group. */
+  group_sender_phone?: string | null;
 }
 
 export type ReactionActor = 'customer' | 'agent';
@@ -298,7 +306,7 @@ export interface MessageReaction {
   created_at: string;
 }
 
-export type WhatsAppProvider = 'meta' | 'wapi';
+export type WhatsAppProvider = 'meta' | 'wapi' | 'evolution';
 
 export interface WhatsAppConfig {
   id: string;
@@ -327,6 +335,8 @@ export interface WhatsAppConfig {
   evolution_instance_name?: string;
   /** Encrypted with AES-256-GCM like access_token. */
   evolution_api_key?: string;
+  evolution_connected?: boolean;
+  evolution_connected_phone?: string | null;
   // ── W-API (unofficial) fields ─────────────────────────────────────────
   wapi_instance_id?: string | null;
   wapi_connected?: boolean;

@@ -84,6 +84,15 @@ export function WhatsAppConfig() {
   const [wapiQrLoading, setWapiQrLoading] = useState(false);
   const [wapiQrCode, setWapiQrCode] = useState<string | null>(null);
 
+  // ── Evolution API state ─────────────────────────────────────────────
+  const [evolutionStatusLoading, setEvolutionStatusLoading] = useState(false);
+  const [evolutionActivating, setEvolutionActivating] = useState(false);
+  const [evolutionConnected, setEvolutionConnected] = useState(false);
+  const [evolutionPhone, setEvolutionPhone] = useState<string | null>(null);
+  const [evolutionQrLoading, setEvolutionQrLoading] = useState(false);
+  const [evolutionQrCode, setEvolutionQrCode] = useState<string | null>(null);
+  const [evolutionPairingCode, setEvolutionPairingCode] = useState<string | null>(null);
+
   const metaWebhookUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/api/whatsapp/webhook`
@@ -113,6 +122,9 @@ export function WhatsAppConfig() {
         // Seed W-API status from DB
         setWapiConnected(data.wapi_connected ?? false);
         setWapiPhone(data.wapi_connected_phone ?? null);
+        // Seed Evolution API status from DB
+        setEvolutionConnected(data.evolution_connected ?? false);
+        setEvolutionPhone(data.evolution_connected_phone ?? null);
       } else {
         setConfig(null);
         setPhoneNumberId('');
@@ -123,6 +135,8 @@ export function WhatsAppConfig() {
         setTokenEdited(false);
         setWapiConnected(false);
         setWapiPhone(null);
+        setEvolutionConnected(false);
+        setEvolutionPhone(null);
       }
       setRegistrationProbe(null);
 
@@ -269,6 +283,7 @@ export function WhatsAppConfig() {
       setTokenEdited(false);
       setConnectionStatus('disconnected'); setResetReason(null); setStatusMessage('');
       setWapiConnected(false); setWapiPhone(null); setWapiQrCode(null);
+      setEvolutionConnected(false); setEvolutionPhone(null); setEvolutionQrCode(null); setEvolutionPairingCode(null);
     } catch {
       toast.error('Falha ao redefinir a configuração');
     } finally {
@@ -368,6 +383,100 @@ export function WhatsAppConfig() {
     }
   }
 
+  // ── Evolution API handlers ───────────────────────────────────────────
+
+  async function handleEvolutionActivate() {
+    try {
+      setEvolutionActivating(true);
+      const res = await fetch('/api/whatsapp/config/evolution', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'activate' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || 'Falha ao ativar o Evolution API'); return; }
+      toast.success('Instância criada.');
+      if (accountId) await fetchConfig(accountId);
+      await handleEvolutionCheckStatus();
+    } catch {
+      toast.error('Falha ao ativar o Evolution API');
+    } finally {
+      setEvolutionActivating(false);
+    }
+  }
+
+  async function handleEvolutionCheckStatus() {
+    try {
+      setEvolutionStatusLoading(true);
+      const res = await fetch('/api/whatsapp/config/evolution', { method: 'GET' });
+      const data = await res.json();
+      if (data.connected) {
+        setEvolutionConnected(true);
+        setEvolutionPhone(data.phone ?? null);
+        toast.success('WhatsApp conectado via Evolution API.');
+      } else {
+        setEvolutionConnected(false);
+        setEvolutionPhone(null);
+        toast.info('WhatsApp não está conectado. Escaneie o QR code.');
+      }
+    } catch {
+      toast.error('Falha ao verificar status do Evolution API');
+    } finally {
+      setEvolutionStatusLoading(false);
+    }
+  }
+
+  async function handleEvolutionLoadQr() {
+    try {
+      setEvolutionQrLoading(true);
+      setEvolutionQrCode(null);
+      setEvolutionPairingCode(null);
+      const res = await fetch('/api/whatsapp/config/evolution', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'qr' }),
+      });
+      const data = await res.json();
+      const qrData: string | null = data.base64 ?? null;
+      const pairingCode: string | null = data.code ?? data.pairingCode ?? null;
+      if (qrData) {
+        setEvolutionQrCode(qrData.startsWith('data:') ? qrData : `data:image/png;base64,${qrData}`);
+        setEvolutionPairingCode(pairingCode);
+      } else if (data.already_connected) {
+        toast.info('Instância já conectada. Verificando status...');
+        await handleEvolutionCheckStatus();
+      } else {
+        toast.error('QR code não disponível. Tente novamente em instantes.');
+      }
+    } catch {
+      toast.error('Falha ao carregar QR code');
+    } finally {
+      setEvolutionQrLoading(false);
+    }
+  }
+
+  async function handleEvolutionDisconnect() {
+    if (!confirm('Isso desconectará o WhatsApp da instância Evolution API. Continuar?')) return;
+    try {
+      const res = await fetch('/api/whatsapp/config/evolution', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disconnect' }),
+      });
+      if (res.ok) {
+        setEvolutionConnected(false);
+        setEvolutionPhone(null);
+        setEvolutionQrCode(null);
+        setEvolutionPairingCode(null);
+        toast.success('WhatsApp desconectado.');
+      } else {
+        toast.error('Falha ao desconectar.');
+      }
+    } catch {
+      toast.error('Falha ao desconectar.');
+    }
+  }
+
   if (loading) {
     return (
       <section className="animate-in fade-in-50 duration-200">
@@ -391,7 +500,10 @@ export function WhatsAppConfig() {
         description="Escolha entre a API oficial do Meta ou a API não oficial para conectar o WhatsApp."
       />
 
-      <Tabs defaultValue={activeProvider === 'wapi' ? 'wapi' : 'meta'} className="space-y-6">
+      <Tabs
+        defaultValue={activeProvider === 'wapi' ? 'wapi' : activeProvider === 'evolution' ? 'evolution' : 'meta'}
+        className="space-y-6"
+      >
         <TabsList className="bg-muted border border-border h-auto p-1 gap-1">
           <TabsTrigger
             value="meta"
@@ -410,6 +522,17 @@ export function WhatsAppConfig() {
           >
             API Não Oficial (W-API)
             {activeProvider === 'wapi' && (
+              <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                Ativo
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="evolution"
+            className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground gap-2"
+          >
+            Evolution API
+            {activeProvider === 'evolution' && (
               <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                 Ativo
               </span>
@@ -848,6 +971,163 @@ export function WhatsAppConfig() {
                       <ExternalLink className="size-3.5" />
                       Painel da W-API
                     </a>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ─────────────── EVOLUTION API TAB ─────────────── */}
+        <TabsContent value="evolution" className="mt-0">
+          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+            <div className="space-y-6">
+
+              {/* Status card */}
+              <Alert className="bg-card border-border">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    {evolutionConnected
+                      ? <CheckCircle2 className="size-4 text-primary" />
+                      : <XCircle className="size-4 text-red-500" />}
+                    <AlertTitle className="text-foreground mb-0">
+                      {evolutionConnected
+                        ? `Conectado${evolutionPhone ? ` — +${evolutionPhone}` : ''}`
+                        : 'Não conectado'}
+                    </AlertTitle>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEvolutionCheckStatus}
+                    disabled={evolutionStatusLoading || activeProvider !== 'evolution'}
+                    className="border-border text-muted-foreground hover:text-foreground hover:bg-muted h-7"
+                  >
+                    {evolutionStatusLoading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                    Verificar
+                  </Button>
+                </div>
+                <AlertDescription className="text-muted-foreground">
+                  {activeProvider !== 'evolution'
+                    ? 'Ative o Evolution API abaixo para usar esta integração.'
+                    : evolutionConnected
+                      ? 'WhatsApp conectado via Evolution API. Mensagens enviadas e recebidas pelo CRM.'
+                      : 'Escaneie o QR code para conectar o WhatsApp.'}
+                </AlertDescription>
+              </Alert>
+
+              {/* QR code section — only visible when active and not connected */}
+              {activeProvider === 'evolution' && !evolutionConnected && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-foreground flex items-center gap-2">
+                      <QrCode className="size-4" />
+                      Conectar WhatsApp
+                    </CardTitle>
+                    <CardDescription className="text-muted-foreground">
+                      Abra o WhatsApp no celular → Aparelhos conectados → Conectar um aparelho.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {evolutionQrCode ? (
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="rounded-lg border border-border bg-white p-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={evolutionQrCode} alt="WhatsApp QR Code" className="size-52 object-contain" />
+                        </div>
+                        {evolutionPairingCode && (
+                          <p className="text-sm text-foreground">
+                            Ou use o código: <code className="font-mono font-semibold tracking-widest">{evolutionPairingCode}</code>
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground text-center">
+                          QR code expira em ~60s. Após escanear, clique em <strong className="text-foreground">Verificar</strong> acima.
+                        </p>
+                        <Button variant="outline" size="sm" onClick={handleEvolutionLoadQr} disabled={evolutionQrLoading} className="border-border text-muted-foreground hover:text-foreground hover:bg-muted">
+                          {evolutionQrLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                          Novo QR code
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button onClick={handleEvolutionLoadQr} disabled={evolutionQrLoading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                        {evolutionQrLoading ? <><Loader2 className="size-4 animate-spin" />Carregando...</> : <><QrCode className="size-4" />Carregar QR code</>}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Activation / Deactivation buttons */}
+              <div className="flex flex-wrap gap-3">
+                {activeProvider !== 'evolution' ? (
+                  <Button onClick={handleEvolutionActivate} disabled={evolutionActivating} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    {evolutionActivating ? <><Loader2 className="size-4 animate-spin" />Ativando...</> : <><Smartphone className="size-4" />Ativar Evolution API</>}
+                  </Button>
+                ) : (
+                  <>
+                    {evolutionConnected && (
+                      <Button variant="outline" onClick={handleEvolutionDisconnect} className="border-red-900 text-red-400 hover:text-red-300 hover:bg-red-950/40">
+                        <XCircle className="size-4" />
+                        Desconectar WhatsApp
+                      </Button>
+                    )}
+                    {config && (
+                      <Button variant="outline" onClick={handleReset} disabled={resetting} className="border-border text-muted-foreground hover:text-foreground hover:bg-muted">
+                        {resetting ? <><Loader2 className="size-4 animate-spin" />Removendo...</> : <><RotateCcw className="size-4" />Remover Configuração</>}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Evolution sidebar */}
+            <div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-foreground text-base">Como funciona</CardTitle>
+                  <CardDescription className="text-muted-foreground">Sua própria instância de WhatsApp, self-hosted.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Accordion>
+                    <AccordionItem className="border-border">
+                      <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
+                        <span className="flex items-center gap-2">
+                          <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
+                          Ativar a integração
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="text-muted-foreground text-sm">
+                        Clique em <strong className="text-foreground">Ativar Evolution API</strong>. Isso cria automaticamente uma instância própria para esta conta no servidor Evolution API e já configura o webhook — não é preciso colar nenhuma URL manualmente.
+                      </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem className="border-border">
+                      <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
+                        <span className="flex items-center gap-2">
+                          <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
+                          Conectar o WhatsApp
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="text-muted-foreground text-sm">
+                        Clique em <strong className="text-foreground">Carregar QR code</strong> e escaneie com o celular. Depois de escanear, clique em <strong className="text-foreground">Verificar</strong>.
+                      </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem className="border-border">
+                      <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
+                        <span className="flex items-center gap-2">
+                          <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">3</span>
+                          Enviar e receber mensagens
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="text-muted-foreground text-sm">
+                        Mensagens recebidas (incluindo de grupos) aparecerão automaticamente na Caixa de Entrada. Para enviar, abra uma conversa normalmente.
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-xs text-muted-foreground">
+                      As credenciais da instância são armazenadas de forma segura no servidor e nunca expostas ao navegador.
+                    </p>
                   </div>
                 </CardContent>
               </Card>

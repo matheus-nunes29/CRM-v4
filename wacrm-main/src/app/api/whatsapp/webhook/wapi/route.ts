@@ -1,21 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import {
+  db,
+  findOrCreateContact,
+  findOrCreateGroupContact,
+  findOrCreateConversation,
+  insertMessage,
+  normalisePhone,
+} from '@/lib/whatsapp/inbound-message'
 
-// ---------------------------------------------------------------------------
-// Lazy Supabase admin client
-// ---------------------------------------------------------------------------
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _admin: any = null
-function db() {
-  if (!_admin) {
-    _admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    )
-  }
-  return _admin
-}
+const LOG = '[wapi/webhook]'
 
 // ---------------------------------------------------------------------------
 // W-API webhook payload shape (actual format from api.w-api.app)
@@ -324,13 +317,13 @@ async function processDirectMessage({
   msgId: string
   timestamp: string
 }) {
-  const contact = await findOrCreateContact(accountId, configOwnerUserId, senderPhone, senderName)
+  const contact = await findOrCreateContact(LOG, accountId, configOwnerUserId, senderPhone, senderName)
   if (!contact) return
 
-  const conversation = await findOrCreateConversation(accountId, configOwnerUserId, contact.id)
+  const conversation = await findOrCreateConversation(LOG, accountId, configOwnerUserId, contact.id)
   if (!conversation) return
 
-  await insertMessage(conversation.id, accountId, {
+  await insertMessage(LOG, conversation.id, {
     contentType, contentText, mediaUrl, msgId, timestamp,
   })
 }
@@ -357,7 +350,8 @@ async function processGroupMessage({
   timestamp: string
 }) {
   const groupContact = await findOrCreateGroupContact(
-    accountId, configOwnerUserId, groupJid, groupName,
+    LOG, accountId, configOwnerUserId, groupJid, groupName,
+    () => fetchGroupNameFromWApi(groupJid),
   )
   if (!groupContact) return
 
@@ -369,10 +363,10 @@ async function processGroupMessage({
       .eq('id', groupContact.id)
   }
 
-  const conversation = await findOrCreateConversation(accountId, configOwnerUserId, groupContact.id)
+  const conversation = await findOrCreateConversation(LOG, accountId, configOwnerUserId, groupContact.id)
   if (!conversation) return
 
-  await insertMessage(conversation.id, accountId, {
+  await insertMessage(LOG, conversation.id, {
     contentType,
     contentText,
     mediaUrl,
@@ -384,222 +378,10 @@ async function processGroupMessage({
 }
 
 // ---------------------------------------------------------------------------
-// DB helpers
+// DB helpers — group name resolution is W-API-specific; contact/
+// conversation/message CRUD lives in @/lib/whatsapp/inbound-message
+// (shared with the Evolution API webhook).
 // ---------------------------------------------------------------------------
-
-async function findOrCreateContact(
-  accountId: string,
-  configOwnerUserId: string,
-  phone: string,
-  name: string,
-) {
-  const { data: existing } = await db()
-    .from('contacts')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('phone', phone)
-    .eq('is_group', false)
-    .maybeSingle()
-
-  if (existing) {
-    if (name && name !== existing.name) {
-      await db()
-        .from('contacts')
-        .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', existing.id)
-    }
-    return existing
-  }
-
-  const { data: created, error } = await db()
-    .from('contacts')
-    .insert({ account_id: accountId, user_id: configOwnerUserId, phone, name: name || phone, is_group: false })
-    .select()
-    .single()
-
-  if (error) {
-    console.error('[wapi/webhook] create contact error:', error)
-    const { data: raced } = await db()
-      .from('contacts')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('phone', phone)
-      .maybeSingle()
-    return raced ?? null
-  }
-  return created
-}
-
-async function findOrCreateGroupContact(
-  accountId: string,
-  configOwnerUserId: string,
-  groupJid: string,
-  groupName: string,
-) {
-  const { data: existing } = await db()
-    .from('contacts')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('phone', groupJid)
-    .eq('is_group', true)
-    .maybeSingle()
-
-  if (existing) {
-    // If stored with JID as name (no real name at creation time), try to update now
-    if (existing.name === groupJid) {
-      console.log('[wapi/webhook] group contact still has JID as name, retrying resolution for', groupJid)
-      const realName = groupName !== groupJid
-        ? groupName
-        : await fetchGroupNameFromWApi(groupJid)
-      if (realName) {
-        await db()
-          .from('contacts')
-          .update({ name: realName, updated_at: new Date().toISOString() })
-          .eq('id', existing.id)
-        return { ...existing, name: realName }
-      }
-    }
-    return existing
-  }
-
-  // Resolve best name before inserting
-  let resolvedName = groupName !== groupJid ? groupName : null
-  if (!resolvedName) {
-    resolvedName = await fetchGroupNameFromWApi(groupJid)
-  }
-
-  const { data: created, error } = await db()
-    .from('contacts')
-    .insert({
-      account_id: accountId,
-      user_id: configOwnerUserId,
-      phone: groupJid,
-      name: resolvedName || groupJid,
-      is_group: true,
-    })
-    .select()
-    .single()
-
-  if (error) {
-    console.error('[wapi/webhook] create group contact error:', error)
-    const { data: raced } = await db()
-      .from('contacts')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('phone', groupJid)
-      .maybeSingle()
-    return raced ?? null
-  }
-  return created
-}
-
-async function findOrCreateConversation(
-  accountId: string,
-  configOwnerUserId: string,
-  contactId: string,
-) {
-  const { data: existing } = await db()
-    .from('conversations')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .maybeSingle()
-
-  if (existing) return existing
-
-  const { data: created, error } = await db()
-    .from('conversations')
-    .insert({ account_id: accountId, user_id: configOwnerUserId, contact_id: contactId })
-    .select()
-    .single()
-
-  if (error) {
-    console.error('[wapi/webhook] create conversation error:', error)
-    return null
-  }
-  return created
-}
-
-async function insertMessage(
-  conversationId: string,
-  accountId: string,
-  opts: {
-    contentType: string
-    contentText: string | null
-    mediaUrl: string | null
-    msgId: string
-    timestamp: string
-    groupSenderName?: string
-    groupSenderPhone?: string
-  },
-) {
-  if (opts.msgId) {
-    const { data: dup } = await db()
-      .from('messages')
-      .select('id')
-      .eq('message_id', opts.msgId)
-      .eq('conversation_id', conversationId)
-      .maybeSingle()
-    if (dup) {
-      console.log('[wapi/webhook] duplicate message_id, skipping:', opts.msgId)
-      return
-    }
-  }
-
-  const { error } = await db()
-    .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_type: 'customer',
-      content_type: opts.contentType,
-      content_text: opts.contentText,
-      media_url: opts.mediaUrl,
-      message_id: opts.msgId || null,
-      status: 'delivered',
-      created_at: opts.timestamp,
-      group_sender_name: opts.groupSenderName ?? null,
-      group_sender_phone: opts.groupSenderPhone ?? null,
-    })
-
-  if (error) {
-    console.error('[wapi/webhook] insert message error:', error)
-    return
-  }
-
-  console.log('[wapi/webhook] message inserted for conversation:', conversationId)
-
-  await db()
-    .from('conversations')
-    .update({
-      last_message_text: opts.contentText || `[${opts.contentType}]`,
-      last_message_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', conversationId)
-
-  await db().rpc('increment_unread_count', { conv_id: conversationId })
-    .then(({ error: rpcErr }: { error: unknown }) => {
-      if (rpcErr) console.error('[wapi/webhook] increment_unread_count error:', rpcErr)
-    })
-}
-
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
-
-/**
- * Normalise a W-API phone: strip @suffix, add "+" prefix for plain numbers.
- * Group JIDs (ending @g.us) are returned as-is.
- */
-function normalisePhone(raw: string): string {
-  if (!raw) return ''
-  if (raw.endsWith('@g.us')) return raw
-  const stripped = raw.replace(/@(s\.whatsapp\.net|c\.us|lid)$/, '')
-  if (!stripped.startsWith('+') && /^\d+$/.test(stripped)) {
-    return '+' + stripped
-  }
-  return stripped
-}
 
 /**
  * Fetch the group display name (subject) from W-API.
