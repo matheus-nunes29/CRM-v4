@@ -295,84 +295,86 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
         {today >= `${mesSel}-01` && today <= `${mesSel}-31` && <span style={{ color:R, fontWeight:700 }}>● Hoje: {new Date(today+'T12:00:00').toLocaleDateString('pt-BR')}</span>}
       </div>
 
-      {/* ── Burnup Chart ── */}
+      {/* ── Burnup Charts (um por KPI) ── */}
       {(totMeta.ra > 0 || totMeta.rr > 0 || totMeta.venda > 0) && (() => {
-        // Acumulados até hoje
         let cumRA = 0, cumRR = 0, cumV = 0
-        const chartData = workDays.map((ds, i) => {
+        const byDay = workDays.map((ds, i) => {
           const isPast = ds <= today
           if (isPast) { cumRA += raMap[ds]||0; cumRR += rrMap[ds]||0; cumV += vMap[ds]||0 }
-          return {
-            day: new Date(ds+'T12:00:00').getDate(),
-            pace: Math.round((i+1) / nWD * 100),
-            ra:    (isPast && totMeta.ra    > 0) ? Math.round(cumRA    / totMeta.ra    * 100) : undefined,
-            rr:    (isPast && totMeta.rr    > 0) ? Math.round(cumRR    / totMeta.rr    * 100) : undefined,
-            venda: (isPast && totMeta.venda > 0) ? Math.round(cumV     / totMeta.venda * 100) : undefined,
-          }
+          const paceRatio = (i+1) / nWD
+          return { day: new Date(ds+'T12:00:00').getDate(), isPast, paceRatio }
         })
 
         const todayIdx    = workDays.indexOf(today)
-        const currentPace = todayIdx >= 0 ? Math.round((todayIdx+1) / nWD * 100) : 0
-        const pctRA    = totMeta.ra    > 0 ? Math.round(cumRA    / totMeta.ra    * 100) : 0
-        const pctRR    = totMeta.rr    > 0 ? Math.round(cumRR    / totMeta.rr    * 100) : 0
-        const pctVenda = totMeta.venda > 0 ? Math.round(cumV     / totMeta.venda * 100) : 0
+        const currentPace = todayIdx >= 0 ? (todayIdx+1) / nWD : 0
 
         const SERIES = [
-          { key:'ra',    label:'R. Agendada',  real: cumRA, meta: totMeta.ra,    pct: pctRA,    color:'#7C3AED' },
-          { key:'rr',    label:'R. Realizada', real: cumRR, meta: totMeta.rr,    pct: pctRR,    color:'#0D9488' },
-          { key:'venda', label:'Vendas',        real: cumV,  meta: totMeta.venda, pct: pctVenda, color: GREEN    },
+          { label:'R. Agendada',  real: cumRA, meta: totMeta.ra,    color:'#7C3AED', rMap: raMap },
+          { label:'R. Realizada', real: cumRR, meta: totMeta.rr,    color:'#0D9488', rMap: rrMap },
+          { label:'Vendas',       real: cumV,  meta: totMeta.venda, color: GREEN,    rMap: vMap  },
         ].filter(s => s.meta > 0)
 
         return (
           <div style={{ marginTop: 36 }}>
-            <div style={{ fontSize:10, fontWeight:800, color:R, textTransform:'uppercase', letterSpacing:'0.18em', marginBottom:6 }}>Burnup — Pace da Meta</div>
-
-            {/* KPI cards */}
-            <div style={{ display:'flex', gap:12, marginBottom:20 }}>
-              {SERIES.map(({ label, real, meta, pct, color }) => {
-                const delta = pct - currentPace
+            <div style={{ fontSize:10, fontWeight:800, color:R, textTransform:'uppercase', letterSpacing:'0.18em', marginBottom:16 }}>Burnup — Pace da Meta</div>
+            <div style={{ display:'grid', gridTemplateColumns: `repeat(${SERIES.length}, 1fr)`, gap:16 }}>
+              {SERIES.map(({ label, real, meta, color, rMap: sMap }) => {
+                const pct = Math.round(real / meta * 100)
+                const delta = pct - Math.round(currentPace * 100)
                 const ahead = delta >= 0
+
+                // Dados acumulados individuais para este KPI
+                let cum = 0
+                const chartData = workDays.map((ds, i) => {
+                  const isPast = ds <= today
+                  if (isPast) cum += sMap[ds] || 0
+                  return {
+                    day: new Date(ds+'T12:00:00').getDate(),
+                    pace: parseFloat(((i+1) / nWD * meta).toFixed(1)),
+                    real: isPast ? cum : undefined,
+                  }
+                })
+
                 return (
-                  <div key={label} style={{ flex:1, background:WHITE, border:'1px solid #E5E7EB', borderRadius:12, padding:'14px 18px' }}>
-                    <div style={{ fontSize:9, fontWeight:800, color:GRAY2, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>{label}</div>
-                    <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:10 }}>
-                      <span style={{ fontSize:26, fontWeight:900, color: ahead ? color : R, lineHeight:1 }}>{real}</span>
-                      <span style={{ fontSize:12, color:GRAY3 }}>/ {meta}</span>
+                  <div key={label} style={{ background:WHITE, border:`1.5px solid ${ahead ? color+'40' : '#FECACA'}`, borderRadius:14, overflow:'hidden' }}>
+                    {/* Card header */}
+                    <div style={{ padding:'14px 18px 12px', borderBottom:'1px solid #F3F4F6' }}>
+                      <div style={{ fontSize:9, fontWeight:800, color:GRAY2, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>{label}</div>
+                      <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:10 }}>
+                        <span style={{ fontSize:28, fontWeight:900, color: ahead ? color : R, lineHeight:1 }}>{real}</span>
+                        <span style={{ fontSize:12, color:GRAY3 }}>/ {meta}</span>
+                      </div>
+                      <div style={{ height:5, borderRadius:3, background:'#F3F4F6', marginBottom:6 }}>
+                        <div style={{ width:`${Math.min(100,pct)}%`, height:'100%', borderRadius:3, background: ahead ? color : R, transition:'width .3s' }} />
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}>
+                        <span style={{ fontSize:10, fontWeight:800, color: ahead ? color : R }}>
+                          {ahead ? `▲ +${delta}%` : `▼ ${delta}%`} do pace
+                        </span>
+                        <span style={{ fontSize:11, fontWeight:800, color:GRAY2 }}>{pct}%</span>
+                      </div>
                     </div>
-                    <div style={{ height:6, borderRadius:3, background:'#F3F4F6', marginBottom:6 }}>
-                      <div style={{ width:`${Math.min(100,pct)}%`, height:'100%', borderRadius:3, background: ahead ? color : R, transition:'width .3s' }} />
-                    </div>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <span style={{ fontSize:10, fontWeight:800, color: ahead ? color : R }}>
-                        {ahead ? `▲ +${delta}%` : `▼ ${delta}%`} do pace
-                      </span>
-                      <span style={{ fontSize:11, fontWeight:900, color:GRAY2 }}>{pct}%</span>
+                    {/* Burnup chart */}
+                    <div style={{ padding:'12px 8px 8px' }}>
+                      <ResponsiveContainer width="100%" height={160}>
+                        <LineChart data={chartData} margin={{ top:4, right:12, left:-12, bottom:0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                          <XAxis dataKey="day" tick={{ fontSize:9, fill:GRAY3 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                          <YAxis domain={[0, meta]} tick={{ fontSize:9, fill:GRAY3 }} tickLine={false} axisLine={false} width={28} />
+                          <Tooltip
+                            formatter={(v: any, name: string) => [v, name === 'pace' ? 'Pace' : 'Realizado']}
+                            labelFormatter={(l: any) => `Dia ${l}`}
+                            contentStyle={{ fontSize:11, border:'1px solid #E5E7EB', borderRadius:8 }}
+                          />
+                          <ReferenceLine y={meta} stroke={color} strokeDasharray="4 3" strokeWidth={1} opacity={0.4} />
+                          <Line type="monotone" dataKey="pace" stroke="#D1D5DB" strokeDasharray="4 3" strokeWidth={1.5} dot={false} name="pace" />
+                          <Line type="monotone" dataKey="real" stroke={color} strokeWidth={2.5} dot={false} connectNulls={false} activeDot={{ r:4, fill:color }} name="real" />
+                        </LineChart>
+                      </ResponsiveContainer>
                     </div>
                   </div>
                 )
               })}
-            </div>
-
-            {/* Linha do tempo burnup */}
-            <div style={{ background:WHITE, border:'1px solid #E5E7EB', borderRadius:12, padding:'20px 16px 12px' }}>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={chartData} margin={{ top:4, right:24, left:-8, bottom:4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize:10, fill:GRAY3 }} tickLine={false} axisLine={false} />
-                  <YAxis domain={[0,100]} unit="%" tick={{ fontSize:10, fill:GRAY3 }} tickLine={false} axisLine={false} width={38} />
-                  <Tooltip
-                    formatter={(v: any, name: string) => [`${v}%`, name]}
-                    labelFormatter={(l: any) => `Dia ${l}`}
-                    contentStyle={{ fontSize:11, border:'1px solid #E5E7EB', borderRadius:8, boxShadow:'0 4px 12px rgba(0,0,0,.08)' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize:11, paddingTop:8 }} />
-                  <ReferenceLine y={100} stroke="#E5E7EB" strokeDasharray="4 4" />
-                  <Line type="monotone" dataKey="pace" name="Pace ideal" stroke="#D1D5DB" strokeDasharray="5 4" strokeWidth={1.5} dot={false} />
-                  {totMeta.ra    > 0 && <Line type="monotone" dataKey="ra"    name="R. Agendada"  stroke="#7C3AED" strokeWidth={2.5} dot={false} connectNulls={false} activeDot={{ r:4 }} />}
-                  {totMeta.rr    > 0 && <Line type="monotone" dataKey="rr"    name="R. Realizada" stroke="#0D9488" strokeWidth={2.5} dot={false} connectNulls={false} activeDot={{ r:4 }} />}
-                  {totMeta.venda > 0 && <Line type="monotone" dataKey="venda" name="Vendas"        stroke={GREEN}   strokeWidth={2.5} dot={false} connectNulls={false} activeDot={{ r:4 }} />}
-                </LineChart>
-              </ResponsiveContainer>
             </div>
           </div>
         )
