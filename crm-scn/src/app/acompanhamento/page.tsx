@@ -322,6 +322,7 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
                 const pct = Math.round(real / meta * 100)
                 const delta = pct - Math.round(currentPace * 100)
                 const ahead = delta >= 0
+                const idealHoje = Math.round(currentPace * meta)
 
                 // Dados acumulados individuais para este KPI
                 let cum = 0
@@ -340,9 +341,16 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
                     {/* Card header */}
                     <div style={{ padding:'14px 18px 12px', borderBottom:'1px solid #F3F4F6' }}>
                       <div style={{ fontSize:9, fontWeight:800, color:GRAY2, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>{label}</div>
-                      <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:10 }}>
+                      <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:10, flexWrap:'wrap' }}>
                         <span style={{ fontSize:28, fontWeight:900, color: ahead ? color : R, lineHeight:1 }}>{real}</span>
-                        <span style={{ fontSize:12, color:GRAY3 }}>/ {meta}</span>
+                        <span style={{ fontSize:11, color:GRAY3, lineHeight:1 }}>
+                          realizado
+                          <span style={{ display:'inline-block', margin:'0 6px', color:'#E5E7EB' }}>·</span>
+                          <span style={{ fontWeight:800, color: ahead ? GRAY2 : R }}>{idealHoje}</span>
+                          {' '}ideal hoje
+                          <span style={{ display:'inline-block', margin:'0 6px', color:'#E5E7EB' }}>·</span>
+                          {meta} meta
+                        </span>
                       </div>
                       <div style={{ height:5, borderRadius:3, background:'#F3F4F6', marginBottom:6 }}>
                         <div style={{ width:`${Math.min(100,pct)}%`, height:'100%', borderRadius:3, background: ahead ? color : R, transition:'width .3s' }} />
