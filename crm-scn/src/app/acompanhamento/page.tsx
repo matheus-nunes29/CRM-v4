@@ -134,9 +134,35 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
     { label:'VENDAS', abbr:'VENDAS', meta: totMeta.venda, rMap: vMap, isSeparator: true },
   ]
 
-  const dP = (meta: number) => meta > 0 ? Math.round(meta/nWD) : 0
-  const wTotal = (meta: number, wk: string[]) => wk.length * dP(meta)
   const rTotal = (rMap: Record<string,number>, days: string[]) => days.reduce((s,ds) => s+(rMap[ds]||0), 0)
+
+  // Distribui a meta mensal aleatoriamente pelos dias úteis de forma determinística
+  function buildDailyPlan(meta: number, days: string[], seed: string): Record<string, number> {
+    if (meta <= 0 || days.length === 0) return {}
+    // PRNG linear congruente com seed baseada no mês + label da linha
+    let s = seed.split('').reduce((h, c) => Math.imul(31, h) + c.charCodeAt(0) | 0, 0x811c9dc5) >>> 0
+    const rng = () => { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 0x100000000 }
+    // Pesos com leve variação (nunca 0 para evitar dias completamente zerados em excesso)
+    const weights = days.map(() => Math.max(0.05, rng()))
+    const totalW = weights.reduce((a, w) => a + w, 0)
+    const scaled = weights.map(w => (w / totalW) * meta)
+    const floors = scaled.map(v => Math.floor(v))
+    const remainder = meta - floors.reduce((a, v) => a + v, 0)
+    // Largest-remainder method: distribui o resto pelos dias com maior parte fracionária
+    scaled
+      .map((v, i) => ({ frac: v - floors[i], i }))
+      .sort((a, b) => b.frac - a.frac)
+      .slice(0, remainder)
+      .forEach(({ i }) => floors[i]++)
+    return Object.fromEntries(days.map((ds, i) => [ds, floors[i]]))
+  }
+
+  // Planos diários pré-computados por linha (chave = label)
+  const dailyPlans: Record<string, Record<string, number>> = {}
+  rows.forEach(r => { dailyPlans[r.label] = buildDailyPlan(r.meta, workDays, mesSel + r.label) })
+
+  const dP = (label: string, ds: string) => dailyPlans[label]?.[ds] ?? 0
+  const wTotal = (label: string, wk: string[]) => wk.reduce((s, ds) => s + (dailyPlans[label]?.[ds] || 0), 0)
 
   const CELL: React.CSSProperties = { padding:'4px 6px', textAlign:'center', fontSize:11, fontWeight:700, border:'1px solid #E5E7EB', whiteSpace:'nowrap' }
   const P_CELL: React.CSSProperties = { ...CELL, background:'#F8F8F8', color:'#555', minWidth:32 }
@@ -222,10 +248,10 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
                     <React.Fragment key={wi}>
                       {wk.map(ds => (
                         <td key={ds} style={{ ...P_CELL, background: ds===today ? '#FFF7ED' : P_CELL.background }}>
-                          {dP(row.meta) || ''}
+                          {dP(row.label, ds) || ''}
                         </td>
                       ))}
-                      <td style={{ ...P_CELL, background:'#EEE', fontWeight:900 }}>{wTotal(row.meta, wk) || ''}</td>
+                      <td style={{ ...P_CELL, background:'#EEE', fontWeight:900 }}>{wTotal(row.label, wk) || ''}</td>
                     </React.Fragment>
                   ))}
                   <td style={{ ...P_CELL, background:'#DDD', fontWeight:900 }}>{row.meta || ''}</td>
@@ -237,7 +263,7 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
                     <React.Fragment key={wi}>
                       {wk.map(ds => {
                         const val = row.rMap[ds] || 0
-                        const planned = dP(row.meta)
+                        const planned = dP(row.label, ds)
                         const isFuture = ds > today
                         const color = isFuture ? GRAY3 : val >= planned && planned > 0 ? GREEN : val > 0 ? GRAY1 : GRAY3
                         return (
