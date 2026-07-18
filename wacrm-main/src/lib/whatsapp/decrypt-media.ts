@@ -80,6 +80,51 @@ export async function decryptWhatsAppMedia(
  * treat that as "message arrived, media unavailable" rather than
  * failing the whole webhook.
  */
+async function uploadToWhatsAppMediaBucket(
+  logPrefix: string,
+  bytes: Buffer,
+  mimetype: string | undefined,
+  accountId: string,
+): Promise<string | null> {
+  // WhatsApp sends codec params on the mimetype (e.g. "audio/ogg;
+  // codecs=opus") that the storage bucket's allow-list doesn't match
+  // exactly — strip to the bare type/subtype before storing.
+  const bareMimetype = mimetype?.split(';')[0]?.trim()
+  const ext = bareMimetype?.split('/')[1] ?? 'bin'
+  const path = `${accountId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+
+  const { error } = await db().storage
+    .from('whatsapp-media')
+    .upload(path, bytes, { contentType: bareMimetype ?? 'application/octet-stream', upsert: false })
+
+  if (error) {
+    console.error(`${logPrefix} media upload error:`, error)
+    return null
+  }
+
+  const { data: pub } = db().storage.from('whatsapp-media').getPublicUrl(path)
+  return pub.publicUrl
+}
+
+/**
+ * For media already handed to us as plaintext base64 (Evolution API's
+ * `getBase64FromMediaMessage` fallback endpoint decrypts server-side
+ * and returns ready-to-use bytes) — just re-host, no HKDF/AES needed.
+ */
+export async function storeBase64Media(
+  logPrefix: string,
+  base64: string,
+  mimetype: string | undefined,
+  accountId: string,
+): Promise<string | null> {
+  try {
+    return await uploadToWhatsAppMediaBucket(logPrefix, Buffer.from(base64, 'base64'), mimetype, accountId)
+  } catch (err) {
+    console.error(`${logPrefix} base64 media store failed:`, err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
 export async function decryptAndStoreMedia(
   logPrefix: string,
   encryptedUrl: string,
@@ -90,24 +135,7 @@ export async function decryptAndStoreMedia(
 ): Promise<string | null> {
   try {
     const bytes = await decryptWhatsAppMedia(encryptedUrl, mediaKeyInput, mediaType)
-    // WhatsApp sends codec params on the mimetype (e.g. "audio/ogg;
-    // codecs=opus") that the storage bucket's allow-list doesn't match
-    // exactly — strip to the bare type/subtype before storing.
-    const bareMimetype = mimetype?.split(';')[0]?.trim()
-    const ext = bareMimetype?.split('/')[1] ?? 'bin'
-    const path = `${accountId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-
-    const { error } = await db().storage
-      .from('whatsapp-media')
-      .upload(path, bytes, { contentType: bareMimetype ?? 'application/octet-stream', upsert: false })
-
-    if (error) {
-      console.error(`${logPrefix} media upload error:`, error)
-      return null
-    }
-
-    const { data: pub } = db().storage.from('whatsapp-media').getPublicUrl(path)
-    return pub.publicUrl
+    return await uploadToWhatsAppMediaBucket(logPrefix, bytes, mimetype, accountId)
   } catch (err) {
     console.error(`${logPrefix} media decrypt/store failed:`, err instanceof Error ? err.message : err)
     return null

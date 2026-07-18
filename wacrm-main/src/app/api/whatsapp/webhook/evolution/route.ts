@@ -6,7 +6,7 @@ import {
   insertMessage,
   normalisePhone,
 } from '@/lib/whatsapp/inbound-message'
-import { decryptAndStoreMedia } from '@/lib/whatsapp/decrypt-media'
+import { decryptAndStoreMedia, storeBase64Media } from '@/lib/whatsapp/decrypt-media'
 
 const LOG = '[evolution/webhook]'
 
@@ -102,8 +102,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No account for this instance' }, { status: 404 })
   }
 
-  const { contentText, mediaUrl, contentType } = await extractContent(data.message, data.base64, accountId)
   const msgId = data.key.id ?? ''
+  const { contentText, mediaUrl, contentType } = await extractContent(data.message, data.base64, accountId, instanceName, msgId)
   const rawTimestamp = data.messageTimestamp
   const timestamp = rawTimestamp
     ? new Date(Number(rawTimestamp) * 1000).toISOString()
@@ -152,13 +152,47 @@ export async function POST(request: Request) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Fallback for message types where Evolution's own webhook payload
+ * gives an unusable media URL (seen consistently on stickerMessage:
+ * `url` comes back as the bare host `https://a.whatsapp.net` with no
+ * path — a gap in Evolution's own URL resolution, not something a
+ * client can reconstruct). Evolution API exposes an endpoint that
+ * re-downloads + decrypts the message server-side and hands back
+ * ready-to-use base64, sidestepping the broken `url` entirely.
+ */
+async function fetchMediaBase64FromEvolution(
+  instanceName: string,
+  messageId: string,
+): Promise<{ base64: string; mimetype?: string } | null> {
+  try {
+    const res = await fetch(`${EVOLUTION_SERVER_URL}/chat/getBase64FromMediaMessage/${instanceName}`, {
+      method: 'POST',
+      headers: { apikey: EVOLUTION_GLOBAL_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: { key: { id: messageId } }, convertToMp4: false }),
+    })
+    const raw = await res.text()
+    console.log(`${LOG} getBase64FromMediaMessage → ${res.status} | ${raw.slice(0, 200)}`)
+    if (!res.ok) return null
+    const data = JSON.parse(raw) as Record<string, unknown>
+    const base64 = (data.base64 ?? (data.media as Record<string, unknown> | undefined)?.base64) as string | undefined
+    if (!base64) return null
+    return { base64, mimetype: data.mimetype as string | undefined }
+  } catch (err) {
+    console.error(`${LOG} getBase64FromMediaMessage failed:`, err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+/**
  * Resolve a media message's viewable URL. Evolution API (Baileys-based)
  * hands back WhatsApp's raw *encrypted* CDN url (`....enc?...`) plus a
  * `mediaKey` — never a ready-to-view file, `webhookBase64` config
  * notwithstanding. Decrypt it server-side and re-host in the
- * `whatsapp-media` Supabase Storage bucket; fall back to the inline
- * `base64` field (if Evolution ever supplies one directly) before
- * falling back to null (message still saves, just without media).
+ * `whatsapp-media` Supabase Storage bucket. Falls back to Evolution's
+ * own media-resolution endpoint when the URL is missing/unusable (seen
+ * on stickers — see `fetchMediaBase64FromEvolution`), then to an
+ * inline `base64` field, then null (message still saves, just without
+ * media).
  */
 async function resolveMediaUrl(
   encryptedUrl: string | undefined,
@@ -167,11 +201,31 @@ async function resolveMediaUrl(
   mediaType: 'image' | 'video' | 'audio' | 'document',
   inlineBase64: string | undefined,
   accountId: string,
+  instanceName: string,
+  messageId: string,
 ): Promise<string | null> {
-  if (encryptedUrl && mediaKey) {
-    const stored = await decryptAndStoreMedia(LOG, encryptedUrl, mediaKey, mediaType, mimetype, accountId)
+  // A bare host with no path (e.g. "https://a.whatsapp.net") isn't a
+  // downloadable resource — treat it the same as "no url".
+  let usableUrl: string | undefined
+  try {
+    usableUrl = encryptedUrl && new URL(encryptedUrl).pathname.length > 1 ? encryptedUrl : undefined
+  } catch {
+    usableUrl = undefined
+  }
+
+  if (usableUrl && mediaKey) {
+    const stored = await decryptAndStoreMedia(LOG, usableUrl, mediaKey, mediaType, mimetype, accountId)
     if (stored) return stored
   }
+
+  if (messageId) {
+    const fallback = await fetchMediaBase64FromEvolution(instanceName, messageId)
+    if (fallback) {
+      const stored = await storeBase64Media(LOG, fallback.base64, fallback.mimetype ?? mimetype, accountId)
+      if (stored) return stored
+    }
+  }
+
   if (inlineBase64) {
     return `data:${mimetype ?? 'application/octet-stream'};base64,${inlineBase64}`
   }
@@ -182,6 +236,8 @@ async function extractContent(
   message: EvolutionMessageContent | undefined,
   topLevelBase64: string | undefined,
   accountId: string,
+  instanceName: string,
+  messageId: string,
 ): Promise<{ contentText: string | null; mediaUrl: string | null; contentType: string }> {
   if (!message) return { contentText: null, mediaUrl: null, contentType: 'text' }
 
@@ -195,7 +251,7 @@ async function extractContent(
     const m = message.imageMessage
     return {
       contentText: m.caption ?? null,
-      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'image', m.base64 ?? topLevelBase64, accountId),
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'image', m.base64 ?? topLevelBase64, accountId, instanceName, messageId),
       contentType: 'image',
     }
   }
@@ -203,7 +259,7 @@ async function extractContent(
     const m = message.videoMessage
     return {
       contentText: m.caption ?? null,
-      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'video', m.base64 ?? topLevelBase64, accountId),
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'video', m.base64 ?? topLevelBase64, accountId, instanceName, messageId),
       contentType: 'video',
     }
   }
@@ -211,7 +267,7 @@ async function extractContent(
     const m = message.audioMessage
     return {
       contentText: null,
-      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'audio', m.base64 ?? topLevelBase64, accountId),
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'audio', m.base64 ?? topLevelBase64, accountId, instanceName, messageId),
       contentType: 'audio',
     }
   }
@@ -219,7 +275,7 @@ async function extractContent(
     const m = message.documentMessage
     return {
       contentText: m.fileName ?? m.title ?? null,
-      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'document', m.base64 ?? topLevelBase64, accountId),
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'document', m.base64 ?? topLevelBase64, accountId, instanceName, messageId),
       contentType: 'document',
     }
   }
@@ -228,7 +284,7 @@ async function extractContent(
     return {
       contentText: null,
       // Stickers are WhatsApp-protocol "image" media for key-derivation purposes.
-      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, 'image/webp', 'image', m.base64 ?? topLevelBase64, accountId),
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, 'image/webp', 'image', m.base64 ?? topLevelBase64, accountId, instanceName, messageId),
       contentType: 'image',
     }
   }
