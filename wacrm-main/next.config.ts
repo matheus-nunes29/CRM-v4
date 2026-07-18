@@ -77,11 +77,6 @@ const SECURITY_HEADERS = [
 ] as const;
 
 const nextConfig: NextConfig = {
-  // Self-contained build output (server + only the node_modules it
-  // actually needs) — required for a lean Docker image on Coolify.
-  // No effect on Vercel (it ignores this and uses its own bundler).
-  output: "standalone",
-
   /**
    * Cache-Control policy.
    *
