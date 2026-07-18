@@ -27,11 +27,11 @@ const EVOLUTION_GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY ?? ''
 interface EvolutionMessageContent {
   conversation?: string
   extendedTextMessage?: { text?: string }
-  imageMessage?: { caption?: string; url?: string; base64?: string; mimetype?: string; mediaKey?: string }
-  videoMessage?: { caption?: string; url?: string; base64?: string; mimetype?: string; mediaKey?: string }
-  audioMessage?: { url?: string; base64?: string; mimetype?: string; mediaKey?: string }
-  documentMessage?: { title?: string; fileName?: string; url?: string; base64?: string; mimetype?: string; mediaKey?: string }
-  stickerMessage?: { url?: string; base64?: string; mediaKey?: string }
+  imageMessage?: { caption?: string; url?: string; base64?: string; mimetype?: string; mediaKey?: unknown }
+  videoMessage?: { caption?: string; url?: string; base64?: string; mimetype?: string; mediaKey?: unknown }
+  audioMessage?: { url?: string; base64?: string; mimetype?: string; mediaKey?: unknown }
+  documentMessage?: { title?: string; fileName?: string; url?: string; base64?: string; mimetype?: string; mediaKey?: unknown }
+  stickerMessage?: { url?: string; base64?: string; mediaKey?: unknown }
   locationMessage?: { degreesLatitude?: number; degreesLongitude?: number; name?: string; address?: string }
 }
 
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
  */
 async function resolveMediaUrl(
   encryptedUrl: string | undefined,
-  mediaKey: string | undefined,
+  mediaKey: unknown,
   mimetype: string | undefined,
   mediaType: 'image' | 'video' | 'audio' | 'document',
   inlineBase64: string | undefined,

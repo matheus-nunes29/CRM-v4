@@ -27,16 +27,35 @@ const MEDIA_KEY_INFO: Record<string, string> = {
   document: 'WhatsApp Document Keys',
 }
 
+/**
+ * Evolution API's JSON encoding of protobuf `bytes` fields (mediaKey,
+ * fileSha256, etc.) is inconsistent across message types: sometimes a
+ * base64 string, sometimes a `{"0":1,"1":2,...}` array-like object (a
+ * JS Buffer serialized field-by-field). Normalise both to a Buffer.
+ */
+function toBuffer(input: unknown): Buffer {
+  if (Buffer.isBuffer(input)) return input
+  if (typeof input === 'string') return Buffer.from(input, 'base64')
+  if (Array.isArray(input)) return Buffer.from(input)
+  if (input && typeof input === 'object') {
+    const bytes = Object.keys(input as Record<string, number>)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => (input as Record<string, number>)[k])
+    return Buffer.from(bytes)
+  }
+  throw new Error(`Cannot convert mediaKey of type ${typeof input} to Buffer`)
+}
+
 export async function decryptWhatsAppMedia(
   encryptedUrl: string,
-  mediaKeyBase64: string,
+  mediaKeyInput: unknown,
   mediaType: 'image' | 'video' | 'audio' | 'document',
 ): Promise<Buffer> {
   const res = await fetch(encryptedUrl)
   if (!res.ok) throw new Error(`Failed to download encrypted media: ${res.status}`)
   const encrypted = Buffer.from(await res.arrayBuffer())
 
-  const mediaKey = Buffer.from(mediaKeyBase64, 'base64')
+  const mediaKey = toBuffer(mediaKeyInput)
   const info = MEDIA_KEY_INFO[mediaType] ?? MEDIA_KEY_INFO.document
   const expanded = Buffer.from(hkdfSync('sha256', mediaKey, Buffer.alloc(0), info, 112))
 
@@ -64,13 +83,13 @@ export async function decryptWhatsAppMedia(
 export async function decryptAndStoreMedia(
   logPrefix: string,
   encryptedUrl: string,
-  mediaKeyBase64: string,
+  mediaKeyInput: unknown,
   mediaType: 'image' | 'video' | 'audio' | 'document',
   mimetype: string | undefined,
   accountId: string,
 ): Promise<string | null> {
   try {
-    const bytes = await decryptWhatsAppMedia(encryptedUrl, mediaKeyBase64, mediaType)
+    const bytes = await decryptWhatsAppMedia(encryptedUrl, mediaKeyInput, mediaType)
     const ext = (mimetype ?? '').split('/')[1]?.split(';')[0] ?? 'bin'
     const path = `${accountId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
 
