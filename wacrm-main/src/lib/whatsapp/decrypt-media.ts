@@ -90,12 +90,16 @@ export async function decryptAndStoreMedia(
 ): Promise<string | null> {
   try {
     const bytes = await decryptWhatsAppMedia(encryptedUrl, mediaKeyInput, mediaType)
-    const ext = (mimetype ?? '').split('/')[1]?.split(';')[0] ?? 'bin'
+    // WhatsApp sends codec params on the mimetype (e.g. "audio/ogg;
+    // codecs=opus") that the storage bucket's allow-list doesn't match
+    // exactly — strip to the bare type/subtype before storing.
+    const bareMimetype = mimetype?.split(';')[0]?.trim()
+    const ext = bareMimetype?.split('/')[1] ?? 'bin'
     const path = `${accountId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
 
     const { error } = await db().storage
       .from('whatsapp-media')
-      .upload(path, bytes, { contentType: mimetype ?? 'application/octet-stream', upsert: false })
+      .upload(path, bytes, { contentType: bareMimetype ?? 'application/octet-stream', upsert: false })
 
     if (error) {
       console.error(`${logPrefix} media upload error:`, error)
