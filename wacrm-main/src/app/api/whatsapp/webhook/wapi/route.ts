@@ -286,7 +286,7 @@ function extractContent(msgContent?: WApiPayload['msgContent']): {
     return {
       contentText: null,
       mediaUrl: msgContent.stickerMessage.url ?? null,
-      contentType: 'image',
+      contentType: 'sticker',
     }
   }
   if (msgContent.locationMessage) {

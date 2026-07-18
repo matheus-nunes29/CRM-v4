@@ -259,6 +259,7 @@ export type SenderType = 'customer' | 'agent' | 'bot';
 export type ContentType =
   | 'text'
   | 'image'
+  | 'sticker'
   | 'document'
   | 'audio'
   | 'video'

@@ -53,10 +53,22 @@ function MediaUnavailable({ label }: { label: string }) {
   );
 }
 
-function MediaImage({ url, alt }: { url: string; alt: string }) {
+function MediaImage({
+  url,
+  alt,
+  sizeVariant = "default",
+}: {
+  url: string;
+  alt: string;
+  sizeVariant?: "default" | "sticker";
+}) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Stickers are already small, transparent, borderless assets (like in
+  // WhatsApp itself) — render at 60% of a regular photo's footprint.
+  const boxSize = sizeVariant === "sticker" ? "h-24 w-36" : "h-40 w-60";
+  const imgSize = sizeVariant === "sticker" ? "max-h-[154px] max-w-[144px]" : "max-h-64 max-w-60";
 
   const loadImage = useCallback(async () => {
     if (!url) return;
@@ -92,7 +104,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 
   if (error) {
     return (
-      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
+      <div className={cn("flex items-center justify-center rounded-lg bg-muted", boxSize)}>
         <ImageOff className="h-8 w-8 text-muted-foreground" />
       </div>
     );
@@ -100,7 +112,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 
   if (loading) {
     return (
-      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
+      <div className={cn("flex items-center justify-center rounded-lg bg-muted", boxSize)}>
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
@@ -110,7 +122,10 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
     <img
       src={src ?? ""}
       alt={alt}
-      className="max-h-64 max-w-60 rounded-lg object-cover"
+      className={cn(
+        imgSize,
+        sizeVariant === "sticker" ? "object-contain" : "rounded-lg object-cover",
+      )}
       onError={() => setError(true)}
     />
   );
@@ -139,6 +154,13 @@ function MessageContent({ message }: { message: Message }) {
             </p>
           )}
         </div>
+      );
+
+    case "sticker":
+      return message.media_url ? (
+        <MediaImage url={message.media_url} alt="Figurinha" sizeVariant="sticker" />
+      ) : (
+        <MediaUnavailable label="Sticker" />
       );
 
     case "video":
@@ -268,10 +290,17 @@ export function MessageBubble({
       )}
       <div
         className={cn(
-          "relative rounded-2xl px-3 py-2",
-          isAgent
-            ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-muted text-foreground",
+          "relative",
+          // Stickers are borderless transparent art, same as in WhatsApp
+          // itself — no bubble fill/padding, just the sticker + timestamp.
+          message.content_type === "sticker"
+            ? ""
+            : cn(
+                "rounded-2xl px-3 py-2",
+                isAgent
+                  ? "rounded-br-md bg-primary text-primary-foreground"
+                  : "rounded-bl-md bg-muted text-foreground",
+              ),
         )}
       >
         {reply && (
@@ -294,8 +323,13 @@ export function MessageBubble({
               // Outbound bubbles sit on the primary fill, so the
               // timestamp must read against that (not the neutral
               // foreground) — otherwise it goes low-contrast in light
-              // mode. Inbound bubbles use the muted surface.
-              isAgent ? "text-primary-foreground/70" : "text-muted-foreground",
+              // mode. Inbound bubbles use the muted surface. Stickers
+              // have no fill either way, so always use the neutral tone.
+              message.content_type === "sticker"
+                ? "text-muted-foreground"
+                : isAgent
+                  ? "text-primary-foreground/70"
+                  : "text-muted-foreground",
             )}
           >
             {time}

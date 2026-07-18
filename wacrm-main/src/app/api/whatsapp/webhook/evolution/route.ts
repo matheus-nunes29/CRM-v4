@@ -283,9 +283,11 @@ async function extractContent(
     const m = message.stickerMessage
     return {
       contentText: null,
-      // Stickers are WhatsApp-protocol "image" media for key-derivation purposes.
+      // 'image/webp' below is for key-derivation purposes only (WhatsApp
+      // protocol treats stickers as "image" media) — contentType stays
+      // 'sticker' so the inbox renders it distinctly from a photo.
       mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, 'image/webp', 'image', m.base64 ?? topLevelBase64, accountId, instanceName, messageId),
-      contentType: 'image',
+      contentType: 'sticker',
     }
   }
   if (message.locationMessage) {
