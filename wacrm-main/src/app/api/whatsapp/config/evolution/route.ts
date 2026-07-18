@@ -184,14 +184,35 @@ export async function POST(request: Request) {
       }
 
       if (existingRow) {
-        await supabase.from('whatsapp_config').update(payload).eq('account_id', accountId)
+        const { error, data: updated } = await supabase
+          .from('whatsapp_config')
+          .update(payload)
+          .eq('account_id', accountId)
+          .select('id')
+        console.log('[evolution/config] update result:', { error, rowsAffected: updated?.length ?? 0 })
+        if (error) {
+          return NextResponse.json({ error: 'DB update failed', debug: error }, { status: 500 })
+        }
+        if (!updated || updated.length === 0) {
+          return NextResponse.json(
+            { error: 'DB update affected 0 rows (likely blocked by RLS — check auth.uid()/account role)' },
+            { status: 500 },
+          )
+        }
       } else {
-        await supabase.from('whatsapp_config').insert({
-          account_id: accountId,
-          user_id: user.id,
-          status: 'connected',
-          ...payload,
-        })
+        const { error, data: inserted } = await supabase
+          .from('whatsapp_config')
+          .insert({
+            account_id: accountId,
+            user_id: user.id,
+            status: 'connected',
+            ...payload,
+          })
+          .select('id')
+        console.log('[evolution/config] insert result:', { error, rowsAffected: inserted?.length ?? 0 })
+        if (error) {
+          return NextResponse.json({ error: 'DB insert failed', debug: error }, { status: 500 })
+        }
       }
 
       return NextResponse.json({ ok: true, activated: true })
