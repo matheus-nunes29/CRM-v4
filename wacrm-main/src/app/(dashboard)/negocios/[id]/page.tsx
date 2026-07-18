@@ -13,6 +13,7 @@ import type { Deal, PipelineStage } from '@/types'
 import { Button } from '@/components/ui/button'
 import { DealForm } from '@/components/pipelines/deal-form'
 import { DealItemsPanel } from '@/components/pipelines/deal-items-panel'
+import { DealCustomFieldsPanel } from '@/components/pipelines/deal-custom-fields-panel'
 import { ScheduleEventModal, type CalendarEvent } from '@/components/calendar/schedule-event-modal'
 import { cn } from '@/lib/utils'
 
@@ -217,6 +218,9 @@ export default function DealDetailPage({ params }: Props) {
             currency={deal.currency ?? defaultCurrency}
             onValueChange={setLiveValue}
           />
+
+          {/* Custom fields */}
+          <DealCustomFieldsPanel dealId={deal.id} />
 
           {/* Stage history timeline */}
           {stageHistory.length > 0 && (

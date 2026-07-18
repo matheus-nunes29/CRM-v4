@@ -35,6 +35,9 @@ import {
   FileText,
   SlidersHorizontal,
   TrendingUp,
+  ChevronDown,
+  Package,
+  ShoppingCart,
   TrendingDown,
   Tag as TagIcon,
   CalendarDays,
@@ -102,7 +105,10 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
+  const [editAssignedTo, setEditAssignedTo] = useState<string>('');
   const [savingDetails, setSavingDetails] = useState(false);
+
+  const [members, setMembers] = useState<{ user_id: string; full_name: string }[]>([]);
 
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [contactTagIds, setContactTagIds] = useState<string[]>([]);
@@ -118,20 +124,27 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [savingCustom, setSavingCustom] = useState(false);
   const [loadingCustom, setLoadingCustom] = useState(false);
 
-  const [deals, setDeals] = useState<Deal[]>([]);
+  type DealItem = { id: string; name: string; price: number; quantity: number; product: { type: 'product' | 'service' } | null }
+  type DealWithItems = Deal & { stage?: { name: string; color: string } | null; items?: DealItem[] }
+  const [deals, setDeals] = useState<DealWithItems[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
 
   // ── Fetchers ──────────────────────────────────────────────────────────────
 
   const fetchContact = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('contacts').select('*').eq('id', contactId).single();
-    if (data) {
+    const [contactRes, membersRes] = await Promise.all([
+      supabase.from('contacts').select('*').eq('id', contactId).single(),
+      supabase.from('profiles').select('user_id, full_name').order('full_name'),
+    ]);
+    if (contactRes.data) {
+      const data = contactRes.data;
       setContact(data);
       setEditName(data.name ?? '');
       setEditPhone(data.phone);
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
+      setEditAssignedTo(data.assigned_to ?? '');
       if (data.tracking_link_id) {
         const { data: tlData } = await supabase.from('tracking_links').select('*').eq('id', data.tracking_link_id).single();
         setTrackingLink(tlData ?? null);
@@ -139,6 +152,7 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
         setTrackingLink(null);
       }
     }
+    if (membersRes.data) setMembers(membersRes.data as { user_id: string; full_name: string }[]);
     setLoading(false);
   }, [contactId, supabase]);
 
@@ -181,12 +195,12 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
     setLoadingDeals(true);
     const { data } = await supabase
       .from('deals')
-      .select('*, stage:pipeline_stages(*)')
+      .select('*, stage:pipeline_stages(id,name,color), items:deal_items(id,name,price,quantity,product:products(type))')
       .eq('contact_id', contactId)
       .order('created_at', { ascending: false });
-    setDeals((data ?? []) as Deal[]);
+    setDeals((data ?? []) as DealWithItems[]);
     setLoadingDeals(false);
-  }, [contactId, supabase]);
+  }, [contactId, supabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchContact();
@@ -219,6 +233,7 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
         phone: editPhone.trim(),
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
+        assigned_to: editAssignedTo || null,
       }),
     });
     if (!res.ok) {
@@ -432,6 +447,22 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
                 <Input value={editCompany} onChange={(e) => setEditCompany(e.target.value)}
                   className="bg-muted/60 border-border text-foreground h-9 text-sm" />
               </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Responsável</Label>
+                <div className="relative">
+                  <select
+                    value={editAssignedTo}
+                    onChange={(e) => setEditAssignedTo(e.target.value)}
+                    className="h-9 w-full appearance-none rounded-lg border border-border bg-muted/60 px-3 pr-8 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                  >
+                    <option value="">Sem responsável</option>
+                    {members.map((m) => (
+                      <option key={m.user_id} value={m.user_id}>{m.full_name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                </div>
+              </div>
             </div>
             <Button onClick={saveDetails} disabled={savingDetails}
               className="bg-primary hover:bg-primary/90 text-primary-foreground w-full" size="sm">
@@ -582,15 +613,16 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
             <div className="space-y-2">
               {deals.map((deal) => {
                 const statusMeta = dealStatusMeta(deal);
-                const stage = (deal as Deal & { stage?: { name: string; color: string } }).stage;
                 return (
                   <DealCard
                     key={deal.id}
                     title={deal.title}
                     value={formatCurrency(deal.value ?? 0, deal.currency || defaultCurrency)}
-                    stage={stage}
+                    stage={deal.stage}
                     statusMeta={statusMeta}
                     createdAt={deal.created_at}
+                    items={deal.items}
+                    currency={deal.currency || defaultCurrency}
                   />
                 );
               })}
@@ -665,14 +697,19 @@ function DealCard({
   stage,
   statusMeta,
   createdAt,
+  items,
+  currency = 'BRL',
 }: {
   title: string;
   value: string;
   stage?: { name: string; color: string } | null;
   statusMeta: { label: string; color: string; Icon: React.ElementType } | null;
   createdAt?: string | null;
+  items?: { id: string; name: string; price: number; quantity: number; product: { type: 'product' | 'service' } | null }[];
+  currency?: string;
 }) {
   const stageColor = stage?.color ?? '#6b7280';
+  const hasItems = items && items.length > 0;
 
   return (
     <div
@@ -680,6 +717,7 @@ function DealCard({
       style={{ borderLeftColor: stageColor, borderLeftWidth: 3 }}
     >
       <div className="px-3 py-2.5">
+        {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <p className="text-sm font-medium text-foreground leading-snug flex-1">{title}</p>
           {stage && (
@@ -691,8 +729,37 @@ function DealCard({
             </span>
           )}
         </div>
+
+        {/* Items list */}
+        {hasItems && (
+          <div className="mb-2 space-y-1">
+            {items!.map((item) => {
+              const isService = item.product?.type === 'service';
+              const subtotal = item.price * item.quantity;
+              return (
+                <div key={item.id} className="flex items-center justify-between gap-2 rounded bg-muted/50 px-2 py-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {isService
+                      ? <ShoppingCart className="size-3 shrink-0 text-muted-foreground" />
+                      : <Package className="size-3 shrink-0 text-muted-foreground" />
+                    }
+                    <span className="truncate text-xs text-foreground">{item.name}</span>
+                    {item.quantity > 1 && (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">×{item.quantity}</span>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs font-medium tabular-nums text-foreground">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency, maximumFractionDigits: 2 }).format(subtotal)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Footer */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 font-medium text-foreground">
             <DollarSign className="size-3" />
             {value}
           </span>

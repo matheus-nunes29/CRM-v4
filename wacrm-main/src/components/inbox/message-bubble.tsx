@@ -250,6 +250,7 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
   const time = format(new Date(message.created_at), "HH:mm");
+  const groupSender = !isAgent ? (message.group_sender_name || message.group_sender_phone) : null;
 
   // Row alignment + width cap are owned by <MessageActions> so its hover
   // group matches the bubble's content area, not the full row.
@@ -260,6 +261,11 @@ export function MessageBubble({
         isAgent ? "items-end" : "items-start",
       )}
     >
+      {groupSender && (
+        <span className="mb-0.5 ml-1 text-[10px] font-semibold text-primary/80">
+          {groupSender}
+        </span>
+      )}
       <div
         className={cn(
           "relative rounded-2xl px-3 py-2",

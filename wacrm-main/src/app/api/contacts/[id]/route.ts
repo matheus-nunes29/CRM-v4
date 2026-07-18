@@ -31,6 +31,7 @@ export async function PATCH(
     email?: string | null
     company?: string | null
     phone?: string | null
+    assigned_to?: string | null
     changed_field?: string
   }
 

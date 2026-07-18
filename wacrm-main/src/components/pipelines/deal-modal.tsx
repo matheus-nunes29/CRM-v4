@@ -525,7 +525,7 @@ function DealTab({
     <div className="space-y-5 px-5 py-5">
 
       {/* ── Value hero ─────────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/15 px-5 py-4">
+      <div className="rounded-2xl bg-primary/10 border border-primary/15 px-5 py-4">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-primary/60 mb-1">Valor do negócio</p>
         <p className="text-3xl font-extrabold tabular-nums text-foreground tracking-tight">
           {formatCurrency(displayValue, currency)}
@@ -811,7 +811,7 @@ function DealTab({
           </div>
           <ol className="relative border-l border-border ml-2 space-y-0">
             {stageHistory.map((row, i) => {
-              const color = row.stage?.color ?? '#6b7280'
+              const color = row.stage?.color ?? 'var(--muted-foreground)'
               const isLast = i === stageHistory.length - 1
               const durationMs = row.exited_at
                 ? new Date(row.exited_at).getTime() - new Date(row.entered_at).getTime()
@@ -825,7 +825,7 @@ function DealTab({
                 <li key={row.id} className="pb-5 pl-5 last:pb-0">
                   <span
                     className="absolute -left-[5px] mt-1 size-2.5 rounded-full border-2 border-background"
-                    style={{ backgroundColor: isLast && !row.exited_at ? color : '#6b7280' }}
+                    style={{ backgroundColor: isLast && !row.exited_at ? color : 'var(--muted-foreground)' }}
                   />
                   <div className="flex items-start justify-between gap-2">
                     <div>
