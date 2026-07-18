@@ -6,6 +6,7 @@ import {
   insertMessage,
   normalisePhone,
 } from '@/lib/whatsapp/inbound-message'
+import { decryptAndStoreMedia } from '@/lib/whatsapp/decrypt-media'
 
 const LOG = '[evolution/webhook]'
 
@@ -26,11 +27,11 @@ const EVOLUTION_GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY ?? ''
 interface EvolutionMessageContent {
   conversation?: string
   extendedTextMessage?: { text?: string }
-  imageMessage?: { caption?: string; url?: string; base64?: string; mimetype?: string }
-  videoMessage?: { caption?: string; url?: string; base64?: string; mimetype?: string }
-  audioMessage?: { url?: string; base64?: string; mimetype?: string }
-  documentMessage?: { title?: string; fileName?: string; url?: string; base64?: string; mimetype?: string }
-  stickerMessage?: { url?: string; base64?: string }
+  imageMessage?: { caption?: string; url?: string; base64?: string; mimetype?: string; mediaKey?: string }
+  videoMessage?: { caption?: string; url?: string; base64?: string; mimetype?: string; mediaKey?: string }
+  audioMessage?: { url?: string; base64?: string; mimetype?: string; mediaKey?: string }
+  documentMessage?: { title?: string; fileName?: string; url?: string; base64?: string; mimetype?: string; mediaKey?: string }
+  stickerMessage?: { url?: string; base64?: string; mediaKey?: string }
   locationMessage?: { degreesLatitude?: number; degreesLongitude?: number; name?: string; address?: string }
 }
 
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No account for this instance' }, { status: 404 })
   }
 
-  const { contentText, mediaUrl, contentType } = extractContent(data.message, data.base64)
+  const { contentText, mediaUrl, contentType } = await extractContent(data.message, data.base64, accountId)
   const msgId = data.key.id ?? ''
   const rawTimestamp = data.messageTimestamp
   const timestamp = rawTimestamp
@@ -150,10 +151,38 @@ export async function POST(request: Request) {
 // Content extraction
 // ---------------------------------------------------------------------------
 
-function extractContent(
+/**
+ * Resolve a media message's viewable URL. Evolution API (Baileys-based)
+ * hands back WhatsApp's raw *encrypted* CDN url (`....enc?...`) plus a
+ * `mediaKey` — never a ready-to-view file, `webhookBase64` config
+ * notwithstanding. Decrypt it server-side and re-host in the
+ * `whatsapp-media` Supabase Storage bucket; fall back to the inline
+ * `base64` field (if Evolution ever supplies one directly) before
+ * falling back to null (message still saves, just without media).
+ */
+async function resolveMediaUrl(
+  encryptedUrl: string | undefined,
+  mediaKey: string | undefined,
+  mimetype: string | undefined,
+  mediaType: 'image' | 'video' | 'audio' | 'document',
+  inlineBase64: string | undefined,
+  accountId: string,
+): Promise<string | null> {
+  if (encryptedUrl && mediaKey) {
+    const stored = await decryptAndStoreMedia(LOG, encryptedUrl, mediaKey, mediaType, mimetype, accountId)
+    if (stored) return stored
+  }
+  if (inlineBase64) {
+    return `data:${mimetype ?? 'application/octet-stream'};base64,${inlineBase64}`
+  }
+  return null
+}
+
+async function extractContent(
   message: EvolutionMessageContent | undefined,
-  topLevelBase64?: string,
-): { contentText: string | null; mediaUrl: string | null; contentType: string } {
+  topLevelBase64: string | undefined,
+  accountId: string,
+): Promise<{ contentText: string | null; mediaUrl: string | null; contentType: string }> {
   if (!message) return { contentText: null, mediaUrl: null, contentType: 'text' }
 
   if (message.conversation) {
@@ -163,37 +192,43 @@ function extractContent(
     return { contentText: message.extendedTextMessage.text ?? null, mediaUrl: null, contentType: 'text' }
   }
   if (message.imageMessage) {
+    const m = message.imageMessage
     return {
-      contentText: message.imageMessage.caption ?? null,
-      mediaUrl: message.imageMessage.url ?? mediaDataUrl(message.imageMessage.base64 ?? topLevelBase64, message.imageMessage.mimetype),
+      contentText: m.caption ?? null,
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'image', m.base64 ?? topLevelBase64, accountId),
       contentType: 'image',
     }
   }
   if (message.videoMessage) {
+    const m = message.videoMessage
     return {
-      contentText: message.videoMessage.caption ?? null,
-      mediaUrl: message.videoMessage.url ?? mediaDataUrl(message.videoMessage.base64 ?? topLevelBase64, message.videoMessage.mimetype),
+      contentText: m.caption ?? null,
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'video', m.base64 ?? topLevelBase64, accountId),
       contentType: 'video',
     }
   }
   if (message.audioMessage) {
+    const m = message.audioMessage
     return {
       contentText: null,
-      mediaUrl: message.audioMessage.url ?? mediaDataUrl(message.audioMessage.base64 ?? topLevelBase64, message.audioMessage.mimetype),
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'audio', m.base64 ?? topLevelBase64, accountId),
       contentType: 'audio',
     }
   }
   if (message.documentMessage) {
+    const m = message.documentMessage
     return {
-      contentText: message.documentMessage.fileName ?? message.documentMessage.title ?? null,
-      mediaUrl: message.documentMessage.url ?? mediaDataUrl(message.documentMessage.base64 ?? topLevelBase64, message.documentMessage.mimetype),
+      contentText: m.fileName ?? m.title ?? null,
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, m.mimetype, 'document', m.base64 ?? topLevelBase64, accountId),
       contentType: 'document',
     }
   }
   if (message.stickerMessage) {
+    const m = message.stickerMessage
     return {
       contentText: null,
-      mediaUrl: message.stickerMessage.url ?? mediaDataUrl(message.stickerMessage.base64 ?? topLevelBase64, 'image/webp'),
+      // Stickers are WhatsApp-protocol "image" media for key-derivation purposes.
+      mediaUrl: await resolveMediaUrl(m.url, m.mediaKey, 'image/webp', 'image', m.base64 ?? topLevelBase64, accountId),
       contentType: 'image',
     }
   }
@@ -204,18 +239,6 @@ function extractContent(
   }
 
   return { contentText: null, mediaUrl: null, contentType: 'text' }
-}
-
-/**
- * `base64: true` in the instance webhook config makes Evolution API
- * inline decrypted media instead of a fetchable URL — encode it as a
- * data: URL so it renders the same way a hosted URL would, without
- * needing a separate storage-upload step. Revisit if inline base64
- * proves too large for typical media (data: URLs bypass CDN caching).
- */
-function mediaDataUrl(base64: string | undefined, mimetype: string | undefined): string | null {
-  if (!base64) return null
-  return `data:${mimetype ?? 'application/octet-stream'};base64,${base64}`
 }
 
 // ---------------------------------------------------------------------------
