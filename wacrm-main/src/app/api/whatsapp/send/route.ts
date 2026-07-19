@@ -312,11 +312,17 @@ export async function POST(request: Request) {
         let endpoint = `${EVOLUTION_SERVER_URL}/message/sendText/${config.evolution_instance_name}`
         let evoBody: Record<string, unknown> = { number: targetPhone, text: content_text }
 
-        if (isMediaKind && media_url) {
+        if (isMediaKind && media_url && message_type === 'audio') {
+          // Evolution API has a dedicated endpoint for voice notes — routing
+          // audio through /message/sendMedia (mediatype:'audio') gets
+          // accepted (200) but Baileys builds it without the PTT flag, so
+          // WhatsApp silently drops the delivery with no error back to us.
+          endpoint = `${EVOLUTION_SERVER_URL}/message/sendWhatsAppAudio/${config.evolution_instance_name}`
+          evoBody = { number: targetPhone, audio: media_url }
+        } else if (isMediaKind && media_url) {
           const mediaTypeMap: Record<string, string> = {
             image: 'image',
             video: 'video',
-            audio: 'audio',
             document: 'document',
           }
           endpoint = `${EVOLUTION_SERVER_URL}/message/sendMedia/${config.evolution_instance_name}`
