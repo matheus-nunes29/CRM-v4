@@ -249,20 +249,32 @@ export async function maybeAutoCreateDeal(
   contactName: string,
 ) {
   try {
-    const { data: pipelines } = await db()
+    console.log(`${logPrefix} auto_create_deal: checking for account`, accountId, 'contact', contactId)
+
+    const { data: pipelines, error: pipelinesError } = await db()
       .from('pipelines')
       .select('id')
       .eq('account_id', accountId)
       .eq('auto_create_deal', true)
       .limit(1)
-    if (!pipelines?.length) return
+    if (pipelinesError) {
+      console.error(`${logPrefix} auto_create_deal: pipelines query error:`, pipelinesError)
+      return
+    }
+    if (!pipelines?.length) {
+      console.log(`${logPrefix} auto_create_deal: no pipeline with auto_create_deal=true for account`, accountId)
+      return
+    }
 
     const { count: openCount } = await db()
       .from('deals')
       .select('id', { count: 'exact', head: true })
       .eq('contact_id', contactId)
       .in('status', ['open', 'active'])
-    if ((openCount ?? 0) > 0) return
+    if ((openCount ?? 0) > 0) {
+      console.log(`${logPrefix} auto_create_deal: contact already has an open deal, skipping`)
+      return
+    }
 
     const pipelineId = pipelines[0].id
 
@@ -271,7 +283,10 @@ export async function maybeAutoCreateDeal(
       .select('id, fixed_role, position')
       .eq('pipeline_id', pipelineId)
       .order('position', { ascending: true })
-    if (!stages?.length) return
+    if (!stages?.length) {
+      console.log(`${logPrefix} auto_create_deal: pipeline`, pipelineId, 'has no stages, skipping')
+      return
+    }
     const stage = stages.find((s: { fixed_role: string }) => s.fixed_role === 'new_lead') ?? stages[0]
 
     const { data: acct } = await db()
@@ -293,6 +308,8 @@ export async function maybeAutoCreateDeal(
     })
     if (error) {
       console.error(`${logPrefix} auto_create_deal insert error:`, error)
+    } else {
+      console.log(`${logPrefix} auto_create_deal: deal created for contact`, contactId, 'in pipeline', pipelineId)
     }
   } catch (err) {
     console.error(`${logPrefix} auto_create_deal failed:`, err)
