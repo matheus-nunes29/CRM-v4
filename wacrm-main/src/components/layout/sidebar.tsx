@@ -91,16 +91,42 @@ interface NavItem {
   beta?: boolean;
 }
 
-const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/inbox", label: "Caixa de entrada", icon: MessageSquare },
-  { href: "/contacts", label: "Contatos", icon: Users },
-  { href: "/negocios", label: "Negócios", icon: Briefcase },
-  { href: "/pipelines", label: "Pipelines", icon: GitBranch },
-  { href: "/broadcasts", label: "Disparos", icon: Radio },
-  { href: "/automations", label: "Automações", icon: Zap },
-  { href: "/flows", label: "Fluxos", icon: Workflow, beta: true },
-  { href: "/agenda", label: "Agenda", icon: CalendarDays },
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+// Grouped by moment-of-use rather than feature type, so the sections
+// used constantly (Atendimento) sit above the ones configured once and
+// left running (Automação).
+const navGroups: NavGroup[] = [
+  {
+    label: "Visão geral",
+    items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+  },
+  {
+    label: "Atendimento",
+    items: [
+      { href: "/inbox", label: "Caixa de entrada", icon: MessageSquare },
+      { href: "/contacts", label: "Contatos", icon: Users },
+      { href: "/agenda", label: "Agenda", icon: CalendarDays },
+    ],
+  },
+  {
+    label: "Vendas",
+    items: [
+      { href: "/negocios", label: "Negócios", icon: Briefcase },
+      { href: "/pipelines", label: "Pipelines", icon: GitBranch },
+    ],
+  },
+  {
+    label: "Automação",
+    items: [
+      { href: "/broadcasts", label: "Disparos", icon: Radio },
+      { href: "/automations", label: "Automações", icon: Zap },
+      { href: "/flows", label: "Fluxos", icon: Workflow, beta: true },
+    ],
+  },
 ];
 
 const bottomNavItems = [
@@ -181,50 +207,60 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto py-4">
-          <ul className="flex flex-col gap-0.5">
-            {navItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          {navGroups.map((group, groupIndex) => (
+            <div
+              key={group.label}
+              className={cn(groupIndex > 0 && "mt-4")}
+            >
+              <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+                {group.label}
+              </p>
+              <ul className="flex flex-col gap-0.5">
+                {group.items.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
-              const showUnreadDot =
-                item.href === "/inbox" && totalUnread > 0 && !isActive;
+                  const showUnreadDot =
+                    item.href === "/inbox" && totalUnread > 0 && !isActive;
 
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 border-l-2 px-4 py-2.5 text-sm font-medium transition-colors lg:py-2",
-                      isActive
-                        ? "border-sidebar-primary bg-sidebar-accent text-sidebar-primary"
-                        : "border-transparent text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1">{item.label}</span>
-                    {item.beta && (
-                      <span
-                        aria-label="Funcionalidade beta"
-                        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-3 border-l-2 px-4 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                          isActive
+                            ? "border-sidebar-primary bg-sidebar-accent text-sidebar-primary"
+                            : "border-transparent text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary",
+                        )}
                       >
-                        Beta
-                      </span>
-                    )}
-                    {showUnreadDot && (
-                      <span
-                        aria-label={`${totalUnread} conversa${totalUnread === 1 ? "" : "s"} não lida${totalUnread === 1 ? "" : "s"}`}
-                        className="relative flex h-2 w-2"
-                      >
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sidebar-primary opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-sidebar-primary" />
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className="flex-1">{item.label}</span>
+                        {item.beta && (
+                          <span
+                            aria-label="Funcionalidade beta"
+                            className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
+                          >
+                            Beta
+                          </span>
+                        )}
+                        {showUnreadDot && (
+                          <span
+                            aria-label={`${totalUnread} conversa${totalUnread === 1 ? "" : "s"} não lida${totalUnread === 1 ? "" : "s"}`}
+                            className="relative flex h-2 w-2"
+                          >
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sidebar-primary opacity-75" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-sidebar-primary" />
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
 
           <div className="my-3 mx-4 border-t border-sidebar-border" />
 
