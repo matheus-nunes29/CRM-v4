@@ -104,12 +104,32 @@ export async function GET() {
     const state = String(instanceInfo.state ?? '').toLowerCase()
     const connected = state === 'open'
 
+    let connectedPhone = config.evolution_connected_phone as string | null
+
+    // Resolve the connected number once (connectionState doesn't include
+    // it — only fetchInstances does) and cache it in the DB so we don't
+    // hit this extra endpoint on every status check.
+    if (connected && !connectedPhone) {
+      const { data: instancesData } = await evolutionRequest(
+        `/instance/fetchInstances?instanceName=${config.evolution_instance_name}`,
+        instanceKey,
+      )
+      const list = Array.isArray(instancesData) ? instancesData : [instancesData]
+      const match = (list as Record<string, unknown>[]).find(Boolean) ?? {}
+      const matchInstance = (match.instance ?? match) as Record<string, unknown>
+      const ownerJid = String(
+        matchInstance.owner ?? matchInstance.ownerJid ?? matchInstance.number ?? '',
+      )
+      const digits = ownerJid.split('@')[0]?.replace(/\D/g, '') ?? ''
+      if (digits) connectedPhone = digits
+    }
+
     await supabase
       .from('whatsapp_config')
-      .update({ evolution_connected: connected })
+      .update({ evolution_connected: connected, ...(connectedPhone ? { evolution_connected_phone: connectedPhone } : {}) })
       .eq('account_id', accountId)
 
-    return NextResponse.json({ connected, phone: config.evolution_connected_phone, raw: data })
+    return NextResponse.json({ connected, phone: connectedPhone, raw: data })
   } catch (err) {
     console.error('[evolution/config] GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
