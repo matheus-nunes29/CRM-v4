@@ -95,35 +95,40 @@ export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick }: Pr
 
   return (
     <div className="flex flex-col rounded-xl border border-border bg-card overflow-hidden">
-      {/* Day header */}
-      <div
-        className="grid shrink-0 border-b border-border bg-card"
-        style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)` }}
-      >
-        <div className="border-r border-border" />
-        {days.map((day) => (
-          <div
-            key={dayKey(day)}
-            className={cn(
-              'py-2.5 text-center border-r border-border/60 last:border-r-0',
-              isToday(day) && 'bg-primary/5',
-            )}
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-              {day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
-            </p>
-            <p className={cn(
-              'mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold',
-              isToday(day) ? 'bg-primary text-primary-foreground' : 'text-foreground',
-            )}>
-              {day.getDate()}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Scrollable time grid */}
+      {/* Header and time grid share one scroll container (and therefore the
+          exact same scrollbar-adjusted width) so their day columns always
+          line up — a separate, non-scrolling header computes its column
+          widths against the full width while the scrollable grid below it
+          loses width to the vertical scrollbar, drifting the two out of
+          alignment. */}
       <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: 600 }}>
+        {/* Day header */}
+        <div
+          className="sticky top-0 z-30 grid border-b border-border bg-card"
+          style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)` }}
+        >
+          <div className="border-r border-border" />
+          {days.map((day) => (
+            <div
+              key={dayKey(day)}
+              className={cn(
+                'py-2.5 text-center border-r border-border/60 last:border-r-0',
+                isToday(day) && 'bg-primary/5',
+              )}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
+              </p>
+              <p className={cn(
+                'mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold',
+                isToday(day) ? 'bg-primary text-primary-foreground' : 'text-foreground',
+              )}>
+                {day.getDate()}
+              </p>
+            </div>
+          ))}
+        </div>
+
         <div
           className="relative grid"
           style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)`, height: totalGridHeight }}
