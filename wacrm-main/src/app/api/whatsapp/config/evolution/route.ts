@@ -3,13 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 
 /**
- * Evolution API config route.
- *
- * Unlike W-API (one global instance for the whole app, see
- * ../wapi/route.ts), Evolution API is self-hosted by us, so each
- * account gets its own instance created on demand — the server URL and
- * admin key are global env vars, but the instance name and per-instance
- * key are generated and stored per account in `whatsapp_config`.
+ * Evolution API (WhatsApp Lite) config route. Self-hosted by us, so
+ * each account gets its own instance created on demand — the server
+ * URL and admin key are global env vars, but the instance name and
+ * per-instance key are generated and stored per account in
+ * `whatsapp_config`.
  */
 
 const EVOLUTION_SERVER_URL = (process.env.EVOLUTION_SERVER_URL ?? '').replace(/\/$/, '')

@@ -307,7 +307,7 @@ export interface MessageReaction {
   created_at: string;
 }
 
-export type WhatsAppProvider = 'meta' | 'wapi' | 'evolution';
+export type WhatsAppProvider = 'meta' | 'evolution';
 
 export interface WhatsAppConfig {
   id: string;
@@ -338,11 +338,6 @@ export interface WhatsAppConfig {
   evolution_api_key?: string;
   evolution_connected?: boolean;
   evolution_connected_phone?: string | null;
-  // ── W-API (unofficial) fields ─────────────────────────────────────────
-  wapi_instance_id?: string | null;
-  wapi_connected?: boolean;
-  wapi_connected_phone?: string | null;
-  wapi_connected_lid?: string | null;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)

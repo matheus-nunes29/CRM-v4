@@ -2,10 +2,6 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 
-const WAPI_INSTANCE_ID = process.env.WAPI_INSTANCE_ID ?? ''
-const WAPI_TOKEN = process.env.WAPI_TOKEN ?? ''
-
-
 interface AudienceConfig {
   type: 'all' | 'tags' | 'custom_field' | 'csv'
   tagIds?: string[]
@@ -18,7 +14,7 @@ type ContactRow = {
   id: string
   name: string | null
   phone: string | null
-  wapi_lid?: string | null
+  company?: string | null
 }
 
 async function resolveContacts(
@@ -31,7 +27,7 @@ async function resolveContacts(
   if (audience.type === 'all') {
     const { data } = await supabase
       .from('contacts')
-      .select('id, name, phone, wapi_lid')
+      .select('id, name, phone, company')
       .eq('account_id', accountId)
     contacts = (data ?? []) as ContactRow[]
   } else if (audience.type === 'tags' && audience.tagIds?.length) {
@@ -43,7 +39,7 @@ async function resolveContacts(
     if (ids.length > 0) {
       const { data } = await supabase
         .from('contacts')
-        .select('id, name, phone, wapi_lid')
+        .select('id, name, phone, company')
         .eq('account_id', accountId)
         .in('id', ids)
       contacts = (data ?? []) as ContactRow[]
@@ -59,7 +55,7 @@ async function resolveContacts(
     if (contactIds.length > 0) {
       const { data } = await supabase
         .from('contacts')
-        .select('id, name, phone, wapi_lid')
+        .select('id, name, phone, company')
         .eq('account_id', accountId)
         .in('id', contactIds)
       contacts = (data ?? []) as ContactRow[]
@@ -72,7 +68,7 @@ async function resolveContacts(
     if (phones.length > 0) {
       const { data: existing } = await supabase
         .from('contacts')
-        .select('id, name, phone, wapi_lid')
+        .select('id, name, phone, company')
         .eq('account_id', accountId)
         .in('phone', phones)
       const existingMap = new Map((existing ?? []).map((c: ContactRow) => [c.phone!, c]))
@@ -88,7 +84,7 @@ async function resolveContacts(
         const { data: created } = await supabaseAdmin()
           .from('contacts')
           .insert(missing)
-          .select('id, name, phone, wapi_lid')
+          .select('id, name, phone, company')
         for (const c of (created ?? []) as ContactRow[]) existingMap.set(c.phone!, c)
       }
       contacts = [...existingMap.values()]
@@ -132,8 +128,8 @@ export async function POST(request: Request) {
     .select('provider')
     .eq('account_id', accountId)
     .single()
-  if (!config || config.provider !== 'wapi') {
-    return NextResponse.json({ error: 'W-API não está ativo nesta conta.' }, { status: 400 })
+  if (!config || config.provider !== 'evolution') {
+    return NextResponse.json({ error: 'WhatsApp Lite não está ativo nesta conta.' }, { status: 400 })
   }
 
   const body = await request.json()
@@ -174,19 +170,9 @@ export async function POST(request: Request) {
   const delaySec = Math.max(delay_seconds ?? 10, 1)
   const adminDb = supabaseAdmin()
 
-  // Cache WAPI credentials in whatsapp_config so tick-broadcasts can use them
-  // as fallback for broadcasts that don't have inline credentials (e.g. created
-  // during a code transition). Fire-and-forget; non-fatal if it fails.
-  void Promise.resolve(
-    adminDb
-      .from('whatsapp_config')
-      .update({ wapi_token: WAPI_TOKEN })
-      .eq('account_id', accountId)
-      .eq('provider', 'wapi'),
-  ).catch(() => {})
-
-  // Create broadcast record — store W-API credentials so the background cron
-  // (tick-broadcasts) can access them without needing Vercel env vars
+  // Create broadcast record. The actual per-recipient sending is done by
+  // the broadcast-worker cron (runs every minute), which looks up the
+  // account's Evolution instance itself — no credentials stored here.
   const { data: broadcast, error: bcErr } = await adminDb
     .from('broadcasts')
     .insert({
@@ -201,8 +187,6 @@ export async function POST(request: Request) {
       delay_seconds: delaySec,
       schedule_windows: schedule_windows?.length ? schedule_windows : null,
       schedule_timezone: schedule_timezone ?? 'America/Sao_Paulo',
-      wapi_instance_id: WAPI_INSTANCE_ID,
-      wapi_token: WAPI_TOKEN,
       status: 'sending',
       total_recipients: contacts.length,
       sent_count: 0,
@@ -222,7 +206,7 @@ export async function POST(request: Request) {
   }
 
   // Pre-calculate scheduled_at for every recipient based on their position in
-  // the queue. The cron job (tick-broadcasts) fires every minute and sends
+  // the queue. The broadcast-worker cron fires every minute and sends
   // whichever recipients are due — no single long-running function needed.
   const startTime = Date.now()
   const INSERT_BATCH = 200
@@ -249,13 +233,6 @@ export async function POST(request: Request) {
       )
     }
   }
-
-  // Trigger an immediate tick so the first recipient is sent right away
-  // instead of waiting for the cron. If this fails the cron picks it up
-  // within the next minute — so we don't hard-fail on error here.
-  adminDb.functions.invoke('tick-broadcasts', { body: {} }).catch((err) => {
-    console.warn('[broadcast-quick] immediate tick failed (cron will recover):', err)
-  })
 
   return NextResponse.json({
     broadcastId: broadcast.id,

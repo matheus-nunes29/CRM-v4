@@ -35,7 +35,6 @@ import {
 import type { WhatsAppConfig as WhatsAppConfigType } from '@/types';
 
 const MASKED_TOKEN = '••••••••••••••••';
-const WAPI_WEBHOOK_URL = 'https://fkbwxhjjlsjgpwttgbdw.supabase.co/functions/v1/webhook-whatsapp';
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'unknown';
 type ResetReason = 'token_corrupted' | 'meta_api_error' | null;
@@ -76,15 +75,7 @@ export function WhatsAppConfig() {
   };
   const [registrationProbe, setRegistrationProbe] = useState<RegistrationProbe | null>(null);
 
-  // ── W-API state ──────────────────────────────────────────────────────
-  const [wapiStatusLoading, setWapiStatusLoading] = useState(false);
-  const [wapiActivating, setWapiActivating] = useState(false);
-  const [wapiConnected, setWapiConnected] = useState(false);
-  const [wapiPhone, setWapiPhone] = useState<string | null>(null);
-  const [wapiQrLoading, setWapiQrLoading] = useState(false);
-  const [wapiQrCode, setWapiQrCode] = useState<string | null>(null);
-
-  // ── Evolution API state ─────────────────────────────────────────────
+  // ── WhatsApp Lite (Evolution API) state ─────────────────────────────
   const [evolutionStatusLoading, setEvolutionStatusLoading] = useState(false);
   const [evolutionActivating, setEvolutionActivating] = useState(false);
   const [evolutionConnected, setEvolutionConnected] = useState(false);
@@ -119,10 +110,7 @@ export function WhatsAppConfig() {
         setVerifyToken('');
         setPin('');
         setTokenEdited(false);
-        // Seed W-API status from DB
-        setWapiConnected(data.wapi_connected ?? false);
-        setWapiPhone(data.wapi_connected_phone ?? null);
-        // Seed Evolution API status from DB
+        // Seed WhatsApp Lite status from DB
         setEvolutionConnected(data.evolution_connected ?? false);
         setEvolutionPhone(data.evolution_connected_phone ?? null);
       } else {
@@ -133,8 +121,6 @@ export function WhatsAppConfig() {
         setVerifyToken('');
         setPin('');
         setTokenEdited(false);
-        setWapiConnected(false);
-        setWapiPhone(null);
         setEvolutionConnected(false);
         setEvolutionPhone(null);
       }
@@ -282,7 +268,6 @@ export function WhatsAppConfig() {
       setPhoneNumberId(''); setWabaId(''); setAccessToken(''); setVerifyToken('');
       setTokenEdited(false);
       setConnectionStatus('disconnected'); setResetReason(null); setStatusMessage('');
-      setWapiConnected(false); setWapiPhone(null); setWapiQrCode(null);
       setEvolutionConnected(false); setEvolutionPhone(null); setEvolutionQrCode(null); setEvolutionPairingCode(null);
     } catch {
       toast.error('Falha ao redefinir a configuração');
@@ -291,99 +276,7 @@ export function WhatsAppConfig() {
     }
   }
 
-  // ── W-API handlers ───────────────────────────────────────────────────
-
-  async function handleWapiActivate() {
-    try {
-      setWapiActivating(true);
-      const res = await fetch('/api/whatsapp/config/wapi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'activate' }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error || 'Falha ao ativar a API Não Oficial'); return; }
-      toast.success('API Não Oficial ativada.');
-      if (accountId) await fetchConfig(accountId);
-      // Immediately check status
-      await handleWapiCheckStatus();
-    } catch {
-      toast.error('Falha ao ativar a API Não Oficial');
-    } finally {
-      setWapiActivating(false);
-    }
-  }
-
-  async function handleWapiCheckStatus() {
-    try {
-      setWapiStatusLoading(true);
-      const res = await fetch('/api/whatsapp/config/wapi', { method: 'GET' });
-      const data = await res.json();
-      if (data.connected) {
-        setWapiConnected(true);
-        setWapiPhone(data.phone ?? null);
-        toast.success('WhatsApp conectado via W-API.');
-      } else {
-        setWapiConnected(false);
-        setWapiPhone(null);
-        toast.info('WhatsApp não está conectado. Escaneie o QR code.');
-      }
-    } catch {
-      toast.error('Falha ao verificar status da W-API');
-    } finally {
-      setWapiStatusLoading(false);
-    }
-  }
-
-  async function handleWapiLoadQr() {
-    try {
-      setWapiQrLoading(true);
-      setWapiQrCode(null);
-      const res = await fetch('/api/whatsapp/config/wapi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'qr' }),
-      });
-      const data = await res.json();
-      const qrData: string | null = data.qrcode ?? data.qr ?? data.base64 ?? null;
-      if (qrData) {
-        setWapiQrCode(qrData.startsWith('data:') ? qrData : `data:image/png;base64,${qrData}`);
-      } else if (data.already_connected) {
-        // W-API won't give a QR when already connected — auto-verify
-        toast.info('Instância já conectada. Verificando status...');
-        await handleWapiCheckStatus();
-      } else {
-        toast.error('QR code não disponível. Verifique o painel da W-API.');
-      }
-    } catch {
-      toast.error('Falha ao carregar QR code');
-    } finally {
-      setWapiQrLoading(false);
-    }
-  }
-
-  async function handleWapiDisconnect() {
-    if (!confirm('Isso desconectará o WhatsApp da instância W-API. Continuar?')) return;
-    try {
-      const res = await fetch('/api/whatsapp/config/wapi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'disconnect' }),
-      });
-      if (res.ok) {
-        setWapiConnected(false);
-        setWapiPhone(null);
-        setWapiQrCode(null);
-        toast.success('WhatsApp desconectado.');
-      } else {
-        toast.error('Falha ao desconectar.');
-      }
-    } catch {
-      toast.error('Falha ao desconectar.');
-    }
-  }
-
-  // ── Evolution API handlers ───────────────────────────────────────────
+  // ── WhatsApp Lite (Evolution API) handlers ───────────────────────────
 
   async function handleEvolutionActivate() {
     try {
@@ -394,12 +287,12 @@ export function WhatsAppConfig() {
         body: JSON.stringify({ action: 'activate' }),
       });
       const data = await res.json();
-      if (!res.ok) { toast.error(data.error || 'Falha ao ativar o Evolution API'); return; }
+      if (!res.ok) { toast.error(data.error || 'Falha ao ativar o WhatsApp Lite'); return; }
       toast.success('Instância criada.');
       if (accountId) await fetchConfig(accountId);
       await handleEvolutionCheckStatus();
     } catch {
-      toast.error('Falha ao ativar o Evolution API');
+      toast.error('Falha ao ativar o WhatsApp Lite');
     } finally {
       setEvolutionActivating(false);
     }
@@ -413,14 +306,14 @@ export function WhatsAppConfig() {
       if (data.connected) {
         setEvolutionConnected(true);
         setEvolutionPhone(data.phone ?? null);
-        toast.success('WhatsApp conectado via Evolution API.');
+        toast.success('WhatsApp conectado via WhatsApp Lite.');
       } else {
         setEvolutionConnected(false);
         setEvolutionPhone(null);
         toast.info('WhatsApp não está conectado. Escaneie o QR code.');
       }
     } catch {
-      toast.error('Falha ao verificar status do Evolution API');
+      toast.error('Falha ao verificar status do WhatsApp Lite');
     } finally {
       setEvolutionStatusLoading(false);
     }
@@ -456,7 +349,7 @@ export function WhatsAppConfig() {
   }
 
   async function handleEvolutionDisconnect() {
-    if (!confirm('Isso desconectará o WhatsApp da instância Evolution API. Continuar?')) return;
+    if (!confirm('Isso desconectará o WhatsApp da instância WhatsApp Lite. Continuar?')) return;
     try {
       const res = await fetch('/api/whatsapp/config/evolution', {
         method: 'POST',
@@ -497,11 +390,11 @@ export function WhatsAppConfig() {
     <section className="animate-in fade-in-50 duration-200">
       <SettingsPanelHead
         title="Conexão WhatsApp"
-        description="Escolha entre a API oficial do Meta ou a API não oficial para conectar o WhatsApp."
+        description="Escolha entre a API Oficial do Meta ou o WhatsApp Lite para conectar o WhatsApp."
       />
 
       <Tabs
-        defaultValue={activeProvider === 'wapi' ? 'wapi' : activeProvider === 'evolution' ? 'evolution' : 'meta'}
+        defaultValue={activeProvider === 'evolution' ? 'evolution' : 'meta'}
         className="space-y-6"
       >
         <TabsList className="bg-muted border border-border h-auto p-1 gap-1">
@@ -517,21 +410,10 @@ export function WhatsAppConfig() {
             )}
           </TabsTrigger>
           <TabsTrigger
-            value="wapi"
-            className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground gap-2"
-          >
-            API Não Oficial (W-API)
-            {activeProvider === 'wapi' && (
-              <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                Ativo
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
             value="evolution"
             className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground gap-2"
           >
-            Evolution API
+            WhatsApp Lite
             {activeProvider === 'evolution' && (
               <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                 Ativo
@@ -774,211 +656,7 @@ export function WhatsAppConfig() {
           </div>
         </TabsContent>
 
-        {/* ─────────────── W-API TAB ─────────────── */}
-        <TabsContent value="wapi" className="mt-0">
-          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-            <div className="space-y-6">
-
-              {/* Status card */}
-              <Alert className="bg-card border-border">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    {wapiConnected
-                      ? <CheckCircle2 className="size-4 text-primary" />
-                      : <XCircle className="size-4 text-red-500" />}
-                    <AlertTitle className="text-foreground mb-0">
-                      {wapiConnected
-                        ? `Conectado${wapiPhone ? ` — +${wapiPhone}` : ''}`
-                        : 'Não conectado'}
-                    </AlertTitle>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleWapiCheckStatus}
-                    disabled={wapiStatusLoading || activeProvider !== 'wapi'}
-                    className="border-border text-muted-foreground hover:text-foreground hover:bg-muted h-7"
-                  >
-                    {wapiStatusLoading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-                    Verificar
-                  </Button>
-                </div>
-                <AlertDescription className="text-muted-foreground">
-                  {activeProvider !== 'wapi'
-                    ? 'Ative a API Não Oficial abaixo para usar esta integração.'
-                    : wapiConnected
-                      ? 'WhatsApp conectado via W-API. Mensagens enviadas e recebidas pelo CRM.'
-                      : 'Escaneie o QR code para conectar o WhatsApp.'}
-                </AlertDescription>
-              </Alert>
-
-              {/* Webhook URL */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-foreground">URL do Webhook</CardTitle>
-                  <CardDescription className="text-muted-foreground">
-                    Configure esta URL nos 4 campos de webhook no painel da W-API.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex gap-2">
-                    <Input
-                      readOnly
-                      value={WAPI_WEBHOOK_URL}
-                      className="bg-muted border-border text-muted-foreground font-mono text-xs"
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => { navigator.clipboard.writeText(WAPI_WEBHOOK_URL); toast.success('URL copiada'); }}
-                      className="shrink-0 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-                    >
-                      <Copy className="size-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    No painel da W-API, clique em &quot;Webhooks&quot; e cole este URL nos campos:<br />
-                    <strong className="text-foreground">Ao receber</strong>, <strong className="text-foreground">Ao enviar</strong>, <strong className="text-foreground">Ao conectar</strong> e <strong className="text-foreground">Status</strong>. Em seguida, clique em &quot;Salvar alterações&quot;.
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* QR code section — only visible when active and not connected */}
-              {activeProvider === 'wapi' && !wapiConnected && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-foreground flex items-center gap-2">
-                      <QrCode className="size-4" />
-                      Conectar WhatsApp
-                    </CardTitle>
-                    <CardDescription className="text-muted-foreground">
-                      Abra o WhatsApp no celular → Aparelhos conectados → Conectar um aparelho.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {wapiQrCode ? (
-                      <div className="flex flex-col items-center gap-4">
-                        <div className="rounded-lg border border-border bg-white p-3">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={wapiQrCode} alt="WhatsApp QR Code" className="size-52 object-contain" />
-                        </div>
-                        <p className="text-xs text-muted-foreground text-center">
-                          QR code expira em ~60s. Após escanear, clique em <strong className="text-foreground">Verificar</strong> acima.
-                        </p>
-                        <Button variant="outline" size="sm" onClick={handleWapiLoadQr} disabled={wapiQrLoading} className="border-border text-muted-foreground hover:text-foreground hover:bg-muted">
-                          {wapiQrLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-                          Novo QR code
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button onClick={handleWapiLoadQr} disabled={wapiQrLoading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                        {wapiQrLoading ? <><Loader2 className="size-4 animate-spin" />Carregando...</> : <><QrCode className="size-4" />Carregar QR code</>}
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Activation / Deactivation buttons */}
-              <div className="flex flex-wrap gap-3">
-                {activeProvider !== 'wapi' ? (
-                  <Button onClick={handleWapiActivate} disabled={wapiActivating} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                    {wapiActivating ? <><Loader2 className="size-4 animate-spin" />Ativando...</> : <><Smartphone className="size-4" />Ativar API Não Oficial</>}
-                  </Button>
-                ) : (
-                  <>
-                    {wapiConnected && (
-                      <Button variant="outline" onClick={handleWapiDisconnect} className="border-red-900 text-red-400 hover:text-red-300 hover:bg-red-950/40">
-                        <XCircle className="size-4" />
-                        Desconectar WhatsApp
-                      </Button>
-                    )}
-                    {config && (
-                      <Button variant="outline" onClick={handleReset} disabled={resetting} className="border-border text-muted-foreground hover:text-foreground hover:bg-muted">
-                        {resetting ? <><Loader2 className="size-4 animate-spin" />Removendo...</> : <><RotateCcw className="size-4" />Remover Configuração</>}
-                      </Button>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* W-API sidebar */}
-            <div>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-foreground text-base">Como configurar</CardTitle>
-                  <CardDescription className="text-muted-foreground">Conecte o WhatsApp via W-API em 4 passos.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Accordion>
-                    <AccordionItem className="border-border">
-                      <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                        <span className="flex items-center gap-2">
-                          <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
-                          Ativar a integração
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent className="text-muted-foreground text-sm">
-                        Clique em <strong className="text-foreground">Ativar API Não Oficial</strong> nesta página. Isso altera o provedor ativo para W-API.
-                      </AccordionContent>
-                    </AccordionItem>
-                    <AccordionItem className="border-border">
-                      <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                        <span className="flex items-center gap-2">
-                          <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
-                          Configurar webhook na W-API
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent className="text-muted-foreground text-sm space-y-1">
-                        <p>No painel da W-API (painel.w-api.app):</p>
-                        <ol className="list-decimal list-inside space-y-1">
-                          <li>Acesse sua instância</li>
-                          <li>Clique em &quot;Webhooks&quot;</li>
-                          <li>Cole a URL do Webhook nos 4 campos</li>
-                          <li>Clique em &quot;Salvar alterações&quot;</li>
-                        </ol>
-                      </AccordionContent>
-                    </AccordionItem>
-                    <AccordionItem className="border-border">
-                      <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                        <span className="flex items-center gap-2">
-                          <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">3</span>
-                          Conectar o WhatsApp
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent className="text-muted-foreground text-sm">
-                        Se a instância não estiver conectada, clique em <strong className="text-foreground">Carregar QR code</strong> e escaneie com o celular. Se já estiver conectada, clique em <strong className="text-foreground">Verificar</strong>.
-                      </AccordionContent>
-                    </AccordionItem>
-                    <AccordionItem className="border-border">
-                      <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
-                        <span className="flex items-center gap-2">
-                          <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">4</span>
-                          Enviar e receber mensagens
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent className="text-muted-foreground text-sm">
-                        Mensagens recebidas aparecerão automaticamente na Caixa de Entrada. Para enviar, abra uma conversa normalmente.
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                  <div className="mt-4 pt-4 border-t border-border space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      As credenciais da W-API são armazenadas de forma segura no servidor e nunca expostas ao navegador.
-                    </p>
-                    <a href="https://painel.w-api.app" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors">
-                      <ExternalLink className="size-3.5" />
-                      Painel da W-API
-                    </a>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* ─────────────── EVOLUTION API TAB ─────────────── */}
+        {/* ─────────────── WHATSAPP LITE TAB ─────────────── */}
         <TabsContent value="evolution" className="mt-0">
           <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
             <div className="space-y-6">
@@ -1009,9 +687,9 @@ export function WhatsAppConfig() {
                 </div>
                 <AlertDescription className="text-muted-foreground">
                   {activeProvider !== 'evolution'
-                    ? 'Ative o Evolution API abaixo para usar esta integração.'
+                    ? 'Ative o WhatsApp Lite abaixo para usar esta integração.'
                     : evolutionConnected
-                      ? 'WhatsApp conectado via Evolution API. Mensagens enviadas e recebidas pelo CRM.'
+                      ? 'WhatsApp conectado via WhatsApp Lite. Mensagens enviadas e recebidas pelo CRM.'
                       : 'Escaneie o QR code para conectar o WhatsApp.'}
                 </AlertDescription>
               </Alert>
@@ -1061,7 +739,7 @@ export function WhatsAppConfig() {
               <div className="flex flex-wrap gap-3">
                 {activeProvider !== 'evolution' ? (
                   <Button onClick={handleEvolutionActivate} disabled={evolutionActivating} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                    {evolutionActivating ? <><Loader2 className="size-4 animate-spin" />Ativando...</> : <><Smartphone className="size-4" />Ativar Evolution API</>}
+                    {evolutionActivating ? <><Loader2 className="size-4 animate-spin" />Ativando...</> : <><Smartphone className="size-4" />Ativar WhatsApp Lite</>}
                   </Button>
                 ) : (
                   <>
@@ -1081,7 +759,7 @@ export function WhatsAppConfig() {
               </div>
             </div>
 
-            {/* Evolution sidebar */}
+            {/* WhatsApp Lite sidebar */}
             <div>
               <Card>
                 <CardHeader>
@@ -1098,7 +776,7 @@ export function WhatsAppConfig() {
                         </span>
                       </AccordionTrigger>
                       <AccordionContent className="text-muted-foreground text-sm">
-                        Clique em <strong className="text-foreground">Ativar Evolution API</strong>. Isso cria automaticamente uma instância própria para esta conta no servidor Evolution API e já configura o webhook — não é preciso colar nenhuma URL manualmente.
+                        Clique em <strong className="text-foreground">Ativar WhatsApp Lite</strong>. Isso cria automaticamente uma instância própria para esta conta no servidor Evolution API e já configura o webhook — não é preciso colar nenhuma URL manualmente.
                       </AccordionContent>
                     </AccordionItem>
                     <AccordionItem className="border-border">

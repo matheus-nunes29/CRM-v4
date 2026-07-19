@@ -7,6 +7,7 @@ import {
   type MediaKind,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
+import { sendEvolutionMessage } from '@/lib/whatsapp/evolution'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import {
   sanitizePhoneForMeta,
@@ -21,11 +22,6 @@ import {
 } from '@/lib/rate-limit'
 import type { MessageTemplate } from '@/types'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
-
-const WAPI_INSTANCE_ID = process.env.WAPI_INSTANCE_ID ?? ''
-const WAPI_TOKEN = process.env.WAPI_TOKEN ?? ''
-const WAPI_API_KEY = process.env.WAPI_API_KEY ?? ''
-const WAPI_BASE_URL = 'https://api.w-api.app'
 
 const EVOLUTION_SERVER_URL = (process.env.EVOLUTION_SERVER_URL ?? '').replace(/\/$/, '')
 const EVOLUTION_GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY ?? ''
@@ -187,114 +183,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // ── W-API path ─────────────────────────────────────────────────────────
-    if (config.provider === 'wapi') {
-      if (!WAPI_TOKEN || !WAPI_API_KEY || !WAPI_INSTANCE_ID) {
-        return NextResponse.json(
-          { error: 'W-API credentials not configured on server.' },
-          { status: 503 },
-        )
-      }
-
-      const wapiSendHeaders = {
-        Authorization: `Bearer ${WAPI_TOKEN}`,
-        'Content-Type': 'application/json',
-      }
-
-      // Prefer LID for privacy contacts (stored on the contact row)
-      const targetPhone: string =
-        (contact as Record<string, unknown>).wapi_lid as string | undefined ??
-        sanitizedPhone.replace(/\D/g, '')
-
-      let wapiMessageId = ''
-      try {
-        let endpoint = `${WAPI_BASE_URL}/v1/message/send-text?instanceId=${WAPI_INSTANCE_ID}`
-        let wapiBody: Record<string, unknown> = { phone: targetPhone, message: content_text, delayMessage: 0 }
-
-        if (isMediaKind && media_url) {
-          const mediaFieldMap: Record<string, string> = {
-            image: 'image',
-            video: 'video',
-            audio: 'audio',
-            document: 'document',
-          }
-          const mediaField = mediaFieldMap[message_type] ?? 'image'
-          endpoint = `${WAPI_BASE_URL}/v1/message/send-${message_type}?instanceId=${WAPI_INSTANCE_ID}`
-          wapiBody = {
-            phone: targetPhone,
-            [mediaField]: media_url,
-            caption: content_text || undefined,
-            delayMessage: 0,
-            ...(message_type === 'document' && filename
-              ? { fileName: filename, extension: filename.split('.').pop() ?? '' }
-              : {}),
-          }
-        }
-
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: wapiSendHeaders,
-          body: JSON.stringify(wapiBody),
-        })
-        const raw = await res.text()
-        console.log(`[wapi/send] ${endpoint} → ${res.status} | ${raw.slice(0, 300)}`)
-        let data: Record<string, unknown>
-        try { data = JSON.parse(raw) as Record<string, unknown> } catch { data = { _raw: raw.slice(0, 200) } }
-        if (!res.ok) throw new Error(String(data.message ?? data.error ?? `W-API ${res.status}`))
-        wapiMessageId = String(data.messageId ?? data.id ?? data.zapMessageId ?? '')
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'W-API error'
-        console.error('[wapi/send] failed:', message)
-        return NextResponse.json({ error: `W-API error: ${message}` }, { status: 502 })
-      }
-
-      const { data: msgRecord, error: msgError } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id,
-          sender_type: 'agent',
-          content_type: message_type,
-          content_text: content_text || null,
-          media_url: media_url || null,
-          message_id: wapiMessageId || null,
-          status: 'sent',
-        })
-        .select()
-        .single()
-
-      if (msgError) {
-        console.error('[wapi/send] messages insert error:', msgError)
-      }
-
-      // Also write to whatsapp_mensagens for W-API history
-      await supabase.from('whatsapp_mensagens').insert({
-        account_id: accountId,
-        contact_id: contact.id,
-        conversation_id,
-        body: content_text || null,
-        direcao: 'enviada',
-        media_url: media_url || null,
-        media_type: isMediaKind ? message_type : null,
-        wapi_message_id: wapiMessageId || null,
-        lida: true,
-      })
-
-      await supabase
-        .from('conversations')
-        .update({
-          last_message_text: content_text || `[${message_type}]`,
-          last_message_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', conversation_id)
-
-      return NextResponse.json({
-        success: true,
-        message_id: msgRecord?.id,
-        whatsapp_message_id: wapiMessageId,
-      })
-    }
-
     // ── Evolution API path ────────────────────────────────────────────────
     if (config.provider === 'evolution') {
       if (!EVOLUTION_SERVER_URL || !EVOLUTION_GLOBAL_API_KEY || !config.evolution_instance_name) {
@@ -307,51 +195,21 @@ export async function POST(request: Request) {
       const instanceKey = config.evolution_api_key ? decrypt(config.evolution_api_key) : EVOLUTION_GLOBAL_API_KEY
       const targetPhone = sanitizedPhone.replace(/\D/g, '')
 
-      let evolutionMessageId = ''
-      try {
-        let endpoint = `${EVOLUTION_SERVER_URL}/message/sendText/${config.evolution_instance_name}`
-        let evoBody: Record<string, unknown> = { number: targetPhone, text: content_text }
-
-        if (isMediaKind && media_url && message_type === 'audio') {
-          // Evolution API has a dedicated endpoint for voice notes — routing
-          // audio through /message/sendMedia (mediatype:'audio') gets
-          // accepted (200) but Baileys builds it without the PTT flag, so
-          // WhatsApp silently drops the delivery with no error back to us.
-          endpoint = `${EVOLUTION_SERVER_URL}/message/sendWhatsAppAudio/${config.evolution_instance_name}`
-          evoBody = { number: targetPhone, audio: media_url }
-        } else if (isMediaKind && media_url) {
-          const mediaTypeMap: Record<string, string> = {
-            image: 'image',
-            video: 'video',
-            document: 'document',
-          }
-          endpoint = `${EVOLUTION_SERVER_URL}/message/sendMedia/${config.evolution_instance_name}`
-          evoBody = {
-            number: targetPhone,
-            mediatype: mediaTypeMap[message_type] ?? 'image',
-            media: media_url,
-            caption: content_text || undefined,
-            ...(message_type === 'document' && filename ? { fileName: filename } : {}),
-          }
-        }
-
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { apikey: instanceKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify(evoBody),
-        })
-        const raw = await res.text()
-        console.log(`[evolution/send] ${endpoint} → ${res.status} | ${raw.slice(0, 300)}`)
-        let data: Record<string, unknown>
-        try { data = JSON.parse(raw) as Record<string, unknown> } catch { data = { _raw: raw.slice(0, 200) } }
-        if (!res.ok) throw new Error(String(data.message ?? data.error ?? `Evolution API ${res.status}`))
-        const key = data.key as Record<string, unknown> | undefined
-        evolutionMessageId = String(key?.id ?? data.id ?? '')
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Evolution API error'
-        console.error('[evolution/send] failed:', message)
-        return NextResponse.json({ error: `Evolution API error: ${message}` }, { status: 502 })
+      const result = await sendEvolutionMessage({
+        serverUrl: EVOLUTION_SERVER_URL,
+        apiKey: instanceKey,
+        instanceName: config.evolution_instance_name,
+        phone: targetPhone,
+        messageType: message_type,
+        text: content_text,
+        mediaUrl: media_url,
+        filename,
+      })
+      if (!result.ok) {
+        console.error('[evolution/send] failed:', result.error)
+        return NextResponse.json({ error: `Evolution API error: ${result.error}` }, { status: 502 })
       }
+      const evolutionMessageId = result.messageId ?? ''
 
       const { data: msgRecord, error: msgError } = await supabase
         .from('messages')

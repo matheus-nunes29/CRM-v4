@@ -324,7 +324,7 @@ async function resolveAccountByInstance(
 
 // ---------------------------------------------------------------------------
 // Group name resolution (fallback when the webhook payload doesn't
-// include it — mirrors fetchGroupNameFromWApi in ../wapi/route.ts)
+// include it)
 // ---------------------------------------------------------------------------
 
 async function fetchGroupNameFromEvolution(instanceName: string, groupJid: string): Promise<string | null> {

@@ -9,10 +9,6 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 
-const WAPI_INSTANCE_ID = process.env.WAPI_INSTANCE_ID ?? ''
-const WAPI_TOKEN = process.env.WAPI_TOKEN ?? ''
-const WAPI_BASE_URL = 'https://api.w-api.app'
-
 const EVOLUTION_SERVER_URL = (process.env.EVOLUTION_SERVER_URL ?? '').replace(/\/$/, '')
 const EVOLUTION_GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY ?? ''
 
@@ -130,34 +126,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      if (config.provider === 'wapi') {
-        // W-API reaction
-        const rawPhone = contact.phone.replace(/\D/g, '')
-        const isRemove = emoji === ''
-        const endpoint = isRemove
-          ? `${WAPI_BASE_URL}/v1/message/remove-reaction?instanceId=${WAPI_INSTANCE_ID}`
-          : `${WAPI_BASE_URL}/v1/message/send-reaction?instanceId=${WAPI_INSTANCE_ID}`
-        const wapiBody = isRemove
-          ? { phone: rawPhone, messageId: targetMessage.message_id, delayMessage: 0 }
-          : { phone: rawPhone, messageId: targetMessage.message_id, reaction: emoji, delayMessage: 0 }
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${WAPI_TOKEN}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(wapiBody),
-        })
-        if (!res.ok) {
-          const txt = await res.text().catch(() => '')
-          const is403 = res.status === 403
-          throw new Error(
-            is403
-              ? 'Reações não estão disponíveis no plano W-API atual. Faça upgrade do plano para usar esta funcionalidade.'
-              : `W-API ${res.status}: ${txt.slice(0, 200)}`
-          )
-        }
-      } else if (config.provider === 'evolution') {
+      if (config.provider === 'evolution') {
         // Evolution API reaction — needs the full Baileys message key, not
         // just the message id, so reconstruct remoteJid/fromMe from what
         // we already have on the row.
