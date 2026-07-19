@@ -4,6 +4,7 @@ import {
   findOrCreateGroupContact,
   findOrCreateConversation,
   insertMessage,
+  maybeAutoCreateDeal,
   normalisePhone,
 } from '@/lib/whatsapp/inbound-message'
 import { decryptAndStoreMedia, storeBase64Media } from '@/lib/whatsapp/decrypt-media'
@@ -141,7 +142,11 @@ export async function POST(request: Request) {
     const conversation = await findOrCreateConversation(LOG, accountId, configOwnerUserId, contact.id)
     if (!conversation) return NextResponse.json({ status: 'error_conversation' })
 
-    await insertMessage(LOG, conversation.id, { contentType, contentText, mediaUrl, msgId, timestamp })
+    const { isFirstInboundMessage } = await insertMessage(LOG, conversation.id, { contentType, contentText, mediaUrl, msgId, timestamp })
+
+    if (isFirstInboundMessage) {
+      await maybeAutoCreateDeal(LOG, accountId, configOwnerUserId, contact.id, contact.name || senderPhone)
+    }
   }
 
   return NextResponse.json({ status: 'received' })

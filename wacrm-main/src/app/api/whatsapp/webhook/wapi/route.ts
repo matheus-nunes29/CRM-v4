@@ -3,6 +3,7 @@ import {
   db,
   findOrCreateContact,
   findOrCreateGroupContact,
+  maybeAutoCreateDeal,
   findOrCreateConversation,
   insertMessage,
   normalisePhone,
@@ -323,9 +324,13 @@ async function processDirectMessage({
   const conversation = await findOrCreateConversation(LOG, accountId, configOwnerUserId, contact.id)
   if (!conversation) return
 
-  await insertMessage(LOG, conversation.id, {
+  const { isFirstInboundMessage } = await insertMessage(LOG, conversation.id, {
     contentType, contentText, mediaUrl, msgId, timestamp,
   })
+
+  if (isFirstInboundMessage) {
+    await maybeAutoCreateDeal(LOG, accountId, configOwnerUserId, contact.id, contact.name || senderPhone)
+  }
 }
 
 // ---------------------------------------------------------------------------

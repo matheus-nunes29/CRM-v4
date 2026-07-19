@@ -172,7 +172,7 @@ export async function insertMessage(
     groupSenderName?: string
     groupSenderPhone?: string
   },
-) {
+): Promise<{ isFirstInboundMessage: boolean }> {
   if (opts.msgId) {
     const { data: dup } = await db()
       .from('messages')
@@ -182,9 +182,18 @@ export async function insertMessage(
       .maybeSingle()
     if (dup) {
       console.log(`${logPrefix} duplicate message_id, skipping:`, opts.msgId)
-      return
+      return { isFirstInboundMessage: false }
     }
   }
+
+  // Computed BEFORE inserting so the count is accurate — mirrors the
+  // Meta webhook's auto_create_deal trigger condition.
+  const { count: priorCustomerMsgCount } = await db()
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'customer')
+  const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
 
   const { error } = await db()
     .from('messages')
@@ -203,7 +212,7 @@ export async function insertMessage(
 
   if (error) {
     console.error(`${logPrefix} insert message error:`, error)
-    return
+    return { isFirstInboundMessage: false }
   }
 
   console.log(`${logPrefix} message inserted for conversation:`, conversationId)
@@ -221,6 +230,73 @@ export async function insertMessage(
     .then(({ error: rpcErr }: { error: unknown }) => {
       if (rpcErr) console.error(`${logPrefix} increment_unread_count error:`, rpcErr)
     })
+
+  return { isFirstInboundMessage }
+}
+
+/**
+ * Fires on a contact's first-ever inbound message when any pipeline in
+ * this account has auto_create_deal=true and the contact has no open
+ * deal globally (across all pipelines). Mirrors the Meta webhook's
+ * auto_create_deal trigger (src/app/api/whatsapp/webhook/route.ts) so
+ * W-API and Evolution API contacts get the same behaviour.
+ */
+export async function maybeAutoCreateDeal(
+  logPrefix: string,
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  contactName: string,
+) {
+  try {
+    const { data: pipelines } = await db()
+      .from('pipelines')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('auto_create_deal', true)
+      .limit(1)
+    if (!pipelines?.length) return
+
+    const { count: openCount } = await db()
+      .from('deals')
+      .select('id', { count: 'exact', head: true })
+      .eq('contact_id', contactId)
+      .in('status', ['open', 'active'])
+    if ((openCount ?? 0) > 0) return
+
+    const pipelineId = pipelines[0].id
+
+    const { data: stages } = await db()
+      .from('pipeline_stages')
+      .select('id, fixed_role, position')
+      .eq('pipeline_id', pipelineId)
+      .order('position', { ascending: true })
+    if (!stages?.length) return
+    const stage = stages.find((s: { fixed_role: string }) => s.fixed_role === 'new_lead') ?? stages[0]
+
+    const { data: acct } = await db()
+      .from('accounts')
+      .select('default_currency')
+      .eq('id', accountId)
+      .maybeSingle()
+
+    const { error } = await db().from('deals').insert({
+      account_id: accountId,
+      user_id: configOwnerUserId,
+      pipeline_id: pipelineId,
+      stage_id: stage.id,
+      contact_id: contactId,
+      title: contactName,
+      value: 0,
+      currency: acct?.default_currency ?? 'USD',
+      status: 'open',
+    })
+    if (error) {
+      console.error(`${logPrefix} auto_create_deal insert error:`, error)
+    }
+  } catch (err) {
+    console.error(`${logPrefix} auto_create_deal failed:`, err)
+  }
 }
 
 /**
