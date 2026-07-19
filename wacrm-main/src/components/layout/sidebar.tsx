@@ -12,8 +12,6 @@ import {
   Crown,
   GitBranch,
   LayoutDashboard,
-  LogOut,
-  Megaphone,
   MessageSquare,
   Radio,
   Settings,
@@ -53,19 +51,6 @@ const ROLE_CHIP: Record<
     className: "border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground",
   },
 };
-
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 function PyvoLogo({ className }: { className?: string }) {
   return (
@@ -140,7 +125,7 @@ interface SidebarProps {
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const { profile, profileLoading, account, accountRole } = useAuth();
   const totalUnread = useTotalUnread();
 
   const showAccountStrip =
@@ -287,10 +272,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           </ul>
         </nav>
 
-        {/* User section */}
-        <div className="shrink-0 border-t border-sidebar-border p-3">
-          {showAccountStrip && account?.name ? (
-            <div className="mb-2 flex items-center gap-2 px-3 text-xs text-sidebar-foreground">
+        {/* Account strip — only the user's name/avatar lives in the header
+            now (top-right); this just surfaces the account name + role
+            when it differs from the person, which the header doesn't show. */}
+        {showAccountStrip && account?.name ? (
+          <div className="shrink-0 border-t border-sidebar-border p-3">
+            <div className="flex items-center gap-2 px-3 text-xs text-sidebar-foreground">
               <UsersRound className="size-3.5 shrink-0" />
               <span className="truncate" title={account.name}>
                 {account.name}
@@ -310,72 +297,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 })()
               ) : null}
             </div>
-          ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-sidebar-accent/50 focus:bg-sidebar-accent/50 focus:outline-none data-popup-open:bg-sidebar-accent/50">
-              <Avatar className="size-8 shrink-0">
-                {profile?.avatar_url ? (
-                  <AvatarImage
-                    src={profile.avatar_url}
-                    alt={profile.full_name ?? "Foto de perfil"}
-                  />
-                ) : null}
-                <AvatarFallback className="bg-sidebar-primary/15 text-sm font-medium text-sidebar-primary">
-                  {profile?.full_name?.charAt(0)?.toUpperCase() ??
-                    profile?.email?.charAt(0)?.toUpperCase() ??
-                    "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-sidebar-foreground">
-                  {profile?.full_name ?? "Usuário"}
-                </p>
-                <p className="truncate text-xs text-sidebar-foreground">
-                  {profile?.email ?? ""}
-                </p>
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              side="top"
-              sideOffset={6}
-              className="min-w-56 bg-popover text-popover-foreground ring-border"
-            >
-              <DropdownMenuItem
-                render={
-                  <Link
-                    href="/settings?tab=profile"
-                    onClick={onClose}
-                    className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
-                  />
-                }
-              >
-                <User className="size-4" />
-                Perfil
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                render={
-                  <Link
-                    href="/settings?tab=whatsapp"
-                    onClick={onClose}
-                    className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
-                  />
-                }
-              >
-                <Settings className="size-4" />
-                Configurações
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-border" />
-              <DropdownMenuItem
-                onClick={signOut}
-                className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
-              >
-                <LogOut className="size-4" />
-                Sair
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+          </div>
+        ) : null}
       </aside>
     </>
   );
