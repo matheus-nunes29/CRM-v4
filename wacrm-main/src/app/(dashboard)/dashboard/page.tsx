@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
@@ -12,6 +12,8 @@ import {
   Briefcase,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Copy,
   DollarSign,
@@ -20,6 +22,7 @@ import {
   MessageSquare,
   MousePointerClick,
   Send,
+  SlidersHorizontal,
   Trophy,
   TrendingUp,
   UserPlus,
@@ -33,8 +36,15 @@ import {
   loadMetrics,
   loadPipelineDonut,
   loadResponseTime,
-  type DashboardPeriod,
+  type DateRange,
 } from '@/lib/dashboard/queries'
+import {
+  addMonths,
+  endOfMonthOrToday,
+  isSameMonth,
+  localDayKey,
+  startOfMonth,
+} from '@/lib/dashboard/date-utils'
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
@@ -76,11 +86,9 @@ interface FunnelPipeline { id: string; name: string }
 
 // ── Helpers ────────────────────────────────────────────────────
 
-const PERIOD_OPTIONS: { value: DashboardPeriod; label: string }[] = [
-  { value: '7d', label: '7 dias' },
-  { value: '30d', label: '30 dias' },
-  { value: '90d', label: '90 dias' },
-]
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
 
 function fmtBRL(v: number, currency = 'BRL') {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v)
@@ -251,8 +259,7 @@ function CampanhasTab() {
 
 // ── Mini funnel section ────────────────────────────────────────
 
-function MiniFunnelSection({ period, funnelPipelines, funnelPipelineId, setFunnelPipelineId, funnelData, funnelLoading }: {
-  period: DashboardPeriod
+function MiniFunnelSection({ funnelPipelines, funnelPipelineId, setFunnelPipelineId, funnelData, funnelLoading }: {
   funnelPipelines: FunnelPipeline[]
   funnelPipelineId: string | null
   setFunnelPipelineId: (id: string) => void
@@ -394,9 +401,22 @@ export default function DashboardPage() {
   const { defaultCurrency } = useAuth()
 
   // ── Filters ──
-  const [period, setPeriod] = useState<DashboardPeriod>('30d')
+  // Default: current month, month-to-date. Users can page to a previous
+  // month (capped at the current one — no data exists for the future) or
+  // switch to an arbitrary custom range.
+  const [rangeMode, setRangeMode] = useState<'month' | 'custom'>('month')
+  const [monthCursor, setMonthCursor] = useState<Date>(() => startOfMonth(new Date()))
+  const [customStart, setCustomStart] = useState<string>('')
+  const [customEnd, setCustomEnd] = useState<string>('')
   const [ownerId, setOwnerId] = useState<string>('')
   const [members, setMembers] = useState<Member[]>([])
+
+  const range: DateRange = useMemo(() => {
+    if (rangeMode === 'custom' && customStart && customEnd) {
+      return { start: new Date(`${customStart}T00:00:00`), end: new Date(`${customEnd}T00:00:00`) }
+    }
+    return { start: monthCursor, end: endOfMonthOrToday(monthCursor) }
+  }, [rangeMode, monthCursor, customStart, customEnd])
 
   // ── Overview data ──
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
@@ -437,22 +457,23 @@ export default function DashboardPage() {
       .catch(() => {})
   }, [])
 
-  // ── Load funnel when pipeline or period changes ──
+  // ── Load funnel when pipeline or range changes ──
   useEffect(() => {
     if (!funnelPipelineId) return
     setFunnelLoading(true)
     setFunnelData(null)
-    fetch(`/api/reports/pipeline-funnel?pipeline_id=${funnelPipelineId}&period=${period}`)
+    const start = localDayKey(range.start)
+    const end = localDayKey(range.end)
+    fetch(`/api/reports/pipeline-funnel?pipeline_id=${funnelPipelineId}&start=${start}&end=${end}`)
       .then(r => r.json())
       .then(j => { setFunnelData(j); setFunnelLoading(false) })
       .catch(() => setFunnelLoading(false))
-  }, [funnelPipelineId, period])
+  }, [funnelPipelineId, range])
 
   // ── Load metrics/charts when filters change ──
   const loadAll = useCallback(() => {
     const db = createClient()
-    const filters = { period, ownerId: ownerId || undefined }
-    const days = period === '7d' ? 7 : period === '90d' ? 90 : 30
+    const filters = { range, ownerId: ownerId || undefined }
 
     setMetricsLoading(true)
     setSeriesLoading(true)
@@ -465,7 +486,7 @@ export default function DashboardPage() {
       .catch(err => console.error('[dashboard] metrics:', err))
       .finally(() => setMetricsLoading(false))
 
-    void loadConversationsSeries(db, days)
+    void loadConversationsSeries(db, range)
       .then(s => setSeries(s))
       .catch(err => console.error('[dashboard] series:', err))
       .finally(() => setSeriesLoading(false))
@@ -484,21 +505,15 @@ export default function DashboardPage() {
       .then(a => setActivity(a))
       .catch(err => console.error('[dashboard] activity:', err))
       .finally(() => setActivityLoading(false))
-  }, [period, ownerId])
+  }, [range, ownerId])
 
   useEffect(() => { loadAll() }, [loadAll])
 
-  // ── Metric card titles adapt to period ──
-  const periodLabel = period === '7d' ? '7 dias' : period === '90d' ? '90 dias' : '30 dias'
+  // ── Metric card titles adapt to the selected range ──
+  const periodLabel = rangeMode === 'month'
+    ? capitalize(monthCursor.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }))
+    : `${range.start.toLocaleDateString('pt-BR')} – ${range.end.toLocaleDateString('pt-BR')}`
   const vsLabel = `vs. período anterior`
-
-  const seriesForChart = series ? {
-    7: period === '7d' ? series : null,
-    30: period === '30d' ? series : null,
-    90: period === '90d' ? series : null,
-  } : { 7: null, 30: null, 90: null }
-
-  const rangeDays: 7 | 30 | 90 = period === '7d' ? 7 : period === '90d' ? 90 : 30
 
   return (
     <div className="space-y-5">
@@ -513,23 +528,63 @@ export default function DashboardPage() {
 
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Period pills */}
-          <div className="flex rounded-lg border border-border bg-card p-0.5">
-            {PERIOD_OPTIONS.map(opt => (
+          {/* Month navigator / custom range */}
+          {rangeMode === 'month' ? (
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-card px-1 py-1">
               <button
-                key={opt.value}
-                onClick={() => setPeriod(opt.value)}
-                className={cn(
-                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                  period === opt.value
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
+                type="button"
+                onClick={() => setMonthCursor(m => addMonths(m, -1))}
+                aria-label="Mês anterior"
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
-                {opt.label}
+                <ChevronLeft className="size-4" />
               </button>
-            ))}
-          </div>
+              <span className="min-w-[128px] text-center text-xs font-medium text-foreground capitalize">
+                {monthCursor.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMonthCursor(m => addMonths(m, 1))}
+                disabled={isSameMonth(monthCursor, new Date())}
+                aria-label="Próximo mês"
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5">
+              <input
+                type="date"
+                value={customStart}
+                onChange={e => setCustomStart(e.target.value)}
+                aria-label="Data inicial"
+                className="bg-transparent text-xs font-medium text-foreground focus:outline-none [color-scheme:light] dark:[color-scheme:dark]"
+              />
+              <span className="text-xs text-muted-foreground">até</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={e => setCustomEnd(e.target.value)}
+                aria-label="Data final"
+                className="bg-transparent text-xs font-medium text-foreground focus:outline-none [color-scheme:light] dark:[color-scheme:dark]"
+              />
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setRangeMode(m => m === 'month' ? 'custom' : 'month')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+              rangeMode === 'custom'
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <SlidersHorizontal className="size-3.5" />
+            Personalizado
+          </button>
 
           {/* Owner select */}
           {members.length > 0 && (
@@ -622,10 +677,8 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             <div className="h-full lg:col-span-3">
               <ConversationsChart
-                series={seriesForChart}
+                series={series}
                 loading={seriesLoading}
-                range={rangeDays}
-                onRangeChange={() => {}}
               />
             </div>
             <div className="h-full lg:col-span-2">
@@ -644,7 +697,6 @@ export default function DashboardPage() {
         {/* ── Funil ── */}
         <TabsContent value="funil" className="mt-5">
           <MiniFunnelSection
-            period={period}
             funnelPipelines={funnelPipelines}
             funnelPipelineId={funnelPipelineId}
             setFunnelPipelineId={setFunnelPipelineId}

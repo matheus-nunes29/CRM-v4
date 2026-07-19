@@ -50,3 +50,53 @@ export function mondayIndex(d: Date): number {
 }
 
 export const DOW_SHORT_MON_FIRST = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] as const
+
+// ── Month / custom-range helpers (dashboard date filter) ────────────────
+
+export function startOfMonth(d: Date): Date {
+  const out = startOfLocalDay(d)
+  out.setDate(1)
+  return out
+}
+
+export function endOfMonth(d: Date): Date {
+  const out = startOfMonth(d)
+  out.setMonth(out.getMonth() + 1)
+  out.setDate(0) // day 0 of next month = last day of this month
+  return out
+}
+
+/** Last day of `d`'s month, clamped to today if that month is the current one. */
+export function endOfMonthOrToday(d: Date): Date {
+  const eom = endOfMonth(d)
+  const today = startOfLocalDay()
+  return eom > today ? today : eom
+}
+
+export function addMonths(d: Date, n: number): Date {
+  const out = new Date(d)
+  out.setMonth(out.getMonth() + n)
+  return out
+}
+
+export function isSameMonth(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()
+}
+
+/** Inclusive list of local-day keys spanning [start, end], chronological. */
+export function dayKeysInRange(start: Date, end: Date): string[] {
+  const keys: string[] = []
+  const cur = startOfLocalDay(start)
+  const last = startOfLocalDay(end)
+  while (cur <= last) {
+    keys.push(localDayKey(cur))
+    cur.setDate(cur.getDate() + 1)
+  }
+  return keys
+}
+
+/** Whole days spanned by [start, end], inclusive (same day = 1). */
+export function daysBetweenInclusive(start: Date, end: Date): number {
+  const ms = startOfLocalDay(end).getTime() - startOfLocalDay(start).getTime()
+  return Math.round(ms / 86_400_000) + 1
+}

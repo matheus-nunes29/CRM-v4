@@ -5,16 +5,10 @@ import { MessageSquare } from 'lucide-react'
 import type { ConversationsSeriesPoint } from '@/lib/dashboard/types'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
-import { cn } from '@/lib/utils'
-
-type RangeDays = 7 | 30 | 90
 
 interface ConversationsChartProps {
-  /** Per-range data, so switching tabs never re-fetches. */
-  series: Record<RangeDays, ConversationsSeriesPoint[] | null>
+  series: ConversationsSeriesPoint[] | null
   loading: boolean
-  range: RangeDays
-  onRangeChange: (r: RangeDays) => void
 }
 
 // ------------------------------------------------------------
@@ -27,8 +21,8 @@ const VB_W = 760
 const VB_H = 240
 const PADDING = { top: 16, right: 16, bottom: 28, left: 40 }
 
-export function ConversationsChart({ series, loading, range, onRangeChange }: ConversationsChartProps) {
-  const data = series[range]
+export function ConversationsChart({ series, loading }: ConversationsChartProps) {
+  const data = series
 
   // Memoise the max so per-day hover math doesn't recompute it.
   const { maxY, niceTicks } = useMemo(() => {
@@ -47,28 +41,9 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
 
   return (
     <section className="flex h-full flex-col rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Conversas ao Longo do Tempo</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Volume diário de mensagens por direção</p>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-          {[7, 30, 90].map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => onRangeChange(r as RangeDays)}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                range === r
-                  ? 'bg-secondary text-secondary-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {r} dias
-            </button>
-          ))}
-        </div>
+      <header className="border-b border-border px-5 py-4">
+        <h2 className="text-sm font-semibold text-foreground">Conversas ao Longo do Tempo</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">Volume diário de mensagens por direção, no período selecionado</p>
       </header>
 
       <div className="p-5">

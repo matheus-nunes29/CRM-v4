@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  daysAgoStart,
+  dayKeysInRange,
   DOW_SHORT_MON_FIRST,
-  lastNDayKeys,
+  daysAgoStart,
   localDayKey,
   mondayIndex,
   startOfLocalDay,
@@ -19,15 +19,24 @@ import type {
 
 type DB = SupabaseClient
 
-export type DashboardPeriod = '7d' | '30d' | '90d'
+/** Inclusive local-day range: [start, end], both at local midnight. */
+export interface DateRange {
+  start: Date
+  end: Date
+}
 
 export interface DashboardFilters {
-  period?: DashboardPeriod
+  range: DateRange
   ownerId?: string
 }
 
-function periodDays(p?: DashboardPeriod): number {
-  return p === '7d' ? 7 : p === '90d' ? 90 : 30
+const DAY_MS = 86_400_000
+
+/** Exclusive upper bound (start of the day *after* `end`), for `.lt()` filters. */
+function exclusiveEnd(end: Date): Date {
+  const out = startOfLocalDay(end)
+  out.setDate(out.getDate() + 1)
+  return out
 }
 
 // --- 1. Metric cards ---------------------------------------------------
@@ -37,21 +46,22 @@ function ow(q: any, field: string, ownerId?: string): any {
   return ownerId ? q.eq(field, ownerId) : q
 }
 
-export async function loadMetrics(db: DB, filters?: DashboardFilters): Promise<MetricsBundle> {
-  const days = periodDays(filters?.period)
-  const ownerId = filters?.ownerId
-
-  const since = daysAgoStart(days - 1)
-  const prevSince = daysAgoStart(days * 2 - 1)
+export async function loadMetrics(db: DB, filters: DashboardFilters): Promise<MetricsBundle> {
+  const ownerId = filters.ownerId
+  const since = startOfLocalDay(filters.range.start)
+  const until = exclusiveEnd(filters.range.end)
+  const durationMs = until.getTime() - since.getTime()
+  const prevSince = new Date(since.getTime() - durationMs)
   const sinceISO = since.toISOString()
+  const untilISO = until.toISOString()
   const prevSinceISO = prevSince.toISOString()
 
   const [convCur, convPrev, contactCur, contactPrev, msgCur, msgPrev, openDeals] = await Promise.all([
-    ow(db.from('conversations').select('id', { count: 'exact', head: true }).gte('created_at', sinceISO), 'user_id', ownerId),
+    ow(db.from('conversations').select('id', { count: 'exact', head: true }).gte('created_at', sinceISO).lt('created_at', untilISO), 'user_id', ownerId),
     ow(db.from('conversations').select('id', { count: 'exact', head: true }).gte('created_at', prevSinceISO).lt('created_at', sinceISO), 'user_id', ownerId),
-    ow(db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', sinceISO), 'user_id', ownerId),
+    ow(db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', sinceISO).lt('created_at', untilISO), 'user_id', ownerId),
     ow(db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', prevSinceISO).lt('created_at', sinceISO), 'user_id', ownerId),
-    db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'agent').gte('created_at', sinceISO),
+    db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'agent').gte('created_at', sinceISO).lt('created_at', untilISO),
     db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'agent').gte('created_at', prevSinceISO).lt('created_at', sinceISO),
     ow(db.from('deals').select('value, status').eq('status', 'open'), 'assigned_to', ownerId),
   ])
@@ -80,17 +90,19 @@ export async function loadMetrics(db: DB, filters?: DashboardFilters): Promise<M
 
 export async function loadConversationsSeries(
   db: DB,
-  rangeDays: number,
+  range: DateRange,
 ): Promise<ConversationsSeriesPoint[]> {
-  const start = daysAgoStart(rangeDays - 1).toISOString()
+  const start = startOfLocalDay(range.start).toISOString()
+  const until = exclusiveEnd(range.end).toISOString()
   const { data, error } = await db
     .from('messages')
     .select('created_at, sender_type')
     .gte('created_at', start)
+    .lt('created_at', until)
     .order('created_at', { ascending: true })
   if (error) throw error
 
-  const keys = lastNDayKeys(rangeDays)
+  const keys = dayKeysInRange(range.start, range.end)
   const buckets = new Map<string, { incoming: number; outgoing: number }>()
   for (const k of keys) buckets.set(k, { incoming: 0, outgoing: 0 })
 

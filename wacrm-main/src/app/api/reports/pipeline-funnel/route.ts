@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-type Period = '7d' | '30d' | '90d' | 'all'
-
-function periodBounds(period: Period): { start: Date; duration: number } {
-  const now = new Date()
-  if (period === 'all') return { start: new Date(0), duration: now.getTime() }
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
-  const start = new Date(now.getTime() - days * 86_400_000)
-  return { start, duration: days * 86_400_000 }
+/**
+ * `start`/`end` are inclusive local-day ISO dates (YYYY-MM-DD) from the
+ * dashboard's month/custom-range picker. Falls back to "all time" when
+ * either is missing (e.g. a bare API call without the dashboard's filter
+ * params attached).
+ */
+function periodBounds(startParam: string | null, endParam: string | null): { start: Date; duration: number } {
+  if (!startParam || !endParam) return { start: new Date(0), duration: Date.now() }
+  const start = new Date(`${startParam}T00:00:00`)
+  const endExclusive = new Date(`${endParam}T00:00:00`)
+  endExclusive.setDate(endExclusive.getDate() + 1)
+  return { start, duration: endExclusive.getTime() - start.getTime() }
 }
 
 export async function GET(req: NextRequest) {
@@ -27,7 +31,8 @@ export async function GET(req: NextRequest) {
   const accountId = profile.account_id as string
   const url = new URL(req.url)
   const pipelineId = url.searchParams.get('pipeline_id')
-  const period = (url.searchParams.get('period') ?? '30d') as Period
+  const startParam = url.searchParams.get('start')
+  const endParam = url.searchParams.get('end')
 
   // ── Return pipeline list when no pipeline selected ──────────────────────
   if (!pipelineId) {
@@ -39,7 +44,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ pipelines: pipelines ?? [] })
   }
 
-  const { start: periodStart, duration: periodDuration } = periodBounds(period)
+  const { start: periodStart, duration: periodDuration } = periodBounds(startParam, endParam)
   const prevStart = new Date(periodStart.getTime() - periodDuration)
 
   // ── Parallel data fetches ────────────────────────────────────────────────
@@ -58,14 +63,14 @@ export async function GET(req: NextRequest) {
       .select('id, stage_id, status, value, assigned_to, loss_reason_id, assignee:profiles!deals_assigned_to_fkey(full_name)')
       .eq('pipeline_id', pipelineId)
       .eq('account_id', accountId)
-      .gte('created_at', period === 'all' ? '2000-01-01' : periodStart.toISOString()),
+      .gte('created_at', periodStart.toISOString()),
 
     supabase
       .from('deal_stage_history')
       .select('stage_id, entered_at, exited_at')
       .eq('pipeline_id', pipelineId)
       .eq('account_id', accountId)
-      .gte('entered_at', period === 'all' ? '2000-01-01' : periodStart.toISOString()),
+      .gte('entered_at', periodStart.toISOString()),
 
     supabase
       .from('deal_stage_history')
@@ -84,8 +89,8 @@ export async function GET(req: NextRequest) {
       .select('id, status, value')
       .eq('pipeline_id', pipelineId)
       .eq('account_id', accountId)
-      .gte('created_at', period === 'all' ? '2000-01-01' : prevStart.toISOString())
-      .lt('created_at', period === 'all' ? '2100-01-01' : periodStart.toISOString()),
+      .gte('created_at', prevStart.toISOString())
+      .lt('created_at', periodStart.toISOString()),
 
     supabase
       .from('deals')
@@ -251,7 +256,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     pipeline:     { id: pipelineId },
-    period,
     period_start: periodStart.toISOString(),
     funnel,
     summary,
