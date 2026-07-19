@@ -142,11 +142,9 @@ export async function POST(request: Request) {
     const conversation = await findOrCreateConversation(LOG, accountId, configOwnerUserId, contact.id)
     if (!conversation) return NextResponse.json({ status: 'error_conversation' })
 
-    const { isFirstInboundMessage } = await insertMessage(LOG, conversation.id, { contentType, contentText, mediaUrl, msgId, timestamp })
+    await insertMessage(LOG, conversation.id, { contentType, contentText, mediaUrl, msgId, timestamp })
 
-    if (isFirstInboundMessage) {
-      await maybeAutoCreateDeal(LOG, accountId, configOwnerUserId, contact.id, contact.name || senderPhone)
-    }
+    await maybeAutoCreateDeal(LOG, accountId, configOwnerUserId, contact.id, contact.name || senderPhone)
   }
 
   return NextResponse.json({ status: 'received' })

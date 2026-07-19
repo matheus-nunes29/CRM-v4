@@ -324,13 +324,11 @@ async function processDirectMessage({
   const conversation = await findOrCreateConversation(LOG, accountId, configOwnerUserId, contact.id)
   if (!conversation) return
 
-  const { isFirstInboundMessage } = await insertMessage(LOG, conversation.id, {
+  await insertMessage(LOG, conversation.id, {
     contentType, contentText, mediaUrl, msgId, timestamp,
   })
 
-  if (isFirstInboundMessage) {
-    await maybeAutoCreateDeal(LOG, accountId, configOwnerUserId, contact.id, contact.name || senderPhone)
-  }
+  await maybeAutoCreateDeal(LOG, accountId, configOwnerUserId, contact.id, contact.name || senderPhone)
 }
 
 // ---------------------------------------------------------------------------

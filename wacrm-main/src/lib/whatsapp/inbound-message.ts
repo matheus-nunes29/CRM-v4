@@ -172,7 +172,7 @@ export async function insertMessage(
     groupSenderName?: string
     groupSenderPhone?: string
   },
-): Promise<{ isFirstInboundMessage: boolean }> {
+): Promise<{ inserted: boolean }> {
   if (opts.msgId) {
     const { data: dup } = await db()
       .from('messages')
@@ -182,18 +182,9 @@ export async function insertMessage(
       .maybeSingle()
     if (dup) {
       console.log(`${logPrefix} duplicate message_id, skipping:`, opts.msgId)
-      return { isFirstInboundMessage: false }
+      return { inserted: false }
     }
   }
-
-  // Computed BEFORE inserting so the count is accurate — mirrors the
-  // Meta webhook's auto_create_deal trigger condition.
-  const { count: priorCustomerMsgCount } = await db()
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .eq('conversation_id', conversationId)
-    .eq('sender_type', 'customer')
-  const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
 
   const { error } = await db()
     .from('messages')
@@ -212,7 +203,7 @@ export async function insertMessage(
 
   if (error) {
     console.error(`${logPrefix} insert message error:`, error)
-    return { isFirstInboundMessage: false }
+    return { inserted: false }
   }
 
   console.log(`${logPrefix} message inserted for conversation:`, conversationId)
@@ -231,15 +222,16 @@ export async function insertMessage(
       if (rpcErr) console.error(`${logPrefix} increment_unread_count error:`, rpcErr)
     })
 
-  return { isFirstInboundMessage }
+  return { inserted: true }
 }
 
 /**
- * Fires on a contact's first-ever inbound message when any pipeline in
- * this account has auto_create_deal=true and the contact has no open
- * deal globally (across all pipelines). Mirrors the Meta webhook's
- * auto_create_deal trigger (src/app/api/whatsapp/webhook/route.ts) so
- * W-API and Evolution API contacts get the same behaviour.
+ * Fires on every inbound message when any pipeline in this account has
+ * auto_create_deal=true and the contact has no *active* deal globally
+ * (active = status other than 'won'/'lost' — a contact whose only deal
+ * was closed gets a fresh one on their next message). Mirrors the Meta
+ * webhook's auto_create_deal trigger (src/app/api/whatsapp/webhook/
+ * route.ts) so W-API and Evolution API contacts get the same behaviour.
  */
 export async function maybeAutoCreateDeal(
   logPrefix: string,
@@ -270,9 +262,9 @@ export async function maybeAutoCreateDeal(
       .from('deals')
       .select('id', { count: 'exact', head: true })
       .eq('contact_id', contactId)
-      .in('status', ['open', 'active'])
+      .not('status', 'in', '(won,lost)')
     if ((openCount ?? 0) > 0) {
-      console.log(`${logPrefix} auto_create_deal: contact already has an open deal, skipping`)
+      console.log(`${logPrefix} auto_create_deal: contact already has an active deal, skipping`)
       return
     }
 
