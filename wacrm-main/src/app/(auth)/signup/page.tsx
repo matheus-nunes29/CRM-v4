@@ -132,7 +132,7 @@ function SignupPageInner() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center text-center">
-          <div className="mb-6 flex justify-center">
+          <div className="mb-6 flex w-full justify-self-center justify-center">
             <PyvoLogo className="h-12 w-auto text-primary" />
           </div>
           <CardTitle className="text-xl text-foreground">
