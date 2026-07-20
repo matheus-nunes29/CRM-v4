@@ -78,7 +78,9 @@ export default function ForgotPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center text-center">
-          <PyvoLogo className="mb-2 h-10 w-auto text-primary" />
+          <div className="mb-6 flex justify-center">
+            <PyvoLogo className="h-12 w-auto text-primary" />
+          </div>
           <CardTitle className="text-xl text-foreground">Redefinir senha</CardTitle>
           <CardDescription className="text-muted-foreground">
             Digite seu e-mail e enviaremos um link de redefinição
