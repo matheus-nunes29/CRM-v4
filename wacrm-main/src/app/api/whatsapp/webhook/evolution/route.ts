@@ -83,10 +83,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: 'skipped_no_key' })
   }
 
-  if (data.key.fromMe === true) {
-    console.log(`${LOG} skipped: fromMe`)
-    return NextResponse.json({ status: 'skipped_fromMe' })
-  }
+  // Messages sent from the linked phone itself (not through the CRM) still
+  // arrive as MESSAGES_UPSERT with fromMe:true — record them as agent
+  // messages instead of dropping them, so the inbox reflects what was
+  // actually said. insertMessage's message_id+conversation_id dedup makes
+  // this a no-op when the CRM's own /send route already inserted the same
+  // message (i.e. the message was sent from the CRM, not the phone).
+  const isFromMe = data.key.fromMe === true
 
   const remoteJid = data.key.remoteJid ?? ''
   const isGroup = remoteJid.endsWith('@g.us')
@@ -127,6 +130,7 @@ export async function POST(request: Request) {
       contentType, contentText, mediaUrl, msgId, timestamp,
       groupSenderName: senderName || senderPhone || undefined,
       groupSenderPhone: senderPhone || undefined,
+      senderType: isFromMe ? 'agent' : 'customer',
     })
   } else {
     const senderPhone = normalisePhone(remoteJid)
@@ -142,9 +146,17 @@ export async function POST(request: Request) {
     const conversation = await findOrCreateConversation(LOG, accountId, configOwnerUserId, contact.id)
     if (!conversation) return NextResponse.json({ status: 'error_conversation' })
 
-    await insertMessage(LOG, conversation.id, { contentType, contentText, mediaUrl, msgId, timestamp })
+    await insertMessage(LOG, conversation.id, {
+      contentType, contentText, mediaUrl, msgId, timestamp,
+      senderType: isFromMe ? 'agent' : 'customer',
+    })
 
-    await maybeAutoCreateDeal(LOG, accountId, configOwnerUserId, contact.id, contact.name || senderPhone)
+    // Only genuinely inbound (customer) messages should ever spin up a
+    // new deal — an echo of something you said from your own phone isn't
+    // a new lead.
+    if (!isFromMe) {
+      await maybeAutoCreateDeal(LOG, accountId, configOwnerUserId, contact.id, contact.name || senderPhone)
+    }
   }
 
   return NextResponse.json({ status: 'received' })

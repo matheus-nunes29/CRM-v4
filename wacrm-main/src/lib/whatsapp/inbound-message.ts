@@ -171,9 +171,15 @@ export async function insertMessage(
     timestamp: string
     groupSenderName?: string
     groupSenderPhone?: string
+    /** 'agent' for messages sent from the linked phone itself (fromMe
+     *  echoes) or from the CRM; defaults to 'customer' for inbound. */
+    senderType?: 'customer' | 'agent'
   },
 ): Promise<{ inserted: boolean }> {
   if (opts.msgId) {
+    // Scoped to conversation_id, not globally — this is also what makes a
+    // fromMe echo a no-op when the CRM's own /api/whatsapp/send route
+    // already inserted the same message_id for this conversation.
     const { data: dup } = await db()
       .from('messages')
       .select('id')
@@ -186,16 +192,18 @@ export async function insertMessage(
     }
   }
 
+  const senderType = opts.senderType ?? 'customer'
+
   const { error } = await db()
     .from('messages')
     .insert({
       conversation_id: conversationId,
-      sender_type: 'customer',
+      sender_type: senderType,
       content_type: opts.contentType,
       content_text: opts.contentText,
       media_url: opts.mediaUrl,
       message_id: opts.msgId || null,
-      status: 'delivered',
+      status: senderType === 'agent' ? 'sent' : 'delivered',
       created_at: opts.timestamp,
       group_sender_name: opts.groupSenderName ?? null,
       group_sender_phone: opts.groupSenderPhone ?? null,
