@@ -138,7 +138,11 @@ export async function POST(request: Request) {
       console.warn(`${LOG} DM missing remoteJid`)
       return NextResponse.json({ status: 'skipped_no_sender' })
     }
-    const senderName = payload.data?.pushName ?? ''
+    // pushName reflects whoever actually sent this message. For fromMe:true
+    // echoes (agent replying from their own phone instead of the CRM),
+    // that's the agent's own profile name — must not overwrite the
+    // contact's real name with it.
+    const senderName = isFromMe ? '' : (payload.data?.pushName ?? '')
 
     const contact = await findOrCreateContact(LOG, accountId, configOwnerUserId, senderPhone, senderName)
     if (!contact) return NextResponse.json({ status: 'error_contact' })

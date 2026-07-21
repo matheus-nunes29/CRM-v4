@@ -160,9 +160,12 @@ export async function POST(request: Request) {
       )
     }
 
-    // Sanitize and validate phone
-    const sanitizedPhone = sanitizePhoneForMeta(contact.phone)
-    if (!isValidE164(sanitizedPhone)) {
+    // Group JIDs (e.g. "1203...@g.us") aren't phone numbers — E.164
+    // validation doesn't apply, and stripping non-digits would corrupt
+    // the JID the Evolution API needs to route the message to the group.
+    const isGroup = contact.is_group === true || contact.phone.endsWith('@g.us')
+    const sanitizedPhone = isGroup ? contact.phone : sanitizePhoneForMeta(contact.phone)
+    if (!isGroup && !isValidE164(sanitizedPhone)) {
       return NextResponse.json(
         { error: 'Invalid phone number format' },
         { status: 400 }
@@ -183,6 +186,13 @@ export async function POST(request: Request) {
       )
     }
 
+    if (isGroup && config.provider !== 'evolution') {
+      return NextResponse.json(
+        { error: 'Group messaging is only supported with the Evolution API provider.' },
+        { status: 400 },
+      )
+    }
+
     // ── Evolution API path ────────────────────────────────────────────────
     if (config.provider === 'evolution') {
       if (!EVOLUTION_SERVER_URL || !EVOLUTION_GLOBAL_API_KEY || !config.evolution_instance_name) {
@@ -193,7 +203,7 @@ export async function POST(request: Request) {
       }
 
       const instanceKey = config.evolution_api_key ? decrypt(config.evolution_api_key) : EVOLUTION_GLOBAL_API_KEY
-      const targetPhone = sanitizedPhone.replace(/\D/g, '')
+      const targetPhone = isGroup ? sanitizedPhone : sanitizedPhone.replace(/\D/g, '')
 
       const result = await sendEvolutionMessage({
         serverUrl: EVOLUTION_SERVER_URL,
