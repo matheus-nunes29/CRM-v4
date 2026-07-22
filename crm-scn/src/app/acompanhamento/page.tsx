@@ -194,6 +194,101 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
         </div>
       </div>
 
+      {/* ── Burnup Charts (um por KPI) ── */}
+      {(totMeta.ra > 0 || totMeta.rr > 0 || totMeta.venda > 0) && (() => {
+        let cumRA = 0, cumRR = 0, cumV = 0
+        const byDay = workDays.map((ds, i) => {
+          const isPast = ds <= today
+          if (isPast) { cumRA += raMap[ds]||0; cumRR += rrMap[ds]||0; cumV += vMap[ds]||0 }
+          const paceRatio = (i+1) / nWD
+          return { day: new Date(ds+'T12:00:00').getDate(), isPast, paceRatio }
+        })
+
+        const todayIdx    = workDays.indexOf(today)
+        const currentPace = todayIdx >= 0 ? (todayIdx+1) / nWD : 0
+
+        const SERIES = [
+          { label:'R. Agendada',  real: cumRA, meta: totMeta.ra,    color:'#7C3AED', rMap: raMap },
+          { label:'R. Realizada', real: cumRR, meta: totMeta.rr,    color:'#0D9488', rMap: rrMap },
+          { label:'Vendas',       real: cumV,  meta: totMeta.venda, color: GREEN,    rMap: vMap  },
+        ].filter(s => s.meta > 0)
+
+        return (
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ fontSize:10, fontWeight:800, color:R, textTransform:'uppercase', letterSpacing:'0.18em', marginBottom:16 }}>Burnup — Pace da Meta</div>
+            <div style={{ display:'grid', gridTemplateColumns: `repeat(${SERIES.length}, 1fr)`, gap:16 }}>
+              {SERIES.map(({ label, real, meta, color, rMap: sMap }) => {
+                const pct = Math.round(real / meta * 100)
+                const delta = pct - Math.round(currentPace * 100)
+                const ahead = delta >= 0
+                const idealHoje = Math.round(currentPace * meta)
+
+                // Todos os dias do mês → eixo X uniforme (sem gaps de fim de semana)
+                let cum = 0
+                const chartData = Array.from({ length: daysInMonth }, (_, idx) => {
+                  const d = idx + 1
+                  const ds = `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+                  const isPast = ds <= today
+                  if (workDays.includes(ds) && isPast) cum += sMap[ds] || 0
+                  return {
+                    day: d,
+                    pace: parseFloat((d / daysInMonth * meta).toFixed(1)),
+                    real: isPast ? cum : undefined,
+                  }
+                })
+
+                return (
+                  <div key={label} style={{ background:WHITE, border:`1.5px solid ${ahead ? color+'40' : '#FECACA'}`, borderRadius:14, overflow:'hidden' }}>
+                    {/* Card header */}
+                    <div style={{ padding:'14px 18px 12px', borderBottom:'1px solid #F3F4F6' }}>
+                      <div style={{ fontSize:9, fontWeight:800, color:GRAY2, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>{label}</div>
+                      <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:10, flexWrap:'wrap' }}>
+                        <span style={{ fontSize:28, fontWeight:900, color: ahead ? color : R, lineHeight:1 }}>{real}</span>
+                        <span style={{ fontSize:11, color:GRAY3, lineHeight:1 }}>
+                          realizado
+                          <span style={{ display:'inline-block', margin:'0 6px', color:'#E5E7EB' }}>·</span>
+                          <span style={{ fontWeight:800, color: ahead ? GRAY2 : R }}>{idealHoje}</span>
+                          {' '}ideal hoje
+                          <span style={{ display:'inline-block', margin:'0 6px', color:'#E5E7EB' }}>·</span>
+                          {meta} meta
+                        </span>
+                      </div>
+                      <div style={{ height:5, borderRadius:3, background:'#F3F4F6', marginBottom:6 }}>
+                        <div style={{ width:`${Math.min(100,pct)}%`, height:'100%', borderRadius:3, background: ahead ? color : R, transition:'width .3s' }} />
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}>
+                        <span style={{ fontSize:10, fontWeight:800, color: ahead ? color : R }}>
+                          {ahead ? `▲ +${delta}%` : `▼ ${delta}%`} do pace
+                        </span>
+                        <span style={{ fontSize:11, fontWeight:800, color:GRAY2 }}>{pct}%</span>
+                      </div>
+                    </div>
+                    {/* Burnup chart */}
+                    <div style={{ padding:'12px 8px 8px' }}>
+                      <ResponsiveContainer width="100%" height={160}>
+                        <LineChart data={chartData} margin={{ top:4, right:12, left:-12, bottom:0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                          <XAxis dataKey="day" tick={{ fontSize:9, fill:GRAY3 }} tickLine={false} axisLine={false} interval={4} />
+                          <YAxis domain={[0, meta]} tick={{ fontSize:9, fill:GRAY3 }} tickLine={false} axisLine={false} width={28} />
+                          <Tooltip
+                            formatter={(v: any, name: string) => [v, name === 'pace' ? 'Pace' : 'Realizado']}
+                            labelFormatter={(l: any) => `Dia ${l}`}
+                            contentStyle={{ fontSize:11, border:'1px solid #E5E7EB', borderRadius:8 }}
+                          />
+                          <ReferenceLine y={meta} stroke={color} strokeDasharray="4 3" strokeWidth={1} opacity={0.4} />
+                          <Line type="monotone" dataKey="pace" stroke="#D1D5DB" strokeDasharray="4 3" strokeWidth={1.5} dot={false} name="pace" />
+                          <Line type="monotone" dataKey="real" stroke={color} strokeWidth={2.5} dot={false} connectNulls={false} activeDot={{ r:4, fill:color }} name="real" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
       <div style={{ overflowX:'auto', borderRadius:14, border:'1px solid #E5E7EB', boxShadow:'0 2px 12px rgba(0,0,0,.07)' }}>
         <table style={{ borderCollapse:'collapse', width:'100%', tableLayout:'auto' }}>
           <thead>
@@ -295,98 +390,6 @@ function AcompanhamentoContent({ leads, metas, mesSel, navMes }: any) {
         {today >= `${mesSel}-01` && today <= `${mesSel}-31` && <span style={{ color:R, fontWeight:700 }}>● Hoje: {new Date(today+'T12:00:00').toLocaleDateString('pt-BR')}</span>}
       </div>
 
-      {/* ── Burnup Charts (um por KPI) ── */}
-      {(totMeta.ra > 0 || totMeta.rr > 0 || totMeta.venda > 0) && (() => {
-        let cumRA = 0, cumRR = 0, cumV = 0
-        const byDay = workDays.map((ds, i) => {
-          const isPast = ds <= today
-          if (isPast) { cumRA += raMap[ds]||0; cumRR += rrMap[ds]||0; cumV += vMap[ds]||0 }
-          const paceRatio = (i+1) / nWD
-          return { day: new Date(ds+'T12:00:00').getDate(), isPast, paceRatio }
-        })
-
-        const todayIdx    = workDays.indexOf(today)
-        const currentPace = todayIdx >= 0 ? (todayIdx+1) / nWD : 0
-
-        const SERIES = [
-          { label:'R. Agendada',  real: cumRA, meta: totMeta.ra,    color:'#7C3AED', rMap: raMap },
-          { label:'R. Realizada', real: cumRR, meta: totMeta.rr,    color:'#0D9488', rMap: rrMap },
-          { label:'Vendas',       real: cumV,  meta: totMeta.venda, color: GREEN,    rMap: vMap  },
-        ].filter(s => s.meta > 0)
-
-        return (
-          <div style={{ marginTop: 36 }}>
-            <div style={{ fontSize:10, fontWeight:800, color:R, textTransform:'uppercase', letterSpacing:'0.18em', marginBottom:16 }}>Burnup — Pace da Meta</div>
-            <div style={{ display:'grid', gridTemplateColumns: `repeat(${SERIES.length}, 1fr)`, gap:16 }}>
-              {SERIES.map(({ label, real, meta, color, rMap: sMap }) => {
-                const pct = Math.round(real / meta * 100)
-                const delta = pct - Math.round(currentPace * 100)
-                const ahead = delta >= 0
-                const idealHoje = Math.round(currentPace * meta)
-
-                // Dados acumulados individuais para este KPI
-                let cum = 0
-                const chartData = workDays.map((ds, i) => {
-                  const isPast = ds <= today
-                  if (isPast) cum += sMap[ds] || 0
-                  return {
-                    day: new Date(ds+'T12:00:00').getDate(),
-                    pace: parseFloat(((i+1) / nWD * meta).toFixed(1)),
-                    real: isPast ? cum : undefined,
-                  }
-                })
-
-                return (
-                  <div key={label} style={{ background:WHITE, border:`1.5px solid ${ahead ? color+'40' : '#FECACA'}`, borderRadius:14, overflow:'hidden' }}>
-                    {/* Card header */}
-                    <div style={{ padding:'14px 18px 12px', borderBottom:'1px solid #F3F4F6' }}>
-                      <div style={{ fontSize:9, fontWeight:800, color:GRAY2, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>{label}</div>
-                      <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:10, flexWrap:'wrap' }}>
-                        <span style={{ fontSize:28, fontWeight:900, color: ahead ? color : R, lineHeight:1 }}>{real}</span>
-                        <span style={{ fontSize:11, color:GRAY3, lineHeight:1 }}>
-                          realizado
-                          <span style={{ display:'inline-block', margin:'0 6px', color:'#E5E7EB' }}>·</span>
-                          <span style={{ fontWeight:800, color: ahead ? GRAY2 : R }}>{idealHoje}</span>
-                          {' '}ideal hoje
-                          <span style={{ display:'inline-block', margin:'0 6px', color:'#E5E7EB' }}>·</span>
-                          {meta} meta
-                        </span>
-                      </div>
-                      <div style={{ height:5, borderRadius:3, background:'#F3F4F6', marginBottom:6 }}>
-                        <div style={{ width:`${Math.min(100,pct)}%`, height:'100%', borderRadius:3, background: ahead ? color : R, transition:'width .3s' }} />
-                      </div>
-                      <div style={{ display:'flex', justifyContent:'space-between' }}>
-                        <span style={{ fontSize:10, fontWeight:800, color: ahead ? color : R }}>
-                          {ahead ? `▲ +${delta}%` : `▼ ${delta}%`} do pace
-                        </span>
-                        <span style={{ fontSize:11, fontWeight:800, color:GRAY2 }}>{pct}%</span>
-                      </div>
-                    </div>
-                    {/* Burnup chart */}
-                    <div style={{ padding:'12px 8px 8px' }}>
-                      <ResponsiveContainer width="100%" height={160}>
-                        <LineChart data={chartData} margin={{ top:4, right:12, left:-12, bottom:0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                          <XAxis dataKey="day" tick={{ fontSize:9, fill:GRAY3 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                          <YAxis domain={[0, meta]} tick={{ fontSize:9, fill:GRAY3 }} tickLine={false} axisLine={false} width={28} />
-                          <Tooltip
-                            formatter={(v: any, name: string) => [v, name === 'pace' ? 'Pace' : 'Realizado']}
-                            labelFormatter={(l: any) => `Dia ${l}`}
-                            contentStyle={{ fontSize:11, border:'1px solid #E5E7EB', borderRadius:8 }}
-                          />
-                          <ReferenceLine y={meta} stroke={color} strokeDasharray="4 3" strokeWidth={1} opacity={0.4} />
-                          <Line type="monotone" dataKey="pace" stroke="#D1D5DB" strokeDasharray="4 3" strokeWidth={1.5} dot={false} name="pace" />
-                          <Line type="monotone" dataKey="real" stroke={color} strokeWidth={2.5} dot={false} connectNulls={false} activeDot={{ r:4, fill:color }} name="real" />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })()}
     </div>
   )
 }

@@ -178,7 +178,7 @@ export default function DashboardPage() {
   const tcvMes       = lm.venda.reduce((s, l) => s + (l.tcv || 0), 0)
   const tcvSaberMes  = lm.venda.reduce((s, l) => s + (l.tcv_saber  || 0), 0)
   const tcvTerMes    = lm.venda.reduce((s, l) => s + (l.tcv_ter    || 0), 0)
-  const tcvExecMes   = lm.venda.reduce((s, l) => s + (l.tcv_executar || 0), 0)
+  const tcvExecMes   = lm.venda.reduce((s, l) => s + (l.tcv_executar || 0) * (l.tcv_executar_meses || 12), 0)
   const cntSaberMes  = lm.venda.filter(l => (l.tcv_saber    || 0) > 0).length
   const cntTerMes    = lm.venda.filter(l => (l.tcv_ter      || 0) > 0).length
   const cntExecMes   = lm.venda.filter(l => (l.tcv_executar || 0) > 0).length
@@ -747,22 +747,36 @@ export default function DashboardPage() {
                       { label: 'Executar', val: tcvExecMes,  cnt: cntExecMes,  meta: mm.meta_tcv_executar, color: GREEN },
                     ].map(({ label, val, cnt, meta, color }) => {
                       const pctProd = meta ? Math.min(Math.round(val / meta * 100), 999) : null
+                      const over = meta ? val >= meta : false
+                      const falta = meta && !over ? fmt(meta - val) : null
                       return (
-                        <div key={label}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <div key={label} style={{ paddingBottom: 8, borderBottom: `1px solid ${GRAY5}` }}>
+                          {/* linha 1: label + valor realizado */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                               <span style={{ fontSize: 11, fontWeight: 700, color }}>{label}</span>
                               {cnt > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: WHITE, background: color, borderRadius: 20, padding: '1px 6px', lineHeight: 1.4 }}>{cnt}</span>}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                               <span style={{ fontSize: 11, fontWeight: 800, color: GRAY1 }}>{val > 0 ? fmt(val) : '—'}</span>
-                              {pctProd !== null && <span style={{ fontSize: 10, fontWeight: 700, color: pctProd >= 100 ? GREEN : GRAY3 }}>{pctProd}%</span>}
+                              {pctProd !== null && (
+                                <span style={{ fontSize: 10, fontWeight: 700, color: over ? GREEN : GRAY3 }}>{pctProd}%</span>
+                              )}
                             </div>
                           </div>
+                          {/* linha 2: barra + meta + falta */}
                           {meta && (
-                            <div style={{ height: 3, background: GRAY5, borderRadius: 2 }}>
-                              <div style={{ height: 3, borderRadius: 2, background: color, width: `${Math.min(pctProd || 0, 100)}%`, transition: 'width .7s' }} />
-                            </div>
+                            <>
+                              <div style={{ height: 3, background: GRAY5, borderRadius: 2, marginBottom: 4 }}>
+                                <div style={{ height: 3, borderRadius: 2, background: over ? GREEN : color, width: `${Math.min(pctProd || 0, 100)}%`, transition: 'width .7s' }} />
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 10, color: GRAY3 }}>Meta: {fmt(meta)}</span>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: over ? GREEN : R }}>
+                                  {over ? '✓ batida' : `Falta ${falta}`}
+                                </span>
+                              </div>
+                            </>
                           )}
                         </div>
                       )

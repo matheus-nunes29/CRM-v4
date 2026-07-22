@@ -28,6 +28,19 @@ function healthColor(score: number) {
 
 function fmt(v: number) { return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` }
 
+function calcLT(cliente: { created_at: string }, projetos: { data_inicio: string | null }[]): string {
+  const starts = projetos.map(p => p.data_inicio).filter(Boolean) as string[]
+  const ref = starts.length > 0 ? starts.reduce((a, b) => a < b ? a : b) : cliente.created_at
+  const from = new Date(ref)
+  const to = new Date()
+  const months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth())
+  if (months <= 0) return '< 1 mês'
+  if (months < 12) return `${months} ${months === 1 ? 'mês' : 'meses'}`
+  const y = Math.floor(months / 12)
+  const m = months % 12
+  return m > 0 ? `${y}a ${m}m` : `${y} ${y === 1 ? 'ano' : 'anos'}`
+}
+
 function ScoreCell({ value }: { value: number | null | undefined }) {
   if (value == null) return <span style={{ color: GRAY3, fontSize: 12 }}>—</span>
   const c = healthColor(value)
@@ -315,6 +328,7 @@ export default function CockpitPage() {
               <thead>
                 <tr>
                   <th style={thStyle}>Cliente</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>LT</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Risco</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Health Score</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Atualizado em</th>
@@ -355,6 +369,11 @@ export default function CockpitPage() {
                           </div>
                           <StatusBadge status={c.status} />
                         </a>
+                      </td>
+
+                      {/* LT */}
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: GRAY2 }}>{calcLT(c, c.projetos)}</span>
                       </td>
 
                       {/* Risco */}
