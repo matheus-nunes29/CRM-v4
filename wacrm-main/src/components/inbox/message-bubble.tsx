@@ -17,6 +17,7 @@ import {
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface MessageBubbleProps {
   message: Message;
@@ -65,6 +66,10 @@ function MediaImage({
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Stickers are small decorative assets — only full photos open a
+  // fullscreen preview on click.
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const canOpenLightbox = sizeVariant !== "sticker";
   // Stickers are already small, transparent, borderless assets (like in
   // WhatsApp itself) — render at 60% of a regular photo's footprint.
   const boxSize = sizeVariant === "sticker" ? "h-24 w-36" : "h-40 w-60";
@@ -119,15 +124,33 @@ function MediaImage({
   }
 
   return (
-    <img
-      src={src ?? ""}
-      alt={alt}
-      className={cn(
-        imgSize,
-        sizeVariant === "sticker" ? "object-contain" : "rounded-lg object-cover",
+    <>
+      <img
+        src={src ?? ""}
+        alt={alt}
+        className={cn(
+          imgSize,
+          sizeVariant === "sticker" ? "object-contain" : "cursor-pointer rounded-lg object-cover",
+        )}
+        onClick={canOpenLightbox ? () => setLightboxOpen(true) : undefined}
+        onError={() => setError(true)}
+      />
+      {canOpenLightbox && (
+        <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+          <DialogContent
+            showCloseButton
+            className="w-auto max-w-[calc(100%-2rem)] border-none bg-transparent p-0 shadow-none ring-0 sm:max-w-[calc(100%-2rem)]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src ?? ""}
+              alt={alt}
+              className="max-h-[85vh] max-w-full rounded-lg object-contain"
+            />
+          </DialogContent>
+        </Dialog>
       )}
-      onError={() => setError(true)}
-    />
+    </>
   );
 }
 
