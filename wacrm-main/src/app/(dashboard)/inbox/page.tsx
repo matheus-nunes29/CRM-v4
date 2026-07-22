@@ -34,6 +34,11 @@ export default function InboxPage() {
   const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(
     null
   );
+  // Meta-only rules (24h session window, templates, caption length cap)
+  // don't apply to Evolution-backed accounts — see MessageThread/
+  // MessageComposer. Defaults to "meta" so pre-multi-provider rows
+  // (no `provider` column value yet) keep today's behavior.
+  const [whatsappProvider, setWhatsappProvider] = useState<"meta" | "evolution">("meta");
   /**
    * Bumped whenever we want children (ConversationList, MessageThread)
    * to refetch from the DB — used as a safety net against missed
@@ -185,11 +190,12 @@ export default function InboxPage() {
 
       const { data } = await supabase
         .from("whatsapp_config")
-        .select("status")
+        .select("status, provider")
         .eq("account_id", accountId)
         .maybeSingle();
 
       setWhatsappConnected(data?.status === "connected");
+      setWhatsappProvider((data?.provider as "meta" | "evolution" | undefined) ?? "meta");
     };
 
     checkConnection();
@@ -596,6 +602,7 @@ export default function InboxPage() {
             conversation={activeConversation}
             contact={activeContact}
             messages={messages}
+            whatsappProvider={whatsappProvider}
             onMessagesLoaded={handleMessagesLoaded}
             onNewMessage={handleNewMessage}
             onUpdateMessage={handleUpdateMessage}

@@ -123,20 +123,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // Meta caps media captions at 1024 chars; reject before the upload is
-    // wasted at the Meta call. (Audio carries no caption — see meta-api.)
-    if (
-      isMediaKind &&
-      message_type !== 'audio' &&
-      typeof content_text === 'string' &&
-      content_text.length > 1024
-    ) {
-      return NextResponse.json(
-        { error: 'Caption exceeds the 1024-character limit' },
-        { status: 400 }
-      )
-    }
-
     // Fetch conversation and contact
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
@@ -190,6 +176,31 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Group messaging is only supported with the Evolution API provider.' },
         { status: 400 },
+      )
+    }
+
+    // Templates are a Meta Business Platform construct (pre-approved via
+    // the Graph API) — Evolution/Baileys has no equivalent send path.
+    if (message_type === 'template' && config.provider !== 'meta') {
+      return NextResponse.json(
+        { error: 'Templates are only supported with the Meta API provider.' },
+        { status: 400 },
+      )
+    }
+
+    // Meta caps media captions at 1024 chars; reject before the upload is
+    // wasted at the Meta call. (Audio carries no caption — see meta-api.)
+    // Evolution/Baileys has no such cap, so only enforce it for Meta.
+    if (
+      config.provider === 'meta' &&
+      isMediaKind &&
+      message_type !== 'audio' &&
+      typeof content_text === 'string' &&
+      content_text.length > 1024
+    ) {
+      return NextResponse.json(
+        { error: 'Caption exceeds the 1024-character limit' },
+        { status: 400 }
       )
     }
 
