@@ -42,6 +42,10 @@ interface AccountSummary {
   /** Default deal currency (ISO-4217). NOT NULL DEFAULT 'USD' in the
    *  DB (migration 021); narrowed to DEFAULT_CURRENCY when absent. */
   default_currency: string;
+  /** Feature keys enabled for this account by the platform admin (049).
+   *  NOT NULL DEFAULT '{}' in the DB; narrowed to [] when absent so
+   *  forks running pre-049 schemas don't crash `hasFeature`. */
+  enabled_features: string[];
 }
 
 interface AuthContextValue {
@@ -101,6 +105,11 @@ interface AuthContextValue {
   canEditSettings: boolean;
   /** True if the caller can send messages and edit operational data (agent+). */
   canSendMessages: boolean;
+  /** True if the current account has the given module switched on by the
+   *  platform admin (e.g. 'prontuario', 'automations', 'flows'). Always
+   *  false while loading — UI gates fail closed rather than flashing a
+   *  tab that then disappears. */
+  hasFeature: (feature: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -136,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name, default_currency)",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name, default_currency, enabled_features)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -162,15 +171,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: string;
               name: string;
               default_currency: string | null;
+              enabled_features: string[] | null;
             } | null);
-        // Narrow default_currency defensively: forks running pre-021
-        // schemas won't have the column, so a missing/null value reads
-        // as the safe USD fallback rather than crashing the picker.
+        // Narrow default_currency/enabled_features defensively: forks
+        // running pre-021/pre-049 schemas won't have these columns, so a
+        // missing/null value reads as the safe fallback (USD / no
+        // features) rather than crashing the picker or every hasFeature
+        // check.
         const accountRow: AccountSummary | null = accountRaw
           ? {
               id: accountRaw.id,
               name: accountRaw.name,
               default_currency: accountRaw.default_currency ?? DEFAULT_CURRENCY,
+              enabled_features: accountRaw.enabled_features ?? [],
             }
           : null;
 
@@ -292,6 +305,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchProfile(user.id);
   }, [user?.id, fetchProfile]);
 
+  const hasFeature = useCallback(
+    (feature: string) => account?.enabled_features?.includes(feature) ?? false,
+    [account],
+  );
+
   // Derive the role booleans once per profile change rather than on
   // every consumer render. Cheap regardless, but the memo also gives
   // each derived value a stable identity for React.memo / useEffect
@@ -322,6 +340,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshProfile,
         account,
         defaultCurrency: account?.default_currency ?? DEFAULT_CURRENCY,
+        hasFeature,
         ...derived,
       }}
     >
@@ -361,6 +380,7 @@ export function useAuth(): AuthContextValue {
       canManageMembers: false,
       canEditSettings: false,
       canSendMessages: false,
+      hasFeature: () => false,
     };
   }
   return ctx;

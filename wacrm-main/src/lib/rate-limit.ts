@@ -148,6 +148,12 @@ export const RATE_LIMITS = {
    *  instance deploy needs the Redis swap described at the top of
    *  this file (the per-key call sites don't change). */
   publicApi: { limit: 120, windowMs: 60_000 },
+  /** Platform-admin account provisioning (`POST /api/admin/accounts`).
+   *  10/min per admin — this creates a real auth user + account per
+   *  call, comfortably above any realistic sales-onboarding pace while
+   *  bounding a fat-fingered loop or a compromised admin session from
+   *  mass-creating accounts. */
+  platformProvision: { limit: 10, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

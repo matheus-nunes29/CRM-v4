@@ -168,6 +168,51 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireRole("admin");
 
+    // Early, non-authoritative seat check (UX only) — gives a clear 409
+    // before the admin ever generates a link, rather than the invitee
+    // hitting the wall at redeem time. The real enforcement lives in
+    // `redeem_invitation` (050_seat_limit_enforcement.sql), which counts
+    // actual members at the moment a seat would be occupied; pending
+    // invitations aren't seats yet, so this check adds them in to avoid
+    // over-issuing links that can never all be redeemed.
+    const { data: accountRow, error: accountErr } = await ctx.supabase
+      .from("accounts")
+      .select("max_seats")
+      .eq("id", ctx.accountId)
+      .maybeSingle();
+    if (accountErr) {
+      console.error(
+        "[POST /api/account/invitations] account fetch error:",
+        accountErr,
+      );
+      return NextResponse.json(
+        { error: "Failed to check account capacity" },
+        { status: 500 },
+      );
+    }
+    if (accountRow?.max_seats != null) {
+      const [{ count: memberCount }, { count: pendingCount }] =
+        await Promise.all([
+          ctx.supabase
+            .from("profiles")
+            .select("user_id", { count: "exact", head: true })
+            .eq("account_id", ctx.accountId),
+          ctx.supabase
+            .from("account_invitations")
+            .select("id", { count: "exact", head: true })
+            .eq("account_id", ctx.accountId)
+            .is("accepted_at", null)
+            .gt("expires_at", new Date().toISOString()),
+        ]);
+      const used = (memberCount ?? 0) + (pendingCount ?? 0);
+      if (used >= accountRow.max_seats) {
+        return NextResponse.json(
+          { error: "This account has reached its seat limit" },
+          { status: 409 },
+        );
+      }
+    }
+
     // 30/min per user. The Members tab is a clicks-only UI so any
     // legitimate admin is far below this; the cap exists to keep
     // a script run in a loop or a compromised admin session from

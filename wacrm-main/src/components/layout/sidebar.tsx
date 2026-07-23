@@ -58,6 +58,9 @@ interface NavItem {
   label: string;
   icon: typeof LayoutDashboard;
   beta?: boolean;
+  /** Feature key gating this item (049/052) — hidden unless the current
+   *  account's enabled_features includes it. Undefined = always shown. */
+  feature?: string;
 }
 
 interface NavGroup {
@@ -92,8 +95,8 @@ const navGroups: NavGroup[] = [
     label: "Automação",
     items: [
       { href: "/broadcasts", label: "Disparos", icon: Radio },
-      { href: "/automations", label: "Automações", icon: Zap },
-      { href: "/flows", label: "Fluxos", icon: Workflow, beta: true },
+      { href: "/automations", label: "Automações", icon: Zap, feature: "automations" },
+      { href: "/flows", label: "Fluxos", icon: Workflow, beta: true, feature: "flows" },
     ],
   },
 ];
@@ -109,7 +112,7 @@ interface SidebarProps {
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { profile, profileLoading, account, accountRole } = useAuth();
+  const { profile, profileLoading, account, accountRole, hasFeature } = useAuth();
   const totalUnread = useTotalUnread();
 
   const showAccountStrip =
@@ -185,7 +188,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 {group.label}
               </p>
               <ul className="flex flex-col gap-0.5">
-                {group.items.map((item) => {
+                {group.items
+                  .filter((item) => !item.feature || hasFeature(item.feature))
+                  .map((item) => {
                   const isActive =
                     pathname === item.href ||
                     (item.href !== "/dashboard" && pathname.startsWith(item.href));

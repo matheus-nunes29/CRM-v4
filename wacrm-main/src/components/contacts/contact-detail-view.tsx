@@ -93,7 +93,7 @@ function dealStatusMeta(deal: Deal) {
 
 export function ContactDetailContent({ contactId, onUpdated, onWhatsApp }: ContactDetailContentProps) {
   const supabase = createClient();
-  const { accountId, defaultCurrency } = useAuth();
+  const { accountId, defaultCurrency, hasFeature } = useAuth();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [trackingLink, setTrackingLink] = useState<TrackingLink | null>(null);
@@ -406,6 +406,13 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
               { value: 'notes',   label: 'Notas' },
               { value: 'custom',  label: 'Personalizados' },
               { value: 'deals',   label: 'Negócios' },
+              // Gated by the account's enabled_features (049) — only
+              // rendered at all for accounts with 'prontuario' switched
+              // on, so RLS on patient_records (051) is never even hit
+              // for accounts without the module.
+              ...(hasFeature('prontuario')
+                ? [{ value: 'prontuario', label: 'Prontuário' }]
+                : []),
             ].map(({ value, label }) => (
               <TabsTrigger
                 key={value}
@@ -629,6 +636,16 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
             </div>
           )}
         </TabsContent>
+
+        {/* Prontuário — only mounted for accounts with the feature on,
+            so the query is never even attempted for accounts without
+            it (RLS on patient_records would block it anyway, but this
+            avoids the round trip and any confusing error state). */}
+        {hasFeature('prontuario') && (
+          <TabsContent value="prontuario" className="flex-1 overflow-y-auto px-5 py-4 mt-0">
+            <PatientRecordsTab contactId={contactId} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <ScheduleEventModal
@@ -687,6 +704,93 @@ function EmptyState({
       <div className="mb-1">{icon}</div>
       <p className="text-sm font-medium text-muted-foreground">{title}</p>
       <p className="text-xs text-muted-foreground/70 max-w-[220px] leading-relaxed">{description}</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PatientRecordsTab — minimal read-only view of patient_records (051).
+// Self-contained (own fetch/state) so it only ever runs for accounts with
+// the 'prontuario' feature enabled — the parent only mounts this when
+// hasFeature('prontuario') is true. Deliberately read-only for now: an
+// authoring form is a larger feature than what this pass builds (the
+// admin panel + gating mechanism); this proves the gate end-to-end.
+// ---------------------------------------------------------------------------
+
+interface PatientRecordRow {
+  id: string;
+  record_date: string;
+  anamnesis: string | null;
+  evolution_notes: string | null;
+  procedures_performed: string | null;
+}
+
+function PatientRecordsTab({ contactId }: { contactId: string }) {
+  const supabase = createClient();
+  const [records, setRecords] = useState<PatientRecordRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('patient_records')
+        .select('id, record_date, anamnesis, evolution_notes, procedures_performed')
+        .eq('contact_id', contactId)
+        .order('record_date', { ascending: false });
+      if (!cancelled) {
+        if (error) {
+          console.error('[PatientRecordsTab] fetch error:', error);
+          setRecords([]);
+        } else {
+          setRecords(data ?? []);
+        }
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="size-5 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (records.length === 0) {
+    return (
+      <EmptyState
+        icon={<FileText className="size-8 text-muted-foreground/40" />}
+        title="Nenhum registro de prontuário"
+        description="Este contato ainda não tem anamnese ou evolução registrada."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {records.map((r) => (
+        <div key={r.id} className="rounded-lg border border-border/60 p-3 space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">
+            {new Date(r.record_date).toLocaleDateString('pt-BR')}
+          </p>
+          {r.anamnesis && (
+            <p className="text-sm"><span className="text-muted-foreground">Anamnese: </span>{r.anamnesis}</p>
+          )}
+          {r.procedures_performed && (
+            <p className="text-sm"><span className="text-muted-foreground">Procedimentos: </span>{r.procedures_performed}</p>
+          )}
+          {r.evolution_notes && (
+            <p className="text-sm"><span className="text-muted-foreground">Evolução: </span>{r.evolution_notes}</p>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
