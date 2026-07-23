@@ -1,4 +1,4 @@
--- 048_platform_admin.sql
+-- 049_platform_admin.sql
 --
 -- Introduces a "platform admin" concept — a person who administers every
 -- account on this deployment (the PYVO owner), orthogonal to account_role

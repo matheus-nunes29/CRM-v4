@@ -4,7 +4,7 @@
 //   GET  — list every account on this deployment, with seats used.
 //   POST — provision a brand-new client: creates the auth user (Auth
 //          Admin API), then moves them into a freshly-created account
-//          via the `platform_provision_account` RPC (049).
+//          via the `platform_provision_account` RPC (050).
 //
 // Platform-admin only. Unlike /api/account/*, every read/write here goes
 // through supabaseAdmin() (service role) rather than ctx.supabase — a

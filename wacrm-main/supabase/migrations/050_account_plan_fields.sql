@@ -1,4 +1,4 @@
--- 049_account_plan_fields.sql
+-- 050_account_plan_fields.sql
 --
 -- Adds the metadata a platform admin needs per account: what kind of
 -- business it is, how many seats it's allowed, whether it's suspended, and

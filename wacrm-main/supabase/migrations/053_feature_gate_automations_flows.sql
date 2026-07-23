@@ -1,4 +1,4 @@
--- 052_feature_gate_automations_flows.sql
+-- 053_feature_gate_automations_flows.sql
 --
 -- Gates `automations` and `flows` (and their child tables) behind
 -- `account_has_feature`, same mechanism as patient_records (051). Every
@@ -8,7 +8,7 @@
 -- is otherwise byte-for-byte identical to what's already live.
 --
 -- Safe against the existing Mayara deployment specifically because
--- 049_account_plan_fields.sql already backfilled 'automations' and 'flows'
+-- 050_account_plan_fields.sql already backfilled 'automations' and 'flows'
 -- into every pre-existing account's enabled_features before this migration
 -- runs — this only closes the door for *new* accounts the platform admin
 -- doesn't explicitly enable it for.

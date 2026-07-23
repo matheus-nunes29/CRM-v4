@@ -1,4 +1,4 @@
--- 050_seat_limit_enforcement.sql
+-- 051_seat_limit_enforcement.sql
 --
 -- Enforces accounts.max_seats (049) at the one point where a new row
 -- actually lands in profiles.account_id = X: redeeming an invitation.

@@ -171,7 +171,7 @@ export async function POST(request: Request) {
     // Early, non-authoritative seat check (UX only) — gives a clear 409
     // before the admin ever generates a link, rather than the invitee
     // hitting the wall at redeem time. The real enforcement lives in
-    // `redeem_invitation` (050_seat_limit_enforcement.sql), which counts
+    // `redeem_invitation` (051_seat_limit_enforcement.sql), which counts
     // actual members at the moment a seat would be occupied; pending
     // invitations aren't seats yet, so this check adds them in to avoid
     // over-issuing links that can never all be redeemed.

@@ -9,7 +9,7 @@
 
 import { randomInt } from "node:crypto";
 
-/** Mirrors the CHECK constraint added in 049_account_plan_fields.sql. */
+/** Mirrors the CHECK constraint added in 050_account_plan_fields.sql. */
 export const BUSINESS_TYPES = [
   { value: "clinica_estetica", label: "Clínica de estética" },
   { value: "clinica_odontologica", label: "Clínica odontológica" },
@@ -27,7 +27,7 @@ export function isBusinessType(value: unknown): value is BusinessType {
 
 /**
  * Feature keys a platform admin can toggle per account, gated via
- * `account_has_feature` (049_account_plan_fields.sql).
+ * `account_has_feature` (050_account_plan_fields.sql).
  *
  * `dre` is listed for forward-compatibility only — there is no DRE
  * table/route in this codebase yet, so enabling it today has no

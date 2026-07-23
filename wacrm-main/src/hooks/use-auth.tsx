@@ -42,9 +42,9 @@ interface AccountSummary {
   /** Default deal currency (ISO-4217). NOT NULL DEFAULT 'USD' in the
    *  DB (migration 021); narrowed to DEFAULT_CURRENCY when absent. */
   default_currency: string;
-  /** Feature keys enabled for this account by the platform admin (049).
+  /** Feature keys enabled for this account by the platform admin (050).
    *  NOT NULL DEFAULT '{}' in the DB; narrowed to [] when absent so
-   *  forks running pre-049 schemas don't crash `hasFeature`. */
+   *  forks running pre-050 schemas don't crash `hasFeature`. */
   enabled_features: string[];
 }
 
@@ -174,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               enabled_features: string[] | null;
             } | null);
         // Narrow default_currency/enabled_features defensively: forks
-        // running pre-021/pre-049 schemas won't have these columns, so a
+        // running pre-021/pre-050 schemas won't have these columns, so a
         // missing/null value reads as the safe fallback (USD / no
         // features) rather than crashing the picker or every hasFeature
         // check.
