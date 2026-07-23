@@ -106,6 +106,14 @@ interface MessageThreadProps {
    */
   contactPanelOpen?: boolean;
   onToggleContactPanel?: () => void;
+  /**
+   * The account's connected WhatsApp provider. The 24h session window,
+   * template reengagement, and media caption cap are Meta Business
+   * Platform policies with no Evolution/Baileys equivalent — they only
+   * apply when this is "meta". Defaults to "meta" so existing callers
+   * that don't pass it keep today's behavior.
+   */
+  whatsappProvider?: "meta" | "evolution";
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -164,6 +172,7 @@ export function MessageThread({
   onRefresh,
   contactPanelOpen,
   onToggleContactPanel,
+  whatsappProvider = "meta",
 }: MessageThreadProps) {
   const { user } = useAuth();
   const { getPresence, getRow, now } = usePresence();
@@ -219,8 +228,12 @@ export function MessageThread({
     };
   }, []);
 
-  // 24-hour session timer
+  // 24-hour session timer. This is a Meta Business Platform policy
+  // (outside the window you can only reengage with an approved template)
+  // — Evolution/Baileys accounts have no such restriction, so never
+  // expire the session for them.
   const sessionInfo = useMemo(() => {
+    if (whatsappProvider !== "meta") return { expired: false, remaining: "" };
     if (!messages.length) return { expired: false, remaining: "" };
 
     // Find last customer message
@@ -244,7 +257,7 @@ export function MessageThread({
         : `${Math.floor(hoursLeft * 60)}m restante`;
 
     return { expired, remaining };
-  }, [messages]);
+  }, [messages, whatsappProvider]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
@@ -1006,9 +1019,11 @@ export function MessageThread({
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-sm text-muted-foreground">Sem mensagens ainda</p>
-            <p className="text-xs text-muted-foreground">
-              Envie um Template para iniciar a conversa
-            </p>
+            {whatsappProvider === "meta" && (
+              <p className="text-xs text-muted-foreground">
+                Envie um Template para iniciar a conversa
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -1079,6 +1094,7 @@ export function MessageThread({
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
+        templatesEnabled={whatsappProvider === "meta"}
       />
 
       <TemplatePicker

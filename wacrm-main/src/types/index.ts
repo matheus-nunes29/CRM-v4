@@ -239,6 +239,41 @@ export interface ContactNote {
   created_at: string;
 }
 
+/** One product/lot used during a procedure — injectable traceability. */
+export interface PatientRecordProduct {
+  name: string;
+  lot?: string;
+  expiration?: string;
+  quantity?: string;
+}
+
+/** A before/after photo attached to a patient record. `path` is the
+ *  private-bucket object path; the UI resolves it to a signed URL. */
+export interface PatientRecordPhoto {
+  path: string;
+  type: 'before' | 'after';
+  marketing_consent: boolean;
+}
+
+/** Append-only clinical evolution entry ("prontuário"). Never updated
+ *  or deleted from the client — see migration 048. */
+export interface PatientRecord {
+  id: string;
+  account_id: string;
+  contact_id: string;
+  deal_id: string | null;
+  professional_id: string | null;
+  occurred_at: string;
+  procedure_description: string;
+  treated_area: string | null;
+  products_used: PatientRecordProduct[];
+  observations: string | null;
+  next_session_recommended_at: string | null;
+  photos: PatientRecordPhoto[];
+  corrects_record_id: string | null;
+  created_at: string;
+}
+
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
 export interface Conversation {

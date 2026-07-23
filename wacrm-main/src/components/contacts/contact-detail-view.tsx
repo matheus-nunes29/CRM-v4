@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
-import type { Contact, ContactNote, CustomField, Deal, TrackingLink } from '@/types';
+import type { Contact, ContactNote, CustomField, Deal, TrackingLink, PatientRecord, PatientRecordProduct, PatientRecordPhoto } from '@/types';
 import { CustomFieldInput } from '@/components/shared/custom-field-input';
 import {
   Sheet,
@@ -14,6 +14,14 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,8 +51,19 @@ import {
   CalendarDays,
   CalendarPlus,
   Megaphone,
+  Stethoscope,
+  ImagePlus,
+  X,
+  Syringe,
+  ShieldAlert,
 } from 'lucide-react';
 import { ScheduleEventModal } from '@/components/calendar/schedule-event-modal';
+import {
+  uploadPatientRecordPhoto,
+  getPatientRecordPhotoSignedUrls,
+  PATIENT_RECORD_MEDIA_BUCKET,
+} from '@/lib/storage/patient-record-media';
+import { deleteAccountMedia } from '@/lib/storage/upload-media';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -129,6 +148,28 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [deals, setDeals] = useState<DealWithItems[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
 
+  // ── Prontuário (patient records) ────────────────────────────────────────
+  const [professionals, setProfessionals] = useState<{ id: string; full_name: string }[]>([]);
+  const [patientRecords, setPatientRecords] = useState<PatientRecord[]>([]);
+  const [loadingPatientRecords, setLoadingPatientRecords] = useState(false);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+
+  const [recordDialogOpen, setRecordDialogOpen] = useState(false);
+  const [savingRecord, setSavingRecord] = useState(false);
+  const emptyRecordForm = () => ({
+    occurredAt: new Date().toISOString().slice(0, 16), // datetime-local value
+    professionalId: '',
+    dealId: '',
+    procedureDescription: '',
+    treatedArea: '',
+    observations: '',
+    nextSessionAt: '',
+    products: [] as PatientRecordProduct[],
+    photos: [] as (PatientRecordPhoto & { previewUrl: string })[],
+  });
+  const [recordForm, setRecordForm] = useState(emptyRecordForm());
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
   // ── Fetchers ──────────────────────────────────────────────────────────────
 
   const fetchContact = useCallback(async () => {
@@ -202,13 +243,36 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
     setLoadingDeals(false);
   }, [contactId, supabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const fetchPatientRecords = useCallback(async () => {
+    setLoadingPatientRecords(true);
+    const [recordsRes, professionalsRes] = await Promise.all([
+      supabase
+        .from('patient_records')
+        .select('*')
+        .eq('contact_id', contactId)
+        .order('occurred_at', { ascending: false }),
+      supabase.from('profiles').select('id, full_name').order('full_name'),
+    ]);
+    const records = (recordsRes.data ?? []) as PatientRecord[];
+    setPatientRecords(records);
+    if (professionalsRes.data) setProfessionals(professionalsRes.data as { id: string; full_name: string }[]);
+
+    const allPaths = records.flatMap((r) => (r.photos ?? []).map((p) => p.path));
+    if (allPaths.length > 0) {
+      const urls = await getPatientRecordPhotoSignedUrls(allPaths);
+      setPhotoUrls(urls);
+    }
+    setLoadingPatientRecords(false);
+  }, [contactId, supabase]);
+
   useEffect(() => {
     fetchContact();
     fetchTags();
     fetchNotes();
     fetchCustomFields();
     fetchDeals();
-  }, [fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals]);
+    fetchPatientRecords();
+  }, [fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchPatientRecords]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -285,6 +349,98 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
     const { error } = await supabase.from('contact_notes').delete().eq('id', noteId);
     if (error) toast.error('Falha ao excluir nota');
     else { setNotes((prev) => prev.filter((n) => n.id !== noteId)); toast.success('Nota excluída'); }
+  }
+
+  // ── Prontuário actions ───────────────────────────────────────────────────
+
+  function addProductRow() {
+    setRecordForm((prev) => ({
+      ...prev,
+      products: [...prev.products, { name: '', lot: '', expiration: '', quantity: '' }],
+    }));
+  }
+
+  function updateProductRow(index: number, field: keyof PatientRecordProduct, value: string) {
+    setRecordForm((prev) => ({
+      ...prev,
+      products: prev.products.map((p, i) => (i === index ? { ...p, [field]: value } : p)),
+    }));
+  }
+
+  function removeProductRow(index: number) {
+    setRecordForm((prev) => ({ ...prev, products: prev.products.filter((_, i) => i !== index) }));
+  }
+
+  async function handlePhotoPicked(file: File | undefined, type: 'before' | 'after') {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Foto muito grande (máx. 5MB)');
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const { path } = await uploadPatientRecordPhoto(file);
+      const previewUrl = URL.createObjectURL(file);
+      setRecordForm((prev) => ({
+        ...prev,
+        photos: [...prev.photos, { path, type, marketing_consent: false, previewUrl }],
+      }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao enviar foto');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function removeRecordPhoto(index: number) {
+    const photo = recordForm.photos[index];
+    setRecordForm((prev) => ({ ...prev, photos: prev.photos.filter((_, i) => i !== index) }));
+    try {
+      await deleteAccountMedia(PATIENT_RECORD_MEDIA_BUCKET, photo.path);
+    } catch {
+      // best-effort GC — an orphaned staged photo is a storage nit, not user-facing
+    }
+  }
+
+  function togglePhotoConsent(index: number) {
+    setRecordForm((prev) => ({
+      ...prev,
+      photos: prev.photos.map((p, i) => (i === index ? { ...p, marketing_consent: !p.marketing_consent } : p)),
+    }));
+  }
+
+  async function saveRecord() {
+    if (!recordForm.procedureDescription.trim()) {
+      toast.error('Descreva o procedimento realizado');
+      return;
+    }
+    if (!accountId) {
+      toast.error('Não autenticado');
+      return;
+    }
+    setSavingRecord(true);
+    const { error } = await supabase.from('patient_records').insert({
+      account_id: accountId,
+      contact_id: contactId,
+      deal_id: recordForm.dealId || null,
+      professional_id: recordForm.professionalId || null,
+      occurred_at: new Date(recordForm.occurredAt).toISOString(),
+      procedure_description: recordForm.procedureDescription.trim(),
+      treated_area: recordForm.treatedArea.trim() || null,
+      products_used: recordForm.products.filter((p) => p.name.trim()),
+      observations: recordForm.observations.trim() || null,
+      next_session_recommended_at: recordForm.nextSessionAt || null,
+      photos: recordForm.photos.map(({ path, type, marketing_consent }) => ({ path, type, marketing_consent })),
+    });
+    if (error) {
+      toast.error('Falha ao salvar evolução');
+    } else {
+      toast.success('Evolução registrada no prontuário');
+      setRecordForm(emptyRecordForm());
+      setRecordDialogOpen(false);
+      fetchPatientRecords();
+    }
+    setSavingRecord(false);
   }
 
   async function saveCustomFields() {
@@ -401,14 +557,14 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
         <div className="border-b border-border/60 shrink-0">
           <TabsList className="bg-transparent h-10 gap-0 w-full rounded-none px-0">
             {[
-              { value: 'details', label: 'Detalhes' },
-              { value: 'tags',    label: 'Tags' },
-              { value: 'notes',   label: 'Notas' },
-              { value: 'custom',  label: 'Personalizados' },
-              { value: 'deals',   label: 'Negócios' },
-              // Gated by the account's enabled_features (049) — only
+              { value: 'details',    label: 'Detalhes' },
+              { value: 'tags',       label: 'Tags' },
+              { value: 'notes',      label: 'Notas' },
+              { value: 'custom',     label: 'Personalizados' },
+              { value: 'deals',      label: 'Negócios' },
+              // Gated by the account's enabled_features (050) — only
               // rendered at all for accounts with 'prontuario' switched
-              // on, so RLS on patient_records (051) is never even hit
+              // on, so RLS on patient_records (052) is never even hit
               // for accounts without the module.
               ...(hasFeature('prontuario')
                 ? [{ value: 'prontuario', label: 'Prontuário' }]
@@ -637,16 +793,255 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
           )}
         </TabsContent>
 
-        {/* Prontuário — only mounted for accounts with the feature on,
-            so the query is never even attempted for accounts without
-            it (RLS on patient_records would block it anyway, but this
-            avoids the round trip and any confusing error state). */}
+        {/* Prontuário — only mounted for accounts with the feature on
+            (050/052), so the query is never even attempted for accounts
+            without it (RLS on patient_records would block it anyway,
+            but this avoids the round trip and any confusing error
+            state). */}
         {hasFeature('prontuario') && (
-          <TabsContent value="prontuario" className="flex-1 overflow-y-auto px-5 py-4 mt-0">
-            <PatientRecordsTab contactId={contactId} />
+          <TabsContent value="prontuario" className="flex-1 flex flex-col min-h-0 px-5 py-4 mt-0 gap-3">
+            <div className="flex items-center justify-between shrink-0 gap-2">
+              <p className="text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5">
+                <ShieldAlert className="size-3.5 shrink-0 mt-0.5 text-amber-500" />
+                Registro clínico — cada evolução é permanente e não pode ser editada ou excluída depois de salva.
+              </p>
+              <Button
+                onClick={() => { setRecordForm(emptyRecordForm()); setRecordDialogOpen(true); }}
+                size="sm"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground shrink-0"
+              >
+                <Plus className="size-3.5" />
+                Nova evolução
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {loadingPatientRecords ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : patientRecords.length === 0 ? (
+                <EmptyState
+                  icon={<Stethoscope className="size-8 text-muted-foreground/40" />}
+                  title="Nenhuma evolução registrada"
+                  description="Registre procedimentos, observações clínicas e fotos de acompanhamento deste paciente."
+                />
+              ) : (
+                patientRecords.map((record) => (
+                  <PatientRecordCard
+                    key={record.id}
+                    record={record}
+                    professionalName={professionals.find((p) => p.id === record.professional_id)?.full_name}
+                    photoUrls={photoUrls}
+                  />
+                ))
+              )}
+            </div>
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Nova evolução */}
+      <Dialog open={recordDialogOpen} onOpenChange={setRecordDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto border-border bg-card sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-foreground flex items-center gap-2">
+              <Syringe className="size-4 text-primary" />
+              Nova evolução
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground text-sm">
+              Esse registro entra no prontuário do paciente de forma permanente — revise antes de salvar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Data/hora do atendimento</Label>
+                <Input
+                  type="datetime-local"
+                  value={recordForm.occurredAt}
+                  onChange={(e) => setRecordForm((p) => ({ ...p, occurredAt: e.target.value }))}
+                  className="bg-muted/60 border-border text-foreground h-9 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Profissional responsável</Label>
+                <div className="relative">
+                  <select
+                    value={recordForm.professionalId}
+                    onChange={(e) => setRecordForm((p) => ({ ...p, professionalId: e.target.value }))}
+                    className="h-9 w-full appearance-none rounded-lg border border-border bg-muted/60 px-3 pr-8 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                  >
+                    <option value="">Selecionar...</option>
+                    {professionals.map((p) => (
+                      <option key={p.id} value={p.id}>{p.full_name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Negócio vinculado (opcional)</Label>
+              <div className="relative">
+                <select
+                  value={recordForm.dealId}
+                  onChange={(e) => setRecordForm((p) => ({ ...p, dealId: e.target.value }))}
+                  className="h-9 w-full appearance-none rounded-lg border border-border bg-muted/60 px-3 pr-8 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                >
+                  <option value="">Nenhum</option>
+                  {deals.map((d) => (
+                    <option key={d.id} value={d.id}>{d.title}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Procedimento realizado <span className="text-red-400">*</span>
+              </Label>
+              <Textarea
+                value={recordForm.procedureDescription}
+                onChange={(e) => setRecordForm((p) => ({ ...p, procedureDescription: e.target.value }))}
+                placeholder="Ex: Toxina botulínica — terço superior da face"
+                className="bg-muted/60 border-border text-foreground placeholder:text-muted-foreground min-h-[60px] text-sm resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Área tratada</Label>
+              <Input
+                value={recordForm.treatedArea}
+                onChange={(e) => setRecordForm((p) => ({ ...p, treatedArea: e.target.value }))}
+                placeholder="Ex: Glabela, fronte e pés de galinha"
+                className="bg-muted/60 border-border text-foreground h-9 text-sm"
+              />
+            </div>
+
+            {/* Produtos/lotes */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium text-muted-foreground">Produtos utilizados (lote/validade)</Label>
+                <button type="button" onClick={addProductRow} className="text-xs text-primary hover:underline cursor-pointer">
+                  + adicionar
+                </button>
+              </div>
+              {recordForm.products.length > 0 && (
+                <div className="space-y-2">
+                  {recordForm.products.map((product, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-1.5 items-center">
+                      <Input
+                        value={product.name}
+                        onChange={(e) => updateProductRow(i, 'name', e.target.value)}
+                        placeholder="Produto"
+                        className="bg-muted/60 border-border text-foreground h-8 text-xs"
+                      />
+                      <Input
+                        value={product.lot ?? ''}
+                        onChange={(e) => updateProductRow(i, 'lot', e.target.value)}
+                        placeholder="Lote"
+                        className="bg-muted/60 border-border text-foreground h-8 text-xs"
+                      />
+                      <Input
+                        type="date"
+                        value={product.expiration ?? ''}
+                        onChange={(e) => updateProductRow(i, 'expiration', e.target.value)}
+                        className="bg-muted/60 border-border text-foreground h-8 text-xs"
+                      />
+                      <Input
+                        value={product.quantity ?? ''}
+                        onChange={(e) => updateProductRow(i, 'quantity', e.target.value)}
+                        placeholder="Qtd"
+                        className="bg-muted/60 border-border text-foreground h-8 text-xs w-14"
+                      />
+                      <button type="button" onClick={() => removeProductRow(i)} className="text-muted-foreground hover:text-red-400 cursor-pointer">
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Observações clínicas</Label>
+              <Textarea
+                value={recordForm.observations}
+                onChange={(e) => setRecordForm((p) => ({ ...p, observations: e.target.value }))}
+                placeholder="Reação, orientações passadas, intercorrências..."
+                className="bg-muted/60 border-border text-foreground placeholder:text-muted-foreground min-h-[60px] text-sm resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Retorno recomendado</Label>
+              <Input
+                type="date"
+                value={recordForm.nextSessionAt}
+                onChange={(e) => setRecordForm((p) => ({ ...p, nextSessionAt: e.target.value }))}
+                className="bg-muted/60 border-border text-foreground h-9 text-sm"
+              />
+            </div>
+
+            {/* Fotos */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Fotos antes/depois</Label>
+              <div className="flex gap-2">
+                <PhotoPickerButton label="Antes" disabled={uploadingPhoto} onPick={(f) => handlePhotoPicked(f, 'before')} />
+                <PhotoPickerButton label="Depois" disabled={uploadingPhoto} onPick={(f) => handlePhotoPicked(f, 'after')} />
+                {uploadingPhoto && <Loader2 className="size-4 animate-spin text-muted-foreground self-center" />}
+              </div>
+              {recordForm.photos.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  {recordForm.photos.map((photo, i) => (
+                    <div key={i} className="relative rounded-lg overflow-hidden border border-border group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photo.previewUrl} alt={photo.type} className="w-full h-16 object-cover" />
+                      <span className="absolute top-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-medium text-white">
+                        {photo.type === 'before' ? 'Antes' : 'Depois'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeRecordPhoto(i)}
+                        className="absolute top-1 right-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <X className="size-3" />
+                      </button>
+                      <label className="absolute bottom-0 inset-x-0 flex items-center gap-1 bg-black/60 px-1.5 py-0.5 text-[9px] text-white cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={photo.marketing_consent}
+                          onChange={() => togglePhotoConsent(i)}
+                          className="size-2.5"
+                        />
+                        Uso em marketing
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecordDialogOpen(false)} disabled={savingRecord}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={saveRecord}
+              disabled={savingRecord || uploadingPhoto || !recordForm.procedureDescription.trim()}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {savingRecord ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+              Salvar no prontuário
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ScheduleEventModal
         open={showScheduleModal}
@@ -704,93 +1099,6 @@ function EmptyState({
       <div className="mb-1">{icon}</div>
       <p className="text-sm font-medium text-muted-foreground">{title}</p>
       <p className="text-xs text-muted-foreground/70 max-w-[220px] leading-relaxed">{description}</p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// PatientRecordsTab — minimal read-only view of patient_records (051).
-// Self-contained (own fetch/state) so it only ever runs for accounts with
-// the 'prontuario' feature enabled — the parent only mounts this when
-// hasFeature('prontuario') is true. Deliberately read-only for now: an
-// authoring form is a larger feature than what this pass builds (the
-// admin panel + gating mechanism); this proves the gate end-to-end.
-// ---------------------------------------------------------------------------
-
-interface PatientRecordRow {
-  id: string;
-  record_date: string;
-  anamnesis: string | null;
-  evolution_notes: string | null;
-  procedures_performed: string | null;
-}
-
-function PatientRecordsTab({ contactId }: { contactId: string }) {
-  const supabase = createClient();
-  const [records, setRecords] = useState<PatientRecordRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('patient_records')
-        .select('id, record_date, anamnesis, evolution_notes, procedures_performed')
-        .eq('contact_id', contactId)
-        .order('record_date', { ascending: false });
-      if (!cancelled) {
-        if (error) {
-          console.error('[PatientRecordsTab] fetch error:', error);
-          setRecords([]);
-        } else {
-          setRecords(data ?? []);
-        }
-        setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contactId]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="size-5 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (records.length === 0) {
-    return (
-      <EmptyState
-        icon={<FileText className="size-8 text-muted-foreground/40" />}
-        title="Nenhum registro de prontuário"
-        description="Este contato ainda não tem anamnese ou evolução registrada."
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {records.map((r) => (
-        <div key={r.id} className="rounded-lg border border-border/60 p-3 space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">
-            {new Date(r.record_date).toLocaleDateString('pt-BR')}
-          </p>
-          {r.anamnesis && (
-            <p className="text-sm"><span className="text-muted-foreground">Anamnese: </span>{r.anamnesis}</p>
-          )}
-          {r.procedures_performed && (
-            <p className="text-sm"><span className="text-muted-foreground">Procedimentos: </span>{r.procedures_performed}</p>
-          )}
-          {r.evolution_notes && (
-            <p className="text-sm"><span className="text-muted-foreground">Evolução: </span>{r.evolution_notes}</p>
-          )}
-        </div>
-      ))}
     </div>
   );
 }
@@ -881,6 +1189,132 @@ function DealCard({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function PhotoPickerButton({
+  label,
+  disabled,
+  onPick,
+}: {
+  label: string;
+  disabled?: boolean;
+  onPick: (file: File | undefined) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/heic"
+        disabled={disabled}
+        className="hidden"
+        onChange={(e) => { onPick(e.target.files?.[0]); e.target.value = ''; }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        onClick={() => inputRef.current?.click()}
+      >
+        <ImagePlus className="size-3.5" />
+        {label}
+      </Button>
+    </>
+  );
+}
+
+function PatientRecordCard({
+  record,
+  professionalName,
+  photoUrls,
+}: {
+  record: PatientRecord;
+  professionalName?: string;
+  photoUrls: Record<string, string>;
+}) {
+  const beforePhotos = record.photos.filter((p) => p.type === 'before');
+  const afterPhotos = record.photos.filter((p) => p.type === 'after');
+
+  return (
+    <div className="rounded-lg bg-muted/40 border border-border/50 p-3 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium text-foreground leading-snug flex-1">
+          {record.procedure_description}
+        </p>
+        <span className="shrink-0 text-[10px] text-muted-foreground flex items-center gap-1">
+          <CalendarDays className="size-3" />
+          {new Date(record.occurred_at).toLocaleDateString('pt-BR', {
+            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+          })}
+        </span>
+      </div>
+
+      {(record.treated_area || professionalName) && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          {record.treated_area && <span>Área: {record.treated_area}</span>}
+          {professionalName && <span>Profissional: {professionalName}</span>}
+        </div>
+      )}
+
+      {record.products_used.length > 0 && (
+        <div className="space-y-1">
+          {record.products_used.map((product, i) => (
+            <div key={i} className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/50 rounded px-2 py-1">
+              <Syringe className="size-3 shrink-0" />
+              <span className="text-foreground">{product.name}</span>
+              {product.lot && <span>· lote {product.lot}</span>}
+              {product.expiration && <span>· val. {new Date(product.expiration).toLocaleDateString('pt-BR')}</span>}
+              {product.quantity && <span>· qtd {product.quantity}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {record.observations && (
+        <p className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed">{record.observations}</p>
+      )}
+
+      {(beforePhotos.length > 0 || afterPhotos.length > 0) && (
+        <div className="flex gap-3">
+          {beforePhotos.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] text-muted-foreground">Antes</p>
+              <div className="flex gap-1">
+                {beforePhotos.map((photo, i) => (
+                  photoUrls[photo.path]
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img key={i} src={photoUrls[photo.path]} alt="Antes" className="size-14 rounded object-cover border border-border" />
+                    : <div key={i} className="size-14 rounded bg-muted animate-pulse" />
+                ))}
+              </div>
+            </div>
+          )}
+          {afterPhotos.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] text-muted-foreground">Depois</p>
+              <div className="flex gap-1">
+                {afterPhotos.map((photo, i) => (
+                  photoUrls[photo.path]
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img key={i} src={photoUrls[photo.path]} alt="Depois" className="size-14 rounded object-cover border border-border" />
+                    : <div key={i} className="size-14 rounded bg-muted animate-pulse" />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {record.next_session_recommended_at && (
+        <p className="text-[10px] text-primary flex items-center gap-1 pt-1 border-t border-border/40">
+          <CalendarPlus className="size-3" />
+          Retorno recomendado: {new Date(record.next_session_recommended_at).toLocaleDateString('pt-BR')}
+        </p>
+      )}
     </div>
   );
 }

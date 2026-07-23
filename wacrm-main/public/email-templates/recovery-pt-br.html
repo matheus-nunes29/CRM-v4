@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Redefinir sua senha — Pyvo</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F4EDE0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4EDE0; padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#FFFFFF; border-radius:12px; overflow:hidden; border:1px solid #D9C9AD;">
+
+          <!-- Header -->
+          <tr>
+            <td align="center" style="background-color:#1F3A26; padding:32px 24px;">
+              <span style="font-size:22px; letter-spacing:0.08em; color:#C9A35E; font-weight:600;">PYVO</span>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 32px 8px 32px;">
+              <h1 style="margin:0 0 16px 0; font-size:20px; line-height:1.3; color:#1A1814; font-weight:700;">
+                Redefinir sua senha
+              </h1>
+              <p style="margin:0 0 16px 0; font-size:15px; line-height:1.6; color:#1A1814;">
+                Recebemos uma solicitação para redefinir a senha da sua conta no Pyvo CRM. Clique no botão abaixo para escolher uma nova senha.
+              </p>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:8px 32px 28px 32px;">
+              <a href="{{ .ConfirmationURL }}"
+                 style="display:inline-block; background-color:#1F3A26; color:#F4EDE0; text-decoration:none; font-size:15px; font-weight:600; padding:14px 32px; border-radius:8px;">
+                Redefinir senha
+              </a>
+            </td>
+          </tr>
+
+          <!-- Fallback code -->
+          <tr>
+            <td style="padding:0 32px 8px 32px;">
+              <p style="margin:0 0 8px 0; font-size:13px; line-height:1.6; color:#5A5245;">
+                Se o botão não funcionar, use o código de verificação abaixo na tela de redefinição de senha:
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px 0;">
+                <tr>
+                  <td style="background-color:#F4EDE0; border:1px solid #D9C9AD; border-radius:8px; padding:12px 20px;">
+                    <span style="font-size:20px; letter-spacing:0.25em; font-weight:700; color:#1F3A26; font-family:monospace;">{{ .Token }}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Notice -->
+          <tr>
+            <td style="padding:0 32px 32px 32px; border-top:1px solid #D9C9AD;">
+              <p style="margin:20px 0 0 0; font-size:13px; line-height:1.6; color:#5A5245;">
+                Este link e código expiram em pouco tempo por segurança. Se você não pediu a redefinição de senha, pode ignorar este e-mail com tranquilidade — sua senha atual continua válida.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <!-- Footer -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; margin-top:20px;">
+          <tr>
+            <td align="center">
+              <p style="margin:0; font-size:12px; line-height:1.6; color:#8A7F6B;">
+                Este é um e-mail automático do Pyvo CRM — não é necessário responder.
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
