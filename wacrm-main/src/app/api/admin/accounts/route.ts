@@ -13,11 +13,11 @@
 // exception is the RPC call itself, which runs under the admin's own
 // session because it self-checks `is_platform_admin()` internally.
 //
-// The new owner's password is generated here and returned exactly ONCE —
-// same "shown once" contract as invite tokens in
-// /api/account/invitations. We don't rely on Supabase's own invite e-mail
-// because SMTP isn't confirmed configured on every self-hosted
-// deployment; the admin relays the password to the client themselves.
+// The new owner starts on DEFAULT_ACCOUNT_PASSWORD (same fixed password
+// for every client, per PYVO's own process) — not a per-account secret.
+// We don't rely on Supabase's own invite e-mail because SMTP isn't
+// confirmed configured on every self-hosted deployment; the admin
+// relays the password to the client themselves.
 // ============================================================
 
 import { NextResponse } from "next/server";
@@ -29,7 +29,7 @@ import { supabaseAdmin } from "@/lib/flows/admin-client";
 import {
   isBusinessType,
   sanitizeFeatureKeys,
-  generateTemporaryPassword,
+  DEFAULT_ACCOUNT_PASSWORD,
 } from "@/lib/auth/platform-accounts";
 import {
   checkRateLimit,
@@ -174,12 +174,11 @@ export async function POST(request: Request) {
     const enabledFeatures = sanitizeFeatureKeys(body?.enabledFeatures);
 
     const admin = supabaseAdmin();
-    const temporaryPassword = generateTemporaryPassword();
 
     const { data: created, error: createUserError } =
       await admin.auth.admin.createUser({
         email,
-        password: temporaryPassword,
+        password: DEFAULT_ACCOUNT_PASSWORD,
         email_confirm: true,
         user_metadata: fullName ? { full_name: fullName } : undefined,
       });
@@ -235,8 +234,7 @@ export async function POST(request: Request) {
           enabledFeatures,
         },
         email,
-        // Plaintext — visible to the platform admin exactly once.
-        temporaryPassword,
+        password: DEFAULT_ACCOUNT_PASSWORD,
       },
       { status: 201 },
     );

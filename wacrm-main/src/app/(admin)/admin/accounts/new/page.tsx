@@ -29,7 +29,7 @@ import { BUSINESS_TYPES, AVAILABLE_FEATURES } from "@/lib/auth/platform-accounts
 interface ProvisionResult {
   account: { id: string; name: string };
   email: string;
-  temporaryPassword: string;
+  password: string;
 }
 
 export default function NewAdminAccountPage() {
@@ -87,7 +87,7 @@ export default function NewAdminAccountPage() {
 
   async function copyPassword() {
     if (!result) return;
-    await navigator.clipboard.writeText(result.temporaryPassword);
+    await navigator.clipboard.writeText(result.password);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -98,8 +98,8 @@ export default function NewAdminAccountPage() {
         <CardHeader>
           <CardTitle>Conta criada</CardTitle>
           <CardDescription>
-            Copie a senha temporária agora — ela só aparece uma vez. Repasse
-            pro cliente por WhatsApp ou e-mail.
+            A senha é a padrão de todos os clientes novos — não é secreta por
+            conta. Avise o cliente pra trocar assim que entrar pela primeira vez.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -112,10 +112,10 @@ export default function NewAdminAccountPage() {
             <p className="text-sm">{result.email}</p>
           </div>
           <div>
-            <Label>Senha temporária</Label>
+            <Label>Senha padrão</Label>
             <div className="mt-1 flex items-center gap-2">
               <code className="flex-1 rounded border bg-muted px-3 py-2 font-mono text-sm">
-                {result.temporaryPassword}
+                {result.password}
               </code>
               <Button type="button" variant="outline" size="icon" onClick={copyPassword}>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}

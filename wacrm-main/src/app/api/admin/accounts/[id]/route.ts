@@ -1,8 +1,14 @@
 // ============================================================
 // /api/admin/accounts/[id]
 //
-//   GET   — single account detail (with members list).
-//   PATCH — edit business_type / max_seats / status / enabled_features.
+//   GET    — single account detail (with members list).
+//   PATCH  — edit name / business_type / max_seats / status / enabled_features.
+//   DELETE — remove the account and every member's login entirely. This is
+//            full client offboarding, not the "leave the team, keep your
+//            login" semantics of remove_account_member (018) — every
+//            member's auth.users row is deleted too, freeing their e-mail
+//            for reuse elsewhere. Irreversible; the UI requires typing the
+//            account name to confirm before calling this.
 //
 // Platform-admin only. Service-role for the same reason as the list
 // route: the admin's own session is never `is_account_member` of the
@@ -91,6 +97,7 @@ export async function PATCH(
 
     const body = (await request.json().catch(() => null)) as
       | {
+          name?: unknown;
           businessType?: unknown;
           maxSeats?: unknown;
           status?: unknown;
@@ -103,6 +110,17 @@ export async function PATCH(
     }
 
     const update: Record<string, unknown> = {};
+
+    if (body.name !== undefined) {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (!name) {
+        return NextResponse.json(
+          { error: "'name' cannot be empty" },
+          { status: 400 },
+        );
+      }
+      update.name = name;
+    }
 
     if (body.businessType !== undefined) {
       if (!isBusinessType(body.businessType)) {
@@ -172,6 +190,110 @@ export async function PATCH(
     }
 
     return NextResponse.json({ account: data });
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    await requirePlatformAdmin();
+    const { id } = await params;
+
+    const body = (await request.json().catch(() => null)) as
+      | { confirmName?: unknown }
+      | null;
+    const confirmName =
+      typeof body?.confirmName === "string" ? body.confirmName.trim() : "";
+
+    const admin = supabaseAdmin();
+
+    const { data: account, error: accountError } = await admin
+      .from("accounts")
+      .select("id, name")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (accountError) {
+      console.error(
+        "[DELETE /api/admin/accounts/[id]] fetch error:",
+        accountError,
+      );
+      return NextResponse.json(
+        { error: "Failed to load account" },
+        { status: 500 },
+      );
+    }
+    if (!account) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+
+    // Server-side re-check of the "type the name to confirm" safeguard —
+    // the UI already requires this, but a stray API call shouldn't be
+    // able to delete by id alone without also proving it knows the name.
+    if (confirmName !== account.name) {
+      return NextResponse.json(
+        { error: "'confirmName' does not match the account's name" },
+        { status: 400 },
+      );
+    }
+
+    const { data: members, error: membersError } = await admin
+      .from("profiles")
+      .select("user_id")
+      .eq("account_id", id);
+
+    if (membersError) {
+      console.error(
+        "[DELETE /api/admin/accounts/[id]] members fetch error:",
+        membersError,
+      );
+      return NextResponse.json(
+        { error: "Failed to load account members" },
+        { status: 500 },
+      );
+    }
+
+    // Delete the account row first — cascades every domain table
+    // (contacts, deals, conversations, messages, patient_records,
+    // whatsapp_config, profiles, ...) that references account_id.
+    const { error: deleteError } = await admin
+      .from("accounts")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      console.error(
+        "[DELETE /api/admin/accounts/[id]] delete error:",
+        deleteError,
+      );
+      return NextResponse.json(
+        { error: "Failed to delete account" },
+        { status: 500 },
+      );
+    }
+
+    // Then remove each former member's actual login. Full offboarding,
+    // not the remove_account_member (018) semantics of "keep your login,
+    // just start a fresh empty personal account" — this account is gone
+    // for good, so its members' e-mails are freed up rather than left
+    // dangling with no profile to resolve.
+    for (const member of members ?? []) {
+      const { error: deleteUserError } = await admin.auth.admin.deleteUser(
+        member.user_id,
+      );
+      if (deleteUserError) {
+        console.error(
+          `[DELETE /api/admin/accounts/[id]] failed to delete user ${member.user_id}:`,
+          deleteUserError,
+        );
+      }
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return toErrorResponse(err);
   }

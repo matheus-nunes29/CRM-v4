@@ -2,7 +2,8 @@
 
 import { useEffect, useState, use as usePromise } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export default function AdminAccountDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = usePromise(params);
+  const router = useRouter();
 
   const [account, setAccount] = useState<AdminAccountDetail | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -55,10 +57,14 @@ export default function AdminAccountDetailPage({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [name, setName] = useState("");
   const [businessType, setBusinessType] = useState("other");
   const [maxSeats, setMaxSeats] = useState("");
   const [status, setStatus] = useState("active");
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +77,7 @@ export default function AdminAccountDetailPage({
 
         const a = payload.account as AdminAccountDetail;
         setAccount(a);
+        setName(a.name);
         setBusinessType(a.business_type);
         setMaxSeats(a.max_seats != null ? String(a.max_seats) : "");
         setStatus(a.status);
@@ -96,12 +103,17 @@ export default function AdminAccountDetailPage({
   }
 
   async function handleSave() {
+    if (!name.trim()) {
+      toast.error("O nome do cliente não pode ficar vazio");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/admin/accounts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: name.trim(),
           businessType,
           maxSeats: maxSeats.trim() === "" ? null : Number(maxSeats),
           status,
@@ -119,6 +131,29 @@ export default function AdminAccountDetailPage({
       toast.error("Falha de rede ao salvar");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!account || deleteConfirmText !== account.name) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/accounts/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmName: deleteConfirmText }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(payload.error || "Falha ao excluir conta");
+        return;
+      }
+      toast.success("Conta excluída");
+      router.push("/admin");
+    } catch {
+      toast.error("Falha de rede ao excluir conta");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -149,6 +184,16 @@ export default function AdminAccountDetailPage({
           <CardDescription>Tipo, limite de usuários, status e módulos.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="name">Nome do cliente</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Clínica Exemplo"
+            />
+          </div>
+
           <div>
             <Label htmlFor="businessType">Tipo de negócio</Label>
             <Select value={businessType} onValueChange={(v) => v && setBusinessType(v)}>
@@ -251,6 +296,47 @@ export default function AdminAccountDetailPage({
               </div>
             ))
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="text-destructive">Excluir conta</CardTitle>
+          <CardDescription>
+            Apaga a conta e todos os dados (contatos, conversas, mensagens,
+            prontuários, etc.) em cascata, e remove o login de todos os
+            membros. Irreversível.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label htmlFor="confirmDelete">
+              Digite <span className="font-semibold">{account.name}</span> para confirmar
+            </Label>
+            <Input
+              id="confirmDelete"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={account.name}
+            />
+          </div>
+          <Button
+            variant="destructive"
+            disabled={deleteConfirmText !== account.name || deleting}
+            onClick={handleDelete}
+          >
+            {deleting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Excluindo…
+              </>
+            ) : (
+              <>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir conta permanentemente
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
     </div>

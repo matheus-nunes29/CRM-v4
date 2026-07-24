@@ -7,8 +7,6 @@
 // separately in the DB CHECK and in `isAccountRole`.
 // ============================================================
 
-import { randomInt } from "node:crypto";
-
 /** Mirrors the CHECK constraint added in 050_account_plan_fields.sql. */
 export const BUSINESS_TYPES = [
   { value: "clinica_estetica", label: "Clínica de estética" },
@@ -60,21 +58,11 @@ export function sanitizeFeatureKeys(value: unknown): FeatureKey[] {
 }
 
 /**
- * One-time temporary password for a newly provisioned account owner.
- * Shown once in the admin UI (same "shown once" contract as invite
- * tokens in src/lib/auth/invitations.ts) — the admin copies it and
- * relays it to the client themselves (WhatsApp/e-mail), since we can't
- * assume SMTP is configured on every self-hosted deployment.
- *
- * 16 characters from an unambiguous alphabet (no 0/O/1/l/I) so it's
- * still typeable by hand if the copy/paste step fails.
+ * Fixed default password every newly provisioned account owner starts
+ * with — same string for every client, by design (per PYVO's own
+ * process: the admin tells the client this password verbally/by
+ * WhatsApp, no per-account secret to relay or lose). Not enforced
+ * technically; the client is expected to change it via the existing
+ * password-reset flow after first login.
  */
-const PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-
-export function generateTemporaryPassword(length = 16): string {
-  let out = "";
-  for (let i = 0; i < length; i++) {
-    out += PASSWORD_ALPHABET[randomInt(PASSWORD_ALPHABET.length)];
-  }
-  return out;
-}
+export const DEFAULT_ACCOUNT_PASSWORD = "pyvo@123";
