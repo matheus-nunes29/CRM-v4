@@ -154,6 +154,19 @@ export async function findOrCreateConversation(
     .single()
 
   if (error) {
+    // 23505 = unique_violation on (account_id, contact_id) — a concurrent
+    // webhook call for the same contact (a burst of messages arriving at
+    // once) won the race and already created the conversation. Fetch and
+    // return that one instead of forking a duplicate.
+    if (error.code === '23505') {
+      const { data: raced } = await db()
+        .from('conversations')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .maybeSingle()
+      return raced ?? null
+    }
     console.error(`${logPrefix} create conversation error:`, error)
     return null
   }

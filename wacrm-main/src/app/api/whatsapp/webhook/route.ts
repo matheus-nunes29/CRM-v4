@@ -1049,6 +1049,19 @@ async function findOrCreateConversation(
     .single()
 
   if (createError) {
+    // 23505 = unique_violation on (account_id, contact_id) — a concurrent
+    // webhook call for the same contact won the race and already created
+    // the conversation. Fetch and return that one instead of forking a
+    // duplicate.
+    if (createError.code === '23505') {
+      const { data: raced } = await supabaseAdmin()
+        .from('conversations')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .maybeSingle()
+      return raced ?? null
+    }
     console.error('Error creating conversation:', createError)
     return null
   }
