@@ -702,24 +702,6 @@ function DealTab({
         </div>
       </div>
 
-      {/* Notes */}
-      <div className="rounded-xl border border-border bg-card p-4 space-y-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Observações</p>
-        {editMode ? (
-          <textarea
-            value={editNotes}
-            onChange={e => setEditNotes(e.target.value)}
-            rows={3}
-            placeholder="Adicionar observações..."
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary resize-none"
-          />
-        ) : (
-          <p className={cn('whitespace-pre-wrap text-sm leading-relaxed', deal.notes ? 'text-foreground' : 'text-muted-foreground/60 italic')}>
-            {deal.notes ?? 'Sem observações'}
-          </p>
-        )}
-      </div>
-
       {/* Items */}
       <DealItemsPanel dealId={deal.id} currency={currency} onValueChange={onValueChange} />
 
@@ -772,6 +754,24 @@ function DealTab({
               </>
             )}
           </div>
+        )}
+      </div>
+
+      {/* Notes */}
+      <div className="rounded-xl border border-border bg-card p-4 space-y-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Observações</p>
+        {editMode ? (
+          <textarea
+            value={editNotes}
+            onChange={e => setEditNotes(e.target.value)}
+            rows={3}
+            placeholder="Adicionar observações..."
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary resize-none"
+          />
+        ) : (
+          <p className={cn('whitespace-pre-wrap text-sm leading-relaxed', deal.notes ? 'text-foreground' : 'text-muted-foreground/60 italic')}>
+            {deal.notes ?? 'Sem observações'}
+          </p>
         )}
       </div>
 
