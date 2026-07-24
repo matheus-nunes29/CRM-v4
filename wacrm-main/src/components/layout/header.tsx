@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
+import { Building2, LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -24,7 +24,7 @@ interface HeaderProps {
 }
 
 export function Header({ onOpenSidebar, scrolled }: HeaderProps) {
-  const { profile, signOut } = useAuth();
+  const { profile, account, signOut } = useAuth();
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
@@ -53,6 +53,16 @@ export function Header({ onOpenSidebar, scrolled }: HeaderProps) {
         </button>
 
         <GlobalSearch />
+
+        {account?.name && (
+          <span
+            className="hidden shrink-0 items-center gap-1.5 truncate rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground md:inline-flex"
+            title={account.name}
+          >
+            <Building2 className="size-3.5 shrink-0" />
+            {account.name}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
