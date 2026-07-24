@@ -524,14 +524,18 @@ function DealTab({
   return (
     <div className="space-y-5 px-5 py-5">
 
-      {/* ── Value hero ─────────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-primary/10 border border-primary/15 px-5 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-primary/60 mb-1">Valor do negócio</p>
-        <p className="text-3xl font-extrabold tabular-nums text-foreground tracking-tight">
-          {formatCurrency(displayValue, currency)}
-        </p>
+      {/* ── Value + pipeline ──────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Valor do negócio</p>
+          <p className="mt-0.5 text-2xl font-bold tabular-nums text-foreground">
+            {formatCurrency(displayValue, currency)}
+          </p>
+        </div>
         {(deal as Deal & { pipeline?: { name: string } }).pipeline && (
-          <p className="mt-1 text-xs text-muted-foreground">{(deal as Deal & { pipeline?: { name: string } }).pipeline!.name}</p>
+          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+            {(deal as Deal & { pipeline?: { name: string } }).pipeline!.name}
+          </span>
         )}
       </div>
 
@@ -586,7 +590,7 @@ function DealTab({
               type="button"
               disabled={statusLoading}
               onClick={() => onChangeStatus('won')}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 py-2.5 text-sm font-semibold text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover transition-colors disabled:opacity-50"
             >
               {statusLoading ? <Loader2 className="size-4 animate-spin" /> : <Trophy className="size-4" />}
               Ganhar
@@ -625,42 +629,37 @@ function DealTab({
         )}
       </div>
 
-      {/* ── Info grid ─────────────────────────────────────────────── */}
-      <div className="grid gap-2 sm:grid-cols-2">
+      {/* ── WhatsApp — a única ação aqui, por isso fica destacada ──── */}
+      {deal.contact && (
+        <button
+          type="button"
+          onClick={onOpenInbox}
+          className="flex w-full items-center gap-3 rounded-xl border border-[#25D366]/40 bg-[#25D366]/5 p-3 text-left hover:bg-[#25D366]/10 transition-colors"
+        >
+          <WhatsAppIcon className="size-4 shrink-0 text-[#25D366]" />
+          <span className="text-sm font-medium text-[#25D366]">Falar no WhatsApp</span>
+        </button>
+      )}
+
+      {/* ── Detalhes — um card, linhas divididas (não grade de cards) */}
+      <div className="rounded-xl border border-border bg-card divide-y divide-border">
         {/* Contact */}
         {deal.contact && (
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+          <div className="flex items-center gap-3 p-3">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
               {initials(deal.contact.name ?? deal.contact.phone)}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] text-muted-foreground">Contato</p>
-              <p className="truncate text-sm font-semibold text-foreground">{deal.contact.name ?? deal.contact.phone ?? '—'}</p>
-              {deal.contact.phone && deal.contact.name && (
-                <p className="text-xs text-muted-foreground">{deal.contact.phone}</p>
-              )}
+              <p className="truncate text-sm font-medium text-foreground">{deal.contact.name ?? deal.contact.phone ?? '—'}</p>
             </div>
             <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
           </div>
         )}
 
-        {deal.contact && (
-          <button
-            type="button"
-            onClick={onOpenInbox}
-            className="flex items-center gap-3 rounded-xl border border-[#25D366]/40 bg-[#25D366]/5 p-3 text-left hover:bg-[#25D366]/10 transition-colors"
-          >
-            <WhatsAppIcon className="size-4 shrink-0 text-[#25D366]" />
-            <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground">WhatsApp</p>
-              <p className="text-sm font-medium text-[#25D366]">Falar no WhatsApp</p>
-            </div>
-          </button>
-        )}
-
         {/* Current stage */}
         {(deal as Deal & { stage?: { name: string } }).stage && (
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+          <div className="flex items-center gap-3 p-3">
             <Tag className="size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
               <p className="text-[10px] text-muted-foreground">Etapa</p>
@@ -673,7 +672,7 @@ function DealTab({
 
         {/* Created at */}
         {deal.created_at && (
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+          <div className="flex items-center gap-3 p-3">
             <Clock className="size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
               <p className="text-[10px] text-muted-foreground">Criado em</p>
@@ -685,7 +684,7 @@ function DealTab({
         )}
 
         {/* Assignee */}
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+        <div className="flex items-center gap-3 p-3">
           <User className="size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] text-muted-foreground">Responsável</p>
@@ -709,7 +708,7 @@ function DealTab({
         </div>
 
         {/* Expected close date */}
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+        <div className="flex items-center gap-3 p-3">
           <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] text-muted-foreground">Previsão de fechamento</p>
