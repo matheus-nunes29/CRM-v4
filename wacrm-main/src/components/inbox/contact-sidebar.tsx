@@ -158,7 +158,9 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
             >
               <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{contact.phone}</span>
+              <span className="flex-1 text-left">
+                {contact.is_group ? "Grupo" : contact.phone}
+              </span>
               {copied ? (
                 <Check className="h-3 w-3 text-primary" />
               ) : (

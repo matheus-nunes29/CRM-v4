@@ -545,7 +545,7 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
                 className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
               >
                 <Phone className="size-3 shrink-0" />
-                <span>{contact.phone}</span>
+                <span>{contact.is_group ? "Grupo" : contact.phone}</span>
                 {copiedPhone
                   ? <Check className="size-3 text-primary" />
                   : <Copy className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />

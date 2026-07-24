@@ -864,7 +864,7 @@ export default function ContactsPage() {
                     {contact.name || <span className="text-muted-foreground italic">Sem nome</span>}
                   </TableCell>
                   <TableCell className="text-muted-foreground font-mono text-xs">
-                    {contact.phone}
+                    {contact.is_group ? "Grupo" : contact.phone}
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden md:table-cell text-sm">
                     {contact.email || <span className="text-muted-foreground">-</span>}
