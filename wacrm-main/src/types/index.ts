@@ -239,12 +239,22 @@ export interface ContactNote {
   created_at: string;
 }
 
-/** One product/lot used during a procedure — injectable traceability. */
+/** One product/lot used during a procedure — injectable traceability.
+ *  `name`/`lot`/`expiration` are always present (free-text snapshot,
+ *  shown regardless). `product_id`/`lot_id` are only set when the
+ *  account has the 'estoque' feature and the item was picked from the
+ *  product catalog with a real stock lot (migration 056/057) — their
+ *  presence is what triggers automatic stock deduction on save. Absent
+ *  on every record written before this feature existed (or by an
+ *  account without it) — additive, not a breaking change to the shape
+ *  already in production. */
 export interface PatientRecordProduct {
   name: string;
   lot?: string;
   expiration?: string;
   quantity?: string;
+  product_id?: string;
+  lot_id?: string;
 }
 
 /** A before/after photo attached to a patient record. `path` is the

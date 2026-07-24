@@ -5,10 +5,12 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useCan } from '@/hooks/use-can'
 import { toast } from 'sonner'
-import { Package, Plus, Pencil, Trash2, X, Check, ShoppingCart } from 'lucide-react'
+import Link from 'next/link'
+import { Package, Plus, Pencil, Trash2, X, Boxes, ShoppingCart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { SettingsPanelHead } from './settings-panel-head'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +20,8 @@ interface Product {
   description: string | null
   type: 'product' | 'service'
   default_price: number | null
+  unit: string
+  tracks_stock: boolean
   created_at: string
 }
 
@@ -36,9 +40,18 @@ interface FormState {
   description: string
   type: 'product' | 'service'
   default_price: string
+  unit: string
+  tracks_stock: boolean
 }
 
-const EMPTY_FORM: FormState = { name: '', description: '', type: 'product', default_price: '' }
+const EMPTY_FORM: FormState = {
+  name: '',
+  description: '',
+  type: 'product',
+  default_price: '',
+  unit: 'un',
+  tracks_stock: false,
+}
 
 export function ProductsPanel() {
   const supabase = createClient()
@@ -78,6 +91,8 @@ export function ProductsPanel() {
       description: p.description ?? '',
       type: p.type,
       default_price: p.default_price != null ? String(p.default_price) : '',
+      unit: p.unit,
+      tracks_stock: p.tracks_stock,
     })
     setFormOpen(true)
   }
@@ -98,6 +113,8 @@ export function ProductsPanel() {
       description: form.description.trim() || null,
       type: form.type,
       default_price: form.default_price !== '' ? parseFloat(form.default_price.replace(',', '.')) : null,
+      unit: form.unit.trim() || 'un',
+      tracks_stock: form.type === 'product' && form.tracks_stock,
       account_id: accountId,
     }
 
@@ -194,7 +211,31 @@ export function ProductsPanel() {
                 placeholder="Breve descrição"
               />
             </div>
+            {form.type === 'product' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="p-unit">Unidade de medida</Label>
+                <Input
+                  id="p-unit"
+                  value={form.unit}
+                  onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+                  placeholder="un, ml, ampola..."
+                />
+              </div>
+            )}
           </div>
+
+          {form.type === 'product' && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="p-tracks-stock"
+                checked={form.tracks_stock}
+                onCheckedChange={checked => setForm(f => ({ ...f, tracks_stock: checked === true }))}
+              />
+              <Label htmlFor="p-tracks-stock" className="font-normal">
+                Controla estoque (lotes, validade e baixa automática pelo prontuário)
+              </Label>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" size="sm" onClick={closeForm}>Cancelar</Button>
@@ -242,6 +283,15 @@ export function ProductsPanel() {
                     <p className="truncate text-sm font-medium text-foreground">{p.name}</p>
                     {p.description && <p className="truncate text-xs text-muted-foreground">{p.description}</p>}
                   </div>
+                  {p.tracks_stock && (
+                    <Link
+                      href={`/estoque/${p.id}`}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                    >
+                      <Boxes className="size-2.5" />
+                      Estoque
+                    </Link>
+                  )}
                   <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
                     {fmtPrice(p.default_price)}
                   </span>

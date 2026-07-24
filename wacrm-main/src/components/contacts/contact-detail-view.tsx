@@ -367,6 +367,32 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
     }));
   }
 
+  // Sets product_id/lot_id alongside the display snapshot (name/lot/
+  // expiration) when a stock-tracked product+lot is picked — see
+  // StockProductPicker below. This is what makes 056's trigger fire an
+  // automatic stock deduction on save; rows without these two ids keep
+  // behaving exactly like the old free-text flow.
+  function selectStockLotForRow(
+    index: number,
+    selection: { name: string; lot: string; expiration: string; product_id: string; lot_id: string },
+  ) {
+    setRecordForm((prev) => ({
+      ...prev,
+      products: prev.products.map((p, i) =>
+        i === index
+          ? {
+              ...p,
+              name: selection.name,
+              lot: selection.lot,
+              expiration: selection.expiration,
+              product_id: selection.product_id,
+              lot_id: selection.lot_id,
+            }
+          : p,
+      ),
+    }));
+  }
+
   function removeProductRow(index: number) {
     setRecordForm((prev) => ({ ...prev, products: prev.products.filter((_, i) => i !== index) }));
   }
@@ -433,7 +459,15 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
       photos: recordForm.photos.map(({ path, type, marketing_consent }) => ({ path, type, marketing_consent })),
     });
     if (error) {
-      toast.error('Falha ao salvar evolução');
+      // Estoque insuficiente (056/apply_stock_movement) chega aqui como
+      // um erro de banco comum — mensagem dedicada em vez do genérico,
+      // já que agora salvar pode falhar por causa do estoque, não só de
+      // conexão/validação.
+      if (error.message.includes('Estoque insuficiente')) {
+        toast.error(error.message);
+      } else {
+        toast.error('Falha ao salvar evolução');
+      }
     } else {
       toast.success('Evolução registrada no prontuário');
       setRecordForm(emptyRecordForm());
@@ -933,35 +967,60 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
               {recordForm.products.length > 0 && (
                 <div className="space-y-2">
                   {recordForm.products.map((product, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-1.5 items-center">
-                      <Input
-                        value={product.name}
-                        onChange={(e) => updateProductRow(i, 'name', e.target.value)}
-                        placeholder="Produto"
-                        className="bg-muted/60 border-border text-foreground h-8 text-xs"
-                      />
-                      <Input
-                        value={product.lot ?? ''}
-                        onChange={(e) => updateProductRow(i, 'lot', e.target.value)}
-                        placeholder="Lote"
-                        className="bg-muted/60 border-border text-foreground h-8 text-xs"
-                      />
-                      <Input
-                        type="date"
-                        value={product.expiration ?? ''}
-                        onChange={(e) => updateProductRow(i, 'expiration', e.target.value)}
-                        className="bg-muted/60 border-border text-foreground h-8 text-xs"
-                      />
-                      <Input
-                        value={product.quantity ?? ''}
-                        onChange={(e) => updateProductRow(i, 'quantity', e.target.value)}
-                        placeholder="Qtd"
-                        className="bg-muted/60 border-border text-foreground h-8 text-xs w-14"
-                      />
-                      <button type="button" onClick={() => removeProductRow(i)} className="text-muted-foreground hover:text-red-400 cursor-pointer">
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
+                    hasFeature('estoque') ? (
+                      <div key={i} className="grid grid-cols-[2fr_1fr_auto_auto] gap-1.5 items-center">
+                        <StockProductPicker
+                          label={product.product_id ? `${product.name} — lote ${product.lot}` : 'Selecionar produto'}
+                          onSelect={(selection) => selectStockLotForRow(i, selection)}
+                        />
+                        <Input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={product.quantity ?? ''}
+                          onChange={(e) => updateProductRow(i, 'quantity', e.target.value)}
+                          placeholder="Qtd"
+                          disabled={!product.product_id}
+                          className="bg-muted/60 border-border text-foreground h-8 text-xs"
+                        />
+                        <span className="text-[10px] text-muted-foreground w-16 truncate" title={product.expiration || undefined}>
+                          {product.expiration ? `val. ${product.expiration}` : ''}
+                        </span>
+                        <button type="button" onClick={() => removeProductRow(i)} className="text-muted-foreground hover:text-red-400 cursor-pointer">
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-1.5 items-center">
+                        <Input
+                          value={product.name}
+                          onChange={(e) => updateProductRow(i, 'name', e.target.value)}
+                          placeholder="Produto"
+                          className="bg-muted/60 border-border text-foreground h-8 text-xs"
+                        />
+                        <Input
+                          value={product.lot ?? ''}
+                          onChange={(e) => updateProductRow(i, 'lot', e.target.value)}
+                          placeholder="Lote"
+                          className="bg-muted/60 border-border text-foreground h-8 text-xs"
+                        />
+                        <Input
+                          type="date"
+                          value={product.expiration ?? ''}
+                          onChange={(e) => updateProductRow(i, 'expiration', e.target.value)}
+                          className="bg-muted/60 border-border text-foreground h-8 text-xs"
+                        />
+                        <Input
+                          value={product.quantity ?? ''}
+                          onChange={(e) => updateProductRow(i, 'quantity', e.target.value)}
+                          placeholder="Qtd"
+                          className="bg-muted/60 border-border text-foreground h-8 text-xs w-14"
+                        />
+                        <button type="button" onClick={() => removeProductRow(i)} className="text-muted-foreground hover:text-red-400 cursor-pointer">
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    )
                   ))}
                 </div>
               )}
@@ -1084,6 +1143,186 @@ export function ContactDetailView({
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// StockProductPicker — two-step product → lot picker for a "produtos
+// utilizados" row when the account has 'estoque'. Same search-and-click
+// pattern as deal-items-panel.tsx (no native <select>), just with a
+// second step to choose which lot. Lots are ordered soonest-expiring
+// first (FEFO) so staff naturally reaches for stock closest to expiry.
+// ---------------------------------------------------------------------------
+
+interface StockProductOption {
+  id: string;
+  name: string;
+}
+
+interface StockLotOption {
+  id: string;
+  lot_number: string;
+  expiration_date: string | null;
+  quantity_remaining: number;
+}
+
+function StockProductPicker({
+  label,
+  onSelect,
+}: {
+  label: string;
+  onSelect: (selection: {
+    name: string;
+    lot: string;
+    expiration: string;
+    product_id: string;
+    lot_id: string;
+  }) => void;
+}) {
+  const supabase = createClient();
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<'product' | 'lot'>('product');
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState('');
+  const [products, setProducts] = useState<StockProductOption[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<StockProductOption | null>(null);
+  const [lots, setLots] = useState<StockLotOption[]>([]);
+
+  async function openPicker() {
+    setOpen(true);
+    setStep('product');
+    setQuery('');
+    setLoading(true);
+    const { data } = await supabase
+      .from('products')
+      .select('id, name')
+      .eq('tracks_stock', true)
+      .order('name');
+    setProducts((data ?? []) as StockProductOption[]);
+    setLoading(false);
+  }
+
+  async function pickProduct(p: StockProductOption) {
+    setSelectedProduct(p);
+    setStep('lot');
+    setLoading(true);
+    const { data } = await supabase
+      .from('product_stock_lots')
+      .select('id, lot_number, expiration_date, quantity_remaining')
+      .eq('product_id', p.id)
+      .gt('quantity_remaining', 0)
+      .order('expiration_date', { ascending: true, nullsFirst: false });
+    setLots((data ?? []) as StockLotOption[]);
+    setLoading(false);
+  }
+
+  function pickLot(lot: StockLotOption) {
+    if (!selectedProduct) return;
+    onSelect({
+      name: selectedProduct.name,
+      lot: lot.lot_number,
+      expiration: lot.expiration_date ?? '',
+      product_id: selectedProduct.id,
+      lot_id: lot.id,
+    });
+    setOpen(false);
+  }
+
+  const filteredProducts = products.filter((p) =>
+    p.name.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={openPicker}
+        className="flex h-8 w-full items-center gap-1.5 truncate rounded-md border border-border bg-muted/60 px-2 text-left text-xs text-foreground hover:border-primary"
+      >
+        <Package className="size-3 shrink-0 text-muted-foreground" />
+        <span className="truncate">{label}</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1 w-72 rounded-md border border-border bg-popover p-2 shadow-md">
+          {step === 'product' ? (
+            <>
+              <Input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar produto..."
+                className="h-7 text-xs mb-1.5"
+              />
+              <div className="max-h-48 overflow-y-auto space-y-0.5">
+                {loading ? (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">Carregando...</p>
+                ) : filteredProducts.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">
+                    Nenhum produto com controle de estoque.
+                  </p>
+                ) : (
+                  filteredProducts.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => pickProduct(p)}
+                      className="block w-full truncate rounded px-2 py-1.5 text-left text-xs text-foreground hover:bg-muted"
+                    >
+                      {p.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="truncate text-xs font-medium text-foreground">{selectedProduct?.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setStep('product')}
+                  className="shrink-0 text-[10px] text-primary hover:underline"
+                >
+                  Trocar produto
+                </button>
+              </div>
+              <div className="max-h-48 overflow-y-auto space-y-0.5">
+                {loading ? (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">Carregando...</p>
+                ) : lots.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">
+                    Nenhum lote com saldo disponível.
+                  </p>
+                ) : (
+                  lots.map((lot) => (
+                    <button
+                      key={lot.id}
+                      type="button"
+                      onClick={() => pickLot(lot)}
+                      className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs text-foreground hover:bg-muted"
+                    >
+                      <span className="truncate">Lote {lot.lot_number}</span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {lot.quantity_remaining} restantes
+                        {lot.expiration_date ? ` · val. ${lot.expiration_date}` : ''}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="mt-1.5 w-full rounded px-2 py-1 text-center text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function EmptyState({
   icon,

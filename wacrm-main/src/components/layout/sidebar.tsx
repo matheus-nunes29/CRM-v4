@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { PyvoLogo } from "@/components/pyvo-logo";
 import {
+  Boxes,
   Briefcase,
   CalendarDays,
   GitBranch,
@@ -58,6 +59,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/negocios", label: "Negócios", icon: Briefcase },
       { href: "/pipelines", label: "Pipelines", icon: GitBranch },
+      { href: "/estoque", label: "Estoque", icon: Boxes, feature: "estoque" },
     ],
   },
   {

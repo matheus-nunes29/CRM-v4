@@ -37,6 +37,7 @@ export const AVAILABLE_FEATURES = [
   { key: "broadcasts", label: "Disparos", implemented: true },
   { key: "automations", label: "Automações", implemented: true },
   { key: "flows", label: "Flows", implemented: true },
+  { key: "estoque", label: "Estoque", implemented: true },
   { key: "dre", label: "DRE (financeiro)", implemented: false },
 ] as const;
 
