@@ -214,7 +214,23 @@ export async function POST(request: Request) {
     if (rpcError) {
       // The auth user was created but never provisioned into a real
       // account — clean it up rather than leaving a dangling login that
-      // isn't tied to anything usable.
+      // isn't tied to anything usable. accounts.owner_user_id is
+      // ON DELETE RESTRICT, so the orphan personal account (created by
+      // the handle_new_user trigger alongside the auth user) has to go
+      // FIRST — deleting the user while they still own it would just
+      // fail silently and leave both behind.
+      await admin
+        .from("accounts")
+        .delete()
+        .eq("owner_user_id", created.user.id)
+        .then(({ error: deleteAccountErr }) => {
+          if (deleteAccountErr) {
+            console.error(
+              "[POST /api/admin/accounts] failed to roll back orphaned account:",
+              deleteAccountErr,
+            );
+          }
+        });
       await admin.auth.admin.deleteUser(created.user.id).catch((cleanupErr) => {
         console.error(
           "[POST /api/admin/accounts] failed to roll back orphaned user:",
