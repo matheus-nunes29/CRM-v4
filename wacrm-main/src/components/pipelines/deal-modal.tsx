@@ -310,7 +310,7 @@ export function DealModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[3px] animate-in fade-in duration-200"
+        className="fixed inset-0 z-[45] bg-black/50 backdrop-blur-[3px] animate-in fade-in duration-200"
         onClick={() => !editMode && onOpenChange(false)}
         aria-hidden
       />
