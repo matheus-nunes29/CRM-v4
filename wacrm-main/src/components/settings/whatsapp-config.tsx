@@ -714,8 +714,11 @@ export function WhatsAppConfig() {
                           <img src={evolutionQrCode} alt="WhatsApp QR Code" className="size-52 object-contain" />
                         </div>
                         {evolutionPairingCode && (
-                          <p className="text-sm text-foreground">
-                            Ou use o código: <code className="font-mono font-semibold tracking-widest">{evolutionPairingCode}</code>
+                          <p className="max-w-sm text-center text-sm text-foreground">
+                            Ou use o código:{' '}
+                            <code className="break-all font-mono font-semibold tracking-widest">
+                              {evolutionPairingCode}
+                            </code>
                           </p>
                         )}
                         <p className="text-xs text-muted-foreground text-center">
