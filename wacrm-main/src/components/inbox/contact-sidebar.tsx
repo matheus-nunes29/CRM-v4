@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import { DealModal } from "@/components/pipelines/deal-modal";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -28,6 +29,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+  const [dealModalOpen, setDealModalOpen] = useState(false);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
@@ -219,9 +222,14 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 <p className="px-1 text-xs text-muted-foreground">Sem negócios</p>
               ) : (
                 deals.map((deal) => (
-                  <div
+                  <button
+                    type="button"
                     key={deal.id}
-                    className="rounded-lg bg-muted px-3 py-2"
+                    onClick={() => {
+                      setSelectedDealId(deal.id);
+                      setDealModalOpen(true);
+                    }}
+                    className="w-full rounded-lg bg-muted px-3 py-2 text-left transition-colors hover:bg-muted/70"
                   >
                     <p className="text-sm font-medium text-foreground">
                       {deal.title}
@@ -243,7 +251,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -296,6 +304,13 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           </div>
         </div>
       </ScrollArea>
+
+      <DealModal
+        open={dealModalOpen}
+        onOpenChange={setDealModalOpen}
+        dealId={selectedDealId}
+        onRefresh={fetchContactData}
+      />
     </div>
   );
 }
