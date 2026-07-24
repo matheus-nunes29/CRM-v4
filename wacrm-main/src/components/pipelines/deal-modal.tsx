@@ -8,9 +8,9 @@ import { formatCurrency } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
-  X, Pencil, Check, Trophy, XCircle, ArrowRight, RotateCcw,
+  X, Pencil, Check, ArrowRight, RotateCcw,
   Loader2, CalendarDays, User, MessageSquare, Clock, CalendarPlus,
-  ExternalLink, History, Trash2, Tag,
+  ExternalLink, History, Trash2,
 } from 'lucide-react'
 // WhatsApp icon (inline SVG — not in lucide)
 const WhatsAppIcon = ({ className }: { className?: string }) => (
@@ -122,7 +122,7 @@ export function DealModal({
 
   const currency = deal?.currency ?? defaultCurrency
   const sortedStages = [...stages].sort((a, b) => fixedKey(a) - fixedKey(b))
-  const flowStages = sortedStages.filter(s => s.fixed_role !== 'lost')
+  const flowStages = sortedStages
   const currentIdx = flowStages.findIndex(s => s.id === deal?.stage_id)
   const nextStage = currentIdx >= 0 && currentIdx < flowStages.length - 1 ? flowStages[currentIdx + 1] : null
   const displayValue = liveValue ?? deal?.value ?? 0
@@ -547,6 +547,7 @@ function DealTab({
             const isCurrent = s.id === deal.stage_id
             const isPast = i < currentIdx
             const isMoving = movingStage === s.id
+            const isLostStage = s.fixed_role === 'lost'
             return (
               <button
                 key={s.id}
@@ -564,15 +565,22 @@ function DealTab({
                 )}
                 <span className={cn(
                   'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap border transition-all',
-                  isCurrent
+                  isCurrent && isLostStage
+                    ? 'border-destructive bg-destructive/10 text-destructive shadow-sm'
+                    : isCurrent
                     ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                     : isPast
                     ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                    : isLostStage
+                    ? 'border-destructive/30 bg-destructive/5 text-destructive/70 hover:bg-destructive/10'
                     : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}>
                   {isMoving
                     ? <Loader2 className="size-2.5 animate-spin" />
-                    : <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: isCurrent ? 'white' : (isPast ? 'var(--primary)' : s.color) }} />
+                    : <span
+                        className="size-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: isCurrent ? (isLostStage ? 'var(--destructive)' : 'white') : (isPast ? 'var(--primary)' : isLostStage ? 'var(--destructive)' : s.color) }}
+                      />
                   }
                   {s.name}
                 </span>
@@ -582,41 +590,10 @@ function DealTab({
         </div>
       </div>
 
-      {/* ── Win/Lose/Next actions ──────────────────────────────────── */}
+      {/* ── Ação rápida — ganhar/perder já acontece clicando na etapa
+          "Ganho"/"Perdido" ali em cima; aqui só sobra avançar ou reabrir. */}
       <div className="flex gap-2">
-        {!isWon && !isLost ? (
-          <>
-            <button
-              type="button"
-              disabled={statusLoading}
-              onClick={() => onChangeStatus('won')}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover transition-colors disabled:opacity-50"
-            >
-              {statusLoading ? <Loader2 className="size-4 animate-spin" /> : <Trophy className="size-4" />}
-              Ganhar
-            </button>
-            <button
-              type="button"
-              disabled={statusLoading}
-              onClick={() => onChangeStatus('lost')}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
-            >
-              {statusLoading ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
-              Perder
-            </button>
-            {nextStage && (
-              <button
-                type="button"
-                disabled={!!movingStage}
-                onClick={() => onMoveStage(nextStage.id)}
-                title={`Mover para "${nextStage.name}"`}
-                className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border bg-muted px-4 py-2.5 text-sm font-medium text-foreground hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                {movingStage === nextStage.id ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-              </button>
-            )}
-          </>
-        ) : (
+        {isWon || isLost ? (
           <button
             type="button"
             disabled={statusLoading}
@@ -626,7 +603,17 @@ function DealTab({
             <RotateCcw className="size-4" />
             Reabrir negócio
           </button>
-        )}
+        ) : nextStage ? (
+          <button
+            type="button"
+            disabled={!!movingStage}
+            onClick={() => onMoveStage(nextStage.id)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-muted py-2.5 text-sm font-medium text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            {movingStage === nextStage.id ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+            Avançar para &quot;{nextStage.name}&quot;
+          </button>
+        ) : null}
       </div>
 
       {/* ── WhatsApp — a única ação aqui, por isso fica destacada ──── */}
@@ -654,19 +641,6 @@ function DealTab({
               <p className="truncate text-sm font-medium text-foreground">{deal.contact.name ?? deal.contact.phone ?? '—'}</p>
             </div>
             <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
-          </div>
-        )}
-
-        {/* Current stage */}
-        {(deal as Deal & { stage?: { name: string } }).stage && (
-          <div className="flex items-center gap-3 p-3">
-            <Tag className="size-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] text-muted-foreground">Etapa</p>
-              <p className="truncate text-sm font-medium text-foreground">
-                {(deal as Deal & { stage?: { name: string } }).stage!.name}
-              </p>
-            </div>
           </div>
         )}
 
