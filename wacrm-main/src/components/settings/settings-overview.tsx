@@ -23,9 +23,19 @@ interface OverviewCounts {
   customFields: number | null;
 }
 
+const PROVIDER_LABEL: Record<NonNullable<WhatsAppStatus['provider']>, string> = {
+  meta: 'API oficial',
+  evolution: 'WhatsApp Lite',
+  wapi: 'W-API',
+};
+
 interface WhatsAppStatus {
   configured: boolean;
   connected: boolean;
+  /** Which channel is actually set up — drives the label shown in the
+   *  tile, since "configured"/"connected" alone don't say whether it's
+   *  the official Meta API or WhatsApp Lite (Evolution). */
+  provider: 'meta' | 'evolution' | 'wapi' | null;
 }
 
 export function SettingsOverview({
@@ -110,22 +120,50 @@ export function SettingsOverview({
       setCountsLoading(false);
     })();
 
-    // WhatsApp connection status — slower, independent.
+    // WhatsApp connection status — slower, independent. Reads the config
+    // row directly for Evolution/W-API (their "connected" state lives
+    // right there — no reason to hit the network for it), and only calls
+    // the /api/whatsapp/config health check when the account is actually
+    // wired to the official Meta API, since that route decrypts a token
+    // and pings Meta — meaningless (and previously mis-read as "not
+    // configured") for a Lite/W-API-only account.
     (async () => {
       setWhatsappLoading(true);
-      const [row, health] = await Promise.allSettled([
-        supabase
-          .from('whatsapp_config')
-          .select('phone_number_id')
-          .eq('account_id', acctId)
-          .maybeSingle(),
-        fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
-      ]);
+      const { data: config } = await supabase
+        .from('whatsapp_config')
+        .select(
+          'provider, phone_number_id, evolution_connected, wapi_connected',
+        )
+        .eq('account_id', acctId)
+        .maybeSingle();
+
       if (cancelled) return;
-      setWhatsapp({
-        configured: row.status === 'fulfilled' && !!row.value.data?.phone_number_id,
-        connected: health.status === 'fulfilled' && !!health.value?.connected,
-      });
+
+      if (config?.provider === 'evolution') {
+        setWhatsapp({
+          configured: true,
+          connected: !!config.evolution_connected,
+          provider: 'evolution',
+        });
+      } else if (config?.provider === 'wapi') {
+        setWhatsapp({
+          configured: true,
+          connected: !!config.wapi_connected,
+          provider: 'wapi',
+        });
+      } else if (config?.phone_number_id) {
+        const health = await fetch('/api/whatsapp/config', { cache: 'no-store' })
+          .then((r) => r.json())
+          .catch(() => null);
+        if (cancelled) return;
+        setWhatsapp({
+          configured: true,
+          connected: !!health?.connected,
+          provider: 'meta',
+        });
+      } else {
+        setWhatsapp({ configured: false, connected: false, provider: null });
+      }
       setWhatsappLoading(false);
     })();
 
@@ -156,11 +194,11 @@ export function SettingsOverview({
         'Ainda não configurado'
       ) : whatsapp.connected ? (
         <>
-          <StatusDot tone="ok" /> Conectado
+          <StatusDot tone="ok" /> Conectado ({PROVIDER_LABEL[whatsapp.provider!]})
         </>
       ) : (
         <>
-          <StatusDot tone="muted" /> Precisa reconectar
+          <StatusDot tone="muted" /> Precisa reconectar ({PROVIDER_LABEL[whatsapp.provider!]})
         </>
       ),
     },
