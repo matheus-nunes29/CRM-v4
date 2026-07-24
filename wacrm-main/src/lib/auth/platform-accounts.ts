@@ -36,6 +36,7 @@ export function isBusinessType(value: unknown): value is BusinessType {
  */
 export const AVAILABLE_FEATURES = [
   { key: "prontuario", label: "Prontuário", implemented: true },
+  { key: "broadcasts", label: "Disparos", implemented: true },
   { key: "automations", label: "Automações", implemented: true },
   { key: "flows", label: "Flows", implemented: true },
   { key: "dre", label: "DRE (financeiro)", implemented: false },
