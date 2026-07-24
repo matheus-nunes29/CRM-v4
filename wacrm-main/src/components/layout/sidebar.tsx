@@ -10,48 +10,17 @@ import { PyvoLogo } from "@/components/pyvo-logo";
 import {
   Briefcase,
   CalendarDays,
-  Crown,
   GitBranch,
   LayoutDashboard,
   MessageSquare,
   Radio,
   Settings,
-  Shield,
-  User,
-  UserCog,
   Users,
   UsersRound,
   Workflow,
   X,
   Zap,
 } from "lucide-react";
-import type { AccountRole } from "@/lib/auth/roles";
-
-const ROLE_CHIP: Record<
-  AccountRole,
-  { icon: typeof Crown; label: string; className: string }
-> = {
-  owner: {
-    icon: Crown,
-    label: "Proprietário",
-    className: "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  },
-  admin: {
-    icon: Shield,
-    label: "Administrador",
-    className: "border-sidebar-primary/40 bg-sidebar-primary/10 text-sidebar-primary",
-  },
-  agent: {
-    icon: UserCog,
-    label: "Agente",
-    className: "border-sidebar-border bg-sidebar-accent text-sidebar-foreground",
-  },
-  viewer: {
-    icon: User,
-    label: "Visualizador",
-    className: "border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground",
-  },
-};
 
 interface NavItem {
   href: string;
@@ -112,7 +81,7 @@ interface SidebarProps {
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { profile, profileLoading, account, accountRole, hasFeature } = useAuth();
+  const { profile, profileLoading, account, hasFeature } = useAuth();
   const totalUnread = useTotalUnread();
 
   const showAccountStrip =
@@ -261,9 +230,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           </ul>
         </nav>
 
-        {/* Account strip — only the user's name/avatar lives in the header
-            now (top-right); this just surfaces the account name + role
-            when it differs from the person, which the header doesn't show. */}
+        {/* Account strip — the role chip lives in the header now, next to
+            the user's name; this just surfaces the account name when it
+            differs from the person. */}
         {showAccountStrip && account?.name ? (
           <div className="shrink-0 border-t border-sidebar-border p-3">
             <div className="flex items-center gap-2 px-3 text-xs text-sidebar-foreground">
@@ -271,20 +240,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <span className="truncate" title={account.name}>
                 {account.name}
               </span>
-              {accountRole ? (
-                (() => {
-                  const meta = ROLE_CHIP[accountRole];
-                  const Icon = meta.icon;
-                  return (
-                    <span
-                      className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${meta.className}`}
-                    >
-                      <Icon className="size-3" />
-                      {meta.label}
-                    </span>
-                  );
-                })()
-              ) : null}
             </div>
           </div>
         ) : null}

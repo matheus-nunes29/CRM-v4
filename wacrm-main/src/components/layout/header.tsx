@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ModeToggle } from "@/components/layout/mode-toggle";
 import { GlobalSearch } from "@/components/layout/global-search";
+import { RoleChip } from "@/components/layout/role-chip";
 
 interface HeaderProps {
   onOpenSidebar?: () => void;
@@ -24,7 +25,7 @@ interface HeaderProps {
 }
 
 export function Header({ onOpenSidebar, scrolled }: HeaderProps) {
-  const { profile, account, signOut } = useAuth();
+  const { profile, account, accountRole, signOut } = useAuth();
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
@@ -87,6 +88,11 @@ export function Header({ onOpenSidebar, scrolled }: HeaderProps) {
             <span className="hidden text-sm font-medium text-foreground sm:inline">
               {profile?.full_name ?? "Usuário"}
             </span>
+            {accountRole && (
+              <span className="hidden sm:inline">
+                <RoleChip role={accountRole} />
+              </span>
+            )}
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
