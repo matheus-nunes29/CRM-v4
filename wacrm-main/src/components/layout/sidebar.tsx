@@ -149,7 +149,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         </div>
 
         {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto py-4">
+        <nav className="themed-scrollbar flex-1 overflow-y-auto py-4">
           {navGroups.map((group, groupIndex) => (
             <div
               key={group.label}

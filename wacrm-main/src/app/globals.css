@@ -183,3 +183,21 @@ html[data-mode="dark"] {
     letter-spacing: -0.02em;
   }
 }
+
+/* Scrollbar fina e na cor do tema — evita a barra cinza padrão do
+   navegador destoando de superfícies com fundo próprio (sidebar escura,
+   painéis internos). */
+.themed-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--sidebar-border) transparent;
+}
+.themed-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.themed-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.themed-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--sidebar-border);
+  border-radius: 9999px;
+}
