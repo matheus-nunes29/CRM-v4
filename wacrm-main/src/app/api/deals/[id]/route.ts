@@ -38,7 +38,7 @@ export async function PATCH(
 
   const { data: deal } = await admin
     .from('deals')
-    .select('id, contact_id, value, currency, status, stage_id, pipeline_id, account_id')
+    .select('id, contact_id, value, currency, status, stage_id, pipeline_id, account_id, loss_reason_id')
     .eq('id', id)
     .eq('account_id', profile.account_id)
     .single()
@@ -85,6 +85,27 @@ export async function PATCH(
     (targetStageFixedRole === 'lost' ? 'lost' :
      targetStageFixedRole === 'won'  ? 'won'  :
      (deal.status === 'won' || deal.status === 'lost') ? 'open' : undefined)
+
+  // ── Require a loss reason when the account demands it (059) ────────────────
+  // Applies uniformly to every path that lands here — modal pill click,
+  // Kanban drag-and-drop, "quick lose" button, deal-form's own picker.
+
+  if (effectiveStatus === 'lost') {
+    const finalLossReasonId = loss_reason_id !== undefined ? loss_reason_id : deal.loss_reason_id
+    if (!finalLossReasonId) {
+      const { data: acct } = await admin
+        .from('accounts')
+        .select('require_loss_reason')
+        .eq('id', profile.account_id)
+        .maybeSingle()
+      if (acct?.require_loss_reason) {
+        return NextResponse.json(
+          { error: 'Motivo de perda é obrigatório nesta conta' },
+          { status: 400 },
+        )
+      }
+    }
+  }
 
   // ── Apply update ───────────────────────────────────────────────────────────
 

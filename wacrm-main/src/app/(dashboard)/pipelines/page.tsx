@@ -288,7 +288,8 @@ export default function PipelinesPage() {
         body: JSON.stringify({ stage_id: newStageId }),
       });
       if (!res.ok) {
-        toast.error("Falha ao mover negócio");
+        const json = await res.json().catch(() => null) as { error?: string } | null;
+        toast.error(json?.error ?? "Falha ao mover negócio");
         refreshDeals();
       }
     },
@@ -321,11 +322,16 @@ export default function PipelinesPage() {
   }, [refreshDeals]);
 
   const handleQuickLose = useCallback(async (deal: Deal) => {
-    await fetch(`/api/deals/${deal.id}`, {
+    const res = await fetch(`/api/deals/${deal.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'lost' }),
     });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null) as { error?: string } | null;
+      toast.error(json?.error ?? "Falha ao marcar como perdido");
+      return;
+    }
     refreshDeals();
   }, [refreshDeals]);
 

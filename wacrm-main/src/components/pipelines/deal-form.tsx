@@ -230,7 +230,7 @@ export function DealForm({
   onSaved,
 }: DealFormProps) {
   const supabase = createClient();
-  const { accountId, defaultCurrency } = useAuth();
+  const { accountId, account, defaultCurrency } = useAuth();
   const router = useRouter();
 
   const [title, setTitle] = useState("");
@@ -466,7 +466,8 @@ export function DealForm({
     });
     setStatusAction(null);
     if (!res.ok) {
-      toast.error("Falha ao atualizar status do negócio");
+      const json = await res.json().catch(() => null) as { error?: string } | null;
+      toast.error(json?.error ?? "Falha ao atualizar status do negócio");
       return;
     }
     toast.success(
@@ -481,6 +482,10 @@ export function DealForm({
   }
 
   async function handleConfirmLost() {
+    if (account?.require_loss_reason && !selectedLossReasonId) {
+      toast.error("Selecione um motivo de perda");
+      return;
+    }
     setShowLossPicker(false);
     await handleStatusChange("lost", selectedLossReasonId || null);
   }
@@ -883,7 +888,9 @@ export function DealForm({
                       onChange={(e) => setSelectedLossReasonId(e.target.value)}
                       className="h-9 w-full rounded-lg border border-border bg-muted/60 px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                     >
-                      <option value="">Selecione um motivo (opcional)</option>
+                      <option value="">
+                        {account?.require_loss_reason ? "Selecione um motivo" : "Selecione um motivo (opcional)"}
+                      </option>
                       {lossReasons.map((r) => (
                         <option key={r.id} value={r.id}>{r.label}</option>
                       ))}
@@ -904,7 +911,7 @@ export function DealForm({
                       <button
                         type="button"
                         onClick={handleConfirmLost}
-                        disabled={!!statusAction}
+                        disabled={!!statusAction || (!!account?.require_loss_reason && !selectedLossReasonId)}
                         className="flex-1 rounded-lg bg-red-600 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
                       >
                         {statusAction === "lost" ? (

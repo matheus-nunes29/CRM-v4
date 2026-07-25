@@ -19,7 +19,7 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
   </svg>
 )
-import type { Deal, PipelineStage } from '@/types'
+import type { Deal, PipelineStage, LossReason } from '@/types'
 import { DealItemsPanel } from './deal-items-panel'
 import { DealCustomFieldsPanel } from './deal-custom-fields-panel'
 import { ContactDetailContent } from '@/components/contacts/contact-detail-view'
@@ -87,7 +87,16 @@ export function DealModal({
 }: DealModalProps) {
   const supabase = createClient()
   const router = useRouter()
-  const { defaultCurrency } = useAuth()
+  const { defaultCurrency, account, accountId } = useAuth()
+
+  // Loss reason picker — intercepts a click on the "Perdido" pill instead
+  // of moving straight there, since marking lost may require a reason
+  // (account-level toggle, 059).
+  const [lossReasons, setLossReasons] = useState<LossReason[]>([])
+  const [showLossPicker, setShowLossPicker] = useState(false)
+  const [selectedLossReasonId, setSelectedLossReasonId] = useState('')
+  const [pendingLostStageId, setPendingLostStageId] = useState<string | null>(null)
+  const requireLossReason = !!account?.require_loss_reason
 
   // Core data
   const [deal, setDeal] = useState<Deal | null>(initialDeal ?? null)
@@ -281,7 +290,7 @@ export function DealModal({
 
   // ── Stage move ───────────────────────────────────────────────────────────
 
-  async function moveStage(stageId: string) {
+  async function moveStage(stageId: string, lossReasonId?: string | null) {
     if (!deal) return
     setMovingStage(stageId)
     const targetStage = stages.find(s => s.id === stageId)
@@ -291,13 +300,47 @@ export function DealModal({
     const res = await fetch(`/api/deals/${deal.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage_id: stageId }),
+      body: JSON.stringify({ stage_id: stageId, ...(lossReasonId !== undefined ? { loss_reason_id: lossReasonId } : {}) }),
     })
-    if (!res.ok) toast.error('Falha ao mover')
+    if (!res.ok) {
+      const json = await res.json().catch(() => null) as { error?: string } | null
+      toast.error(json?.error ?? 'Falha ao mover')
+    }
     else onRefresh?.()
     setMovingStage(null)
   }
 
+  // Clicking a stage pill goes straight to moveStage — except "Perdido",
+  // which first asks for a reason (required or not, per account setting).
+  function handleStagePillClick(stage: PipelineStage) {
+    if (stage.fixed_role === 'lost') {
+      setPendingLostStageId(stage.id)
+      setSelectedLossReasonId('')
+      setShowLossPicker(true)
+      return
+    }
+    moveStage(stage.id)
+  }
+
+  function handleConfirmLostPill() {
+    if (requireLossReason && !selectedLossReasonId) {
+      toast.error('Selecione um motivo de perda')
+      return
+    }
+    if (!pendingLostStageId) return
+    setShowLossPicker(false)
+    moveStage(pendingLostStageId, selectedLossReasonId || null)
+  }
+
+  useEffect(() => {
+    if (!open || !accountId) return
+    supabase
+      .from('loss_reasons')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('position', { ascending: true })
+      .then(({ data }) => setLossReasons((data as LossReason[]) ?? []))
+  }, [open, accountId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -442,6 +485,14 @@ export function DealModal({
                 past={past}
                 deletingEvent={deletingEvent}
                 stageHistory={stageHistory}
+                lossReasons={lossReasons}
+                showLossPicker={showLossPicker}
+                selectedLossReasonId={selectedLossReasonId}
+                setSelectedLossReasonId={setSelectedLossReasonId}
+                requireLossReason={requireLossReason}
+                onStagePillClick={handleStagePillClick}
+                onCancelLossPicker={() => setShowLossPicker(false)}
+                onConfirmLossPicker={handleConfirmLostPill}
                 onChangeStatus={changeStatus}
                 onMoveStage={moveStage}
                 onValueChange={setLiveValue}
@@ -487,6 +538,8 @@ function DealTab({
   members, editMode, editNotes, setEditNotes, editDate, setEditDate,
   editAssignee, setEditAssignee, statusLoading, movingStage, isWon, isLost,
   evLoading, upcoming, past, deletingEvent, stageHistory,
+  lossReasons, showLossPicker, selectedLossReasonId, setSelectedLossReasonId,
+  requireLossReason, onStagePillClick, onCancelLossPicker, onConfirmLossPicker,
   onChangeStatus, onMoveStage, onValueChange, onDeleteEvent, onSchedule, onOpenInbox, onOpenFull,
 }: {
   deal: Deal | null
@@ -513,6 +566,14 @@ function DealTab({
   past: CalendarEvent[]
   deletingEvent: string | null
   stageHistory: StageHistoryRow[]
+  lossReasons: LossReason[]
+  showLossPicker: boolean
+  selectedLossReasonId: string
+  setSelectedLossReasonId: (v: string) => void
+  requireLossReason: boolean
+  onStagePillClick: (stage: PipelineStage) => void
+  onCancelLossPicker: () => void
+  onConfirmLossPicker: () => void
   onChangeStatus: (s: 'won' | 'lost' | 'open') => void
   onMoveStage: (id: string) => void
   onValueChange: (v: number) => void
@@ -555,7 +616,7 @@ function DealTab({
                 key={s.id}
                 type="button"
                 disabled={isCurrent || !!statusLoading}
-                onClick={() => onMoveStage(s.id)}
+                onClick={() => onStagePillClick(s)}
                 title={s.name}
                 className={cn('group relative shrink-0 transition-all', i > 0 && 'pl-2')}
               >
@@ -591,6 +652,49 @@ function DealTab({
           })}
         </div>
       </div>
+
+      {/* ── Motivo da perda — só aparece ao clicar no pill "Perdido" ── */}
+      {showLossPicker && (
+        <div className="space-y-2.5 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+          <p className="text-xs font-semibold text-destructive">
+            {requireLossReason ? "Motivo da perda" : "Motivo da perda (opcional)"}
+          </p>
+          <select
+            value={selectedLossReasonId}
+            onChange={(e) => setSelectedLossReasonId(e.target.value)}
+            className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          >
+            <option value="">
+              {requireLossReason ? "Selecione um motivo" : "Selecione um motivo (opcional)"}
+            </option>
+            {lossReasons.map((r) => (
+              <option key={r.id} value={r.id}>{r.label}</option>
+            ))}
+          </select>
+          {lossReasons.length === 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              Configure motivos em Configurações → Negócios.
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCancelLossPicker}
+              className="flex-1 rounded-lg border border-border py-1.5 text-xs text-muted-foreground hover:bg-muted"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={onConfirmLossPicker}
+              disabled={statusLoading || !!movingStage || (requireLossReason && !selectedLossReasonId)}
+              className="flex-1 rounded-lg border border-destructive/30 bg-destructive/10 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/20 disabled:opacity-50"
+            >
+              {movingStage ? <Loader2 className="mx-auto size-3.5 animate-spin" /> : "Confirmar perda"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Ação rápida — ganhar/perder já acontece clicando na etapa
           "Ganho"/"Perdido" ali em cima; aqui só sobra avançar ou reabrir. */}

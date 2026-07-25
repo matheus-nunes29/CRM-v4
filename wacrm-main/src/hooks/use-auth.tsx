@@ -46,6 +46,10 @@ interface AccountSummary {
    *  NOT NULL DEFAULT '{}' in the DB; narrowed to [] when absent so
    *  forks running pre-050 schemas don't crash `hasFeature`. */
   enabled_features: string[];
+  /** When true, marking a deal as lost requires a loss_reason_id (059).
+   *  NOT NULL DEFAULT false in the DB; narrowed to false when absent so
+   *  forks running pre-059 schemas keep today's optional behavior. */
+  require_loss_reason: boolean;
 }
 
 interface AuthContextValue {
@@ -145,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name, default_currency, enabled_features)",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name, default_currency, enabled_features, require_loss_reason)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -172,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               name: string;
               default_currency: string | null;
               enabled_features: string[] | null;
+              require_loss_reason: boolean | null;
             } | null);
         // Narrow default_currency/enabled_features defensively: forks
         // running pre-021/pre-050 schemas won't have these columns, so a
@@ -184,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               name: accountRaw.name,
               default_currency: accountRaw.default_currency ?? DEFAULT_CURRENCY,
               enabled_features: accountRaw.enabled_features ?? [],
+              require_loss_reason: accountRaw.require_loss_reason ?? false,
             }
           : null;
 

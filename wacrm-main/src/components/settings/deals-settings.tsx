@@ -11,6 +11,7 @@ import type { LossReason } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -24,6 +25,7 @@ export function DealsSettings() {
   const supabase = createClient();
   const {
     accountId,
+    account,
     defaultCurrency,
     canEditSettings,
     profileLoading,
@@ -58,6 +60,35 @@ export function DealsSettings() {
   }
 
   // ── Loss reasons ──────────────────────────────────────────────────────────
+  const [requireLossReason, setRequireLossReason] = useState(false);
+  const [savingRequireLossReason, setSavingRequireLossReason] = useState(false);
+
+  useEffect(() => {
+    setRequireLossReason(account?.require_loss_reason ?? false);
+  }, [account?.require_loss_reason]);
+
+  async function handleToggleRequireLossReason(next: boolean) {
+    if (!accountId) return;
+    setRequireLossReason(next);
+    setSavingRequireLossReason(true);
+    const { error } = await supabase
+      .from("accounts")
+      .update({ require_loss_reason: next })
+      .eq("id", accountId);
+    setSavingRequireLossReason(false);
+    if (error) {
+      setRequireLossReason(!next);
+      toast.error("Falha ao salvar");
+      return;
+    }
+    await refreshProfile();
+    toast.success(
+      next
+        ? "Motivo de perda agora é obrigatório"
+        : "Motivo de perda voltou a ser opcional",
+    );
+  }
+
   const [reasons, setReasons] = useState<LossReason[]>([]);
   const [reasonsLoading, setReasonsLoading] = useState(true);
   const [newLabel, setNewLabel] = useState("");
@@ -215,6 +246,21 @@ export function DealsSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Exigir motivo ao perder</p>
+              <p className="text-xs text-muted-foreground">
+                Sem escolher um motivo, o negócio não pode ser marcado como perdido.
+              </p>
+            </div>
+            <Switch
+              checked={requireLossReason}
+              onCheckedChange={(v) => handleToggleRequireLossReason(!!v)}
+              disabled={!canEditSettings || savingRequireLossReason}
+              aria-label="Exigir motivo ao perder negócio"
+            />
+          </div>
+
           {reasonsLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
