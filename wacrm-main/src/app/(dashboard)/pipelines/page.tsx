@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Pipeline, PipelineStage, Deal, DealStatus } from "@/types";
+import type { Pipeline, PipelineStage, Deal, DealStatus, LossReason } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import type { NextEventInfo } from "@/components/pipelines/deal-card";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChevronDown, GitBranch, Plus, Settings, Users } from "lucide-react";
+import { ChevronDown, GitBranch, Loader2, Plus, Settings, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
@@ -53,7 +53,7 @@ export default function PipelinesPage() {
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
-  const { accountId } = useAuth();
+  const { accountId, account } = useAuth();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
@@ -80,6 +80,15 @@ export default function PipelinesPage() {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [defaultStageId, setDefaultStageId] = useState<string>("");
 
+  // Loss-reason prompt — shown when dragging a card to "Perdido" on an
+  // account that requires a reason (059). The deal is only actually
+  // moved once a reason is confirmed here, so the card never needs to
+  // be optimistically moved and then reverted.
+  const [lossPrompt, setLossPrompt] = useState<{ dealId: string; stageId: string } | null>(null);
+  const [lossReasons, setLossReasons] = useState<LossReason[]>([]);
+  const [selectedLossReasonId, setSelectedLossReasonId] = useState("");
+  const [movingToLost, setMovingToLost] = useState(false);
+
   // Guard against double-seeding (React StrictMode double-effect in dev).
   const seedAttempted = useRef(false);
 
@@ -89,6 +98,16 @@ export default function PipelinesPage() {
       .then(j => setMembers(j.members ?? []))
       .catch(() => {})
   }, []);
+
+  useEffect(() => {
+    if (!accountId) return;
+    supabase
+      .from("loss_reasons")
+      .select("*")
+      .eq("account_id", accountId)
+      .order("position", { ascending: true })
+      .then(({ data }) => setLossReasons((data as LossReason[]) ?? []));
+  }, [accountId, supabase]);
 
   const loadPipelines = useCallback(async () => {
     const { data, error } = await supabase
@@ -263,10 +282,10 @@ export default function PipelinesPage() {
     loadNextEventsForDeals(d.map((x) => x.id));
   }, [loadDeals, selectedPipelineId, loadNextEventsForDeals]);
 
-  const handleDealMoved = useCallback(
-    async (dealId: string, newStageId: string) => {
-      // Determine the effective status from the target stage's fixed_role so the
-      // optimistic update shows the correct badge immediately (won/lost/open).
+  // Shared by both the direct drag-and-drop path and the loss-reason
+  // prompt's confirm button — actually performs the move.
+  const moveDeal = useCallback(
+    async (dealId: string, newStageId: string, lossReasonId?: string | null) => {
       const targetStage = stages.find((s) => s.id === newStageId)
       const autoStatus: DealStatus | undefined =
         targetStage?.fixed_role === 'lost' ? 'lost' :
@@ -285,16 +304,48 @@ export default function PipelinesPage() {
       const res = await fetch(`/api/deals/${dealId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage_id: newStageId }),
+        body: JSON.stringify({
+          stage_id: newStageId,
+          ...(lossReasonId !== undefined ? { loss_reason_id: lossReasonId } : {}),
+        }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => null) as { error?: string } | null;
         toast.error(json?.error ?? "Falha ao mover negócio");
         refreshDeals();
+        return false;
       }
+      return true;
     },
     [refreshDeals, stages],
   );
+
+  const handleDealMoved = useCallback(
+    async (dealId: string, newStageId: string) => {
+      const targetStage = stages.find((s) => s.id === newStageId)
+      if (targetStage?.fixed_role === 'lost' && account?.require_loss_reason) {
+        // Don't move yet — the card stays in its current column (we
+        // haven't touched `deals`) until a reason is confirmed below.
+        setSelectedLossReasonId("");
+        setLossPrompt({ dealId, stageId: newStageId });
+        return;
+      }
+      await moveDeal(dealId, newStageId);
+    },
+    [stages, account, moveDeal],
+  );
+
+  const handleConfirmLossPrompt = useCallback(async () => {
+    if (!lossPrompt) return;
+    if (account?.require_loss_reason && !selectedLossReasonId) {
+      toast.error("Selecione um motivo de perda");
+      return;
+    }
+    setMovingToLost(true);
+    const ok = await moveDeal(lossPrompt.dealId, lossPrompt.stageId, selectedLossReasonId || null);
+    setMovingToLost(false);
+    if (ok) setLossPrompt(null);
+  }, [lossPrompt, account, selectedLossReasonId, moveDeal]);
 
   const handleAddDeal = useCallback(
     (stageId?: string) => {
@@ -566,6 +617,54 @@ export default function PipelinesPage() {
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {creating ? "Criando..." : "Criar Pipeline"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Loss-reason prompt — shown when a drag-and-drop to "Perdido"
+          is blocked because the account requires a reason (059). */}
+      <Dialog open={!!lossPrompt} onOpenChange={(v) => { if (!v) setLossPrompt(null); }}>
+        <DialogContent className="sm:max-w-sm bg-popover border-border">
+          <DialogHeader>
+            <DialogTitle className="text-popover-foreground">Motivo da perda</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <p className="text-xs text-muted-foreground">
+              Essa conta exige um motivo antes de marcar um negócio como perdido.
+            </p>
+            <Label className="text-muted-foreground">Motivo</Label>
+            <select
+              value={selectedLossReasonId}
+              onChange={(e) => setSelectedLossReasonId(e.target.value)}
+              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            >
+              <option value="">Selecione um motivo</option>
+              {lossReasons.map((r) => (
+                <option key={r.id} value={r.id}>{r.label}</option>
+              ))}
+            </select>
+            {lossReasons.length === 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Configure motivos em Configurações → Negócios.
+              </p>
+            )}
+          </div>
+          <DialogFooter className="bg-popover/50 border-border">
+            <Button
+              variant="outline"
+              onClick={() => setLossPrompt(null)}
+              className="border-border text-muted-foreground hover:bg-muted"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmLossPrompt}
+              disabled={movingToLost || !selectedLossReasonId}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {movingToLost ? <Loader2 className="size-4 animate-spin" /> : null}
+              Confirmar perda
             </Button>
           </DialogFooter>
         </DialogContent>
