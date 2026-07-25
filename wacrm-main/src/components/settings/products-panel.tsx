@@ -55,7 +55,7 @@ const EMPTY_FORM: FormState = {
 
 export function ProductsPanel() {
   const supabase = createClient()
-  const { accountId } = useAuth()
+  const { accountId, hasFeature } = useAuth()
   const canEdit = useCan('edit-settings')
 
   const [products, setProducts] = useState<Product[]>([])
@@ -224,7 +224,7 @@ export function ProductsPanel() {
             )}
           </div>
 
-          {form.type === 'product' && (
+          {form.type === 'product' && hasFeature('estoque') && (
             <div className="flex items-center gap-2">
               <Checkbox
                 id="p-tracks-stock"
