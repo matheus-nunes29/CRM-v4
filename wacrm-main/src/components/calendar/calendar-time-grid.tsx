@@ -35,6 +35,28 @@ function heightPx(start: Date, end: Date): number {
   return (mins / 60) * HOUR_PX
 }
 
+/**
+ * Where the *top* of the dragged card should land, given the point on the
+ * card the user originally grabbed (`grabOffsetY`, px from the card's own
+ * top) — not just wherever the pointer happens to be. Snapped to the
+ * nearest 15-minute mark.
+ */
+function computeDropSlot(
+  e: { currentTarget: HTMLElement; clientY: number },
+  grabOffsetY: number,
+  totalGridHeight: number,
+) {
+  const rect = e.currentTarget.getBoundingClientRect()
+  const rawTop = e.clientY - rect.top - grabOffsetY
+  const clampedTop = Math.max(0, Math.min(rawTop, totalGridHeight - QUARTER_PX))
+  const minutesFromStart = (clampedTop / HOUR_PX) * 60
+  const snappedMinutes = Math.round(minutesFromStart / 15) * 15
+  return {
+    hour: HOUR_START + Math.floor(snappedMinutes / 60),
+    minute: snappedMinutes % 60,
+  }
+}
+
 /** Lay out overlapping events into columns so they don't cover each other */
 function layoutEvents(events: CalEvent[]) {
   if (!events.length) return []
@@ -77,6 +99,11 @@ export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick, onEv
   const today = new Date()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  // Set on dragstart, read on dragover/drop — kept in a ref (not
+  // dataTransfer) because browsers only let you read dataTransfer's
+  // payload on the actual drop, not while dragging over targets, and we
+  // need the grab offset continuously to preview where the card will land.
+  const draggingRef = useRef<{ id: string; grabOffsetY: number } | null>(null)
 
   // Scroll to current time on mount
   useEffect(() => {
@@ -166,12 +193,34 @@ export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick, onEv
                   'relative border-r border-border/60 last:border-r-0',
                   todayCol && 'bg-primary/[0.02]',
                 )}
+                onDragOver={(e) => {
+                  if (!onEventDrop || !draggingRef.current) return
+                  e.preventDefault()
+                  const { hour, minute } = computeDropSlot(e, draggingRef.current.grabOffsetY, totalGridHeight)
+                  setDragOverKey(`${k}-${hour}-${minute}`)
+                }}
+                onDragLeave={(e) => {
+                  // Only clear when actually leaving the column, not when
+                  // moving between its children (which also fires this).
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null)
+                }}
+                onDrop={(e) => {
+                  if (!onEventDrop || !draggingRef.current) return
+                  e.preventDefault()
+                  const { id, grabOffsetY } = draggingRef.current
+                  const { hour, minute } = computeDropSlot(e, grabOffsetY, totalGridHeight)
+                  setDragOverKey(null)
+                  draggingRef.current = null
+                  onEventDrop(id, day, hour, minute)
+                }}
               >
-                {/* Horizontal grid lines — clickable to create event, and
-                    drop targets to reschedule a dragged event. Each hour
-                    is split into four 15-minute slots so both actions
-                    land on the exact time under the cursor, not just the
-                    hour. */}
+                {/* Horizontal grid lines — clickable to create event.
+                    Each hour is split into four 15-minute slots so a
+                    click lands on the exact time under the cursor, not
+                    just the hour. Drag-and-drop is handled by the column
+                    above (continuous position, not per-slot) — these divs
+                    only add the click and the highlight while dragging
+                    over. */}
                 {HOURS.map((h) => (
                   <div key={h}>
                     {QUARTER_MINUTES.map((m) => {
@@ -189,16 +238,6 @@ export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick, onEv
                             dragOverKey === slotKey ? 'bg-primary/20' : 'hover:bg-accent/20',
                           )}
                           onClick={() => onSlotClick(day, h, m)}
-                          onDragOver={(e) => { if (onEventDrop) e.preventDefault() }}
-                          onDragEnter={(e) => { if (onEventDrop) { e.preventDefault(); setDragOverKey(slotKey) } }}
-                          onDragLeave={() => setDragOverKey((prev) => (prev === slotKey ? null : prev))}
-                          onDrop={(e) => {
-                            if (!onEventDrop) return
-                            e.preventDefault()
-                            setDragOverKey(null)
-                            const eventId = e.dataTransfer.getData('text/plain')
-                            if (eventId) onEventDrop(eventId, day, h, m)
-                          }}
                         />
                       )
                     })}
@@ -234,9 +273,12 @@ export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick, onEv
                       draggable={!!onEventDrop}
                       onDragStart={(e) => {
                         e.stopPropagation()
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        draggingRef.current = { id: ev.id, grabOffsetY: e.clientY - rect.top }
                         e.dataTransfer.setData('text/plain', ev.id)
                         e.dataTransfer.effectAllowed = 'move'
                       }}
+                      onDragEnd={() => { draggingRef.current = null; setDragOverKey(null) }}
                       onClick={(e) => { e.stopPropagation(); onEventClick(ev) }}
                       style={{ top: top + 1, height: height - 2, width: colW, left: colL }}
                       className={cn(
