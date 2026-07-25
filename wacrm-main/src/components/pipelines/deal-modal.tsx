@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
@@ -306,7 +307,7 @@ export function DealModal({
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
@@ -474,7 +475,8 @@ export function DealModal({
           onCreated={(ev) => setEvents(prev => [...prev, ev].sort((a, b) => a.start_at.localeCompare(b.start_at)))}
         />
       )}
-    </>
+    </>,
+    document.body,
   )
 }
 
