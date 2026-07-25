@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -50,6 +50,9 @@ import {
   X,
   Syringe,
   ShieldAlert,
+  Paperclip,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { ScheduleEventModal } from '@/components/calendar/schedule-event-modal';
 import {
@@ -58,6 +61,12 @@ import {
   PATIENT_RECORD_MEDIA_BUCKET,
 } from '@/lib/storage/patient-record-media';
 import { deleteAccountMedia } from '@/lib/storage/upload-media';
+import {
+  uploadContactFile,
+  getContactFileSignedUrl,
+  deleteContactFile,
+  type ContactFile,
+} from '@/lib/storage/contact-files';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -164,6 +173,13 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [recordForm, setRecordForm] = useState(emptyRecordForm());
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  // ── Arquivos (general attachments) ──────────────────────────────────────
+  const [files, setFiles] = useState<ContactFile[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // ── Fetchers ──────────────────────────────────────────────────────────────
 
   const fetchContact = useCallback(async () => {
@@ -259,6 +275,17 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
     setLoadingPatientRecords(false);
   }, [contactId, supabase]);
 
+  const fetchFiles = useCallback(async () => {
+    setLoadingFiles(true);
+    const { data } = await supabase
+      .from('contact_files')
+      .select('*')
+      .eq('contact_id', contactId)
+      .order('created_at', { ascending: false });
+    setFiles((data as ContactFile[]) ?? []);
+    setLoadingFiles(false);
+  }, [contactId, supabase]);
+
   useEffect(() => {
     fetchContact();
     fetchTags();
@@ -266,7 +293,61 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
     fetchCustomFields();
     fetchDeals();
     fetchPatientRecords();
-  }, [fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchPatientRecords]);
+    fetchFiles();
+  }, [fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchPatientRecords, fetchFiles]);
+
+  // ── Arquivos ─────────────────────────────────────────────────────────────
+
+  const MAX_FILE_BYTES = 16 * 1024 * 1024;
+
+  async function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > MAX_FILE_BYTES) {
+      toast.error('Arquivo muito grande — o limite é 16 MB.');
+      return;
+    }
+    setUploadingFile(true);
+    try {
+      const row = await uploadContactFile(contactId, file);
+      setFiles((prev) => [row, ...prev]);
+      toast.success('Arquivo enviado');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao enviar arquivo');
+    } finally {
+      setUploadingFile(false);
+    }
+  }
+
+  async function handleDownloadFile(f: ContactFile) {
+    const url = await getContactFileSignedUrl(f.path);
+    if (!url) {
+      toast.error('Falha ao gerar link do arquivo');
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  async function handleDeleteFile(f: ContactFile) {
+    setDeletingFileId(f.id);
+    try {
+      await deleteContactFile(f.id, f.path);
+      setFiles((prev) => prev.filter((x) => x.id !== f.id));
+      toast.success('Arquivo removido');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao remover arquivo');
+    } finally {
+      setDeletingFileId(null);
+    }
+  }
+
+  function formatFileSize(bytes: number | null) {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -597,6 +678,7 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
               ...(hasFeature('prontuario')
                 ? [{ value: 'prontuario', label: 'Prontuário' }]
                 : []),
+              { value: 'files', label: 'Arquivos' },
             ].map(({ value, label }) => (
               <TabsTrigger
                 key={value}
@@ -867,6 +949,76 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
             </div>
           </TabsContent>
         )}
+
+        {/* Arquivos — anexos livres (fotos, PDFs, docs), sem gate de
+            feature: qualquer conta pode anexar arquivos a um contato. */}
+        <TabsContent value="files" className="flex-1 flex flex-col min-h-0 px-5 py-4 mt-0 gap-3">
+          <div className="shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileSelected}
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingFile}
+              size="sm"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {uploadingFile ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+              Enviar arquivo
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {loadingFiles ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : files.length === 0 ? (
+              <EmptyState
+                icon={<Paperclip className="size-8 text-muted-foreground/40" />}
+                title="Nenhum arquivo ainda"
+                description="Envie fotos, PDFs ou outros documentos relacionados a este contato."
+              />
+            ) : (
+              files.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex items-center gap-3 rounded-lg bg-muted/40 border border-border/50 p-3 group"
+                >
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <FileText className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{f.file_name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatFileSize(f.size_bytes)}
+                      {f.size_bytes ? ' · ' : ''}
+                      {new Date(f.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleDownloadFile(f)}
+                    title="Baixar"
+                    className="shrink-0 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  >
+                    <Download className="size-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteFile(f)}
+                    disabled={deletingFileId === f.id}
+                    title="Remover"
+                    className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {deletingFileId === f.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
 
       {/* Nova evolução */}
