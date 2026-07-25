@@ -19,12 +19,20 @@ export interface CalendarEvent {
   meet_link: string | null
   contact_id: string | null
   deal_id: string | null
+  description?: string | null
+  assigned_to?: string | null
+  contact?: { id: string; name: string | null; phone: string } | null
+  deal?: { id: string; title: string } | null
 }
 
 interface Props {
   open: boolean
   onClose: () => void
   onCreated?: (event: CalendarEvent) => void
+  /** Editing an existing event instead of creating one — pre-fills every
+   *  field from it and PUTs on submit instead of POSTing. */
+  editEvent?: CalendarEvent | null
+  onUpdated?: (event: CalendarEvent) => void
   /** Pre-filled from a contact's detail page */
   contactId?: string
   contactName?: string
@@ -73,34 +81,30 @@ function useSearch<T>(
 
 export function ScheduleEventModal({
   open, onClose, onCreated,
+  editEvent, onUpdated,
   contactId: initContactId, contactName: initContactName,
   dealId: initDealId,
   defaultDate,
 }: Props) {
   const supabase = createClient()
-  const { start: startDefault, end: endDefault } = computeDefaults(defaultDate)
 
-  const [title, setTitle]       = useState(initContactName ? `Reunião com ${initContactName}` : '')
+  const [title, setTitle]       = useState('')
   const [description, setDesc]  = useState('')
-  const [startAt, setStartAt]   = useState(toLocalDatetimeValue(startDefault))
-  const [endAt, setEndAt]       = useState(toLocalDatetimeValue(endDefault))
+  const [startAt, setStartAt]   = useState('')
+  const [endAt, setEndAt]       = useState('')
   const [assignedTo, setAssignedTo] = useState('')
   const [profiles, setProfiles] = useState<ProfileOption[]>([])
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
 
   // Contact picker
-  const [contactQuery, setContactQuery]   = useState(initContactName ?? '')
-  const [selectedContact, setContact]     = useState<ContactOption | null>(
-    initContactId ? { id: initContactId, name: initContactName ?? null, phone: '' } : null,
-  )
+  const [contactQuery, setContactQuery]   = useState('')
+  const [selectedContact, setContact]     = useState<ContactOption | null>(null)
   const [showContactDrop, setContactDrop] = useState(false)
 
   // Deal picker
   const [dealQuery, setDealQuery]   = useState('')
-  const [selectedDeal, setDeal]     = useState<DealOption | null>(
-    initDealId ? { id: initDealId, title: '' } : null,
-  )
+  const [selectedDeal, setDeal]     = useState<DealOption | null>(null)
   const [showDealDrop, setDealDrop] = useState(false)
 
   useEffect(() => {
@@ -112,13 +116,50 @@ export function ScheduleEventModal({
       .then(({ data }) => setProfiles((data as ProfileOption[]) ?? []))
   }, [open, supabase])
 
+  // Populate the form every time the dialog opens — from the event being
+  // edited, or fresh defaults for a new one. The modal stays mounted
+  // across opens (callers just flip `open`), so this can't be plain
+  // initial state.
   useEffect(() => {
-    if (defaultDate) {
+    if (!open) return
+    if (editEvent) {
+      setTitle(editEvent.title)
+      setDesc(editEvent.description ?? '')
+      setStartAt(toLocalDatetimeValue(new Date(editEvent.start_at)))
+      setEndAt(toLocalDatetimeValue(new Date(editEvent.end_at)))
+      setAssignedTo(editEvent.assigned_to ?? '')
+      setContact(
+        editEvent.contact
+          ? { id: editEvent.contact.id, name: editEvent.contact.name, phone: editEvent.contact.phone }
+          : editEvent.contact_id
+          ? { id: editEvent.contact_id, name: null, phone: '' }
+          : null,
+      )
+      setContactQuery(editEvent.contact?.name ?? editEvent.contact?.phone ?? '')
+      setDeal(
+        editEvent.deal
+          ? { id: editEvent.deal.id, title: editEvent.deal.title }
+          : editEvent.deal_id
+          ? { id: editEvent.deal_id, title: '' }
+          : null,
+      )
+      setDealQuery(editEvent.deal?.title ?? '')
+      setError(null)
+    } else {
       const { start, end } = computeDefaults(defaultDate)
+      setTitle(initContactName ? `Reunião com ${initContactName}` : '')
+      setDesc('')
       setStartAt(toLocalDatetimeValue(start))
       setEndAt(toLocalDatetimeValue(end))
+      setAssignedTo('')
+      setContact(initContactId ? { id: initContactId, name: initContactName ?? null, phone: '' } : null)
+      setContactQuery(initContactName ?? '')
+      setDeal(initDealId ? { id: initDealId, title: '' } : null)
+      setDealQuery('')
+      setError(null)
     }
-  }, [defaultDate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editEvent, defaultDate])
 
   const fetchContacts = async (q: string): Promise<ContactOption[]> => {
     const { data: profile } = await supabase.from('profiles').select('account_id').maybeSingle()
@@ -183,22 +224,30 @@ export function ScheduleEventModal({
 
     setLoading(true)
     try {
-      const res = await fetch('/api/calendar/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          start_at: new Date(startAt).toISOString(),
-          end_at: new Date(endAt).toISOString(),
-          contact_id: selectedContact?.id ?? null,
-          deal_id: selectedDeal?.id ?? null,
-          assigned_to: assignedTo,
-        }),
-      })
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        start_at: new Date(startAt).toISOString(),
+        end_at: new Date(endAt).toISOString(),
+        contact_id: selectedContact?.id ?? null,
+        deal_id: selectedDeal?.id ?? null,
+        assigned_to: assignedTo,
+      }
+      const res = editEvent
+        ? await fetch(`/api/calendar/events/${editEvent.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/calendar/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Erro ao criar evento.'); return }
-      onCreated?.(data.event)
+      if (!res.ok) { setError(data.error ?? (editEvent ? 'Erro ao salvar evento.' : 'Erro ao criar evento.')); return }
+      if (editEvent) onUpdated?.(data.event)
+      else onCreated?.(data.event)
       reset()
       onClose()
     } catch {
@@ -214,7 +263,7 @@ export function ScheduleEventModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarPlus className="size-4 text-primary" />
-            Agendamento
+            {editEvent ? 'Editar agendamento' : 'Agendamento'}
           </DialogTitle>
         </DialogHeader>
 
@@ -373,7 +422,7 @@ export function ScheduleEventModal({
             </Button>
             <Button type="submit" disabled={loading}>
               {loading ? <Loader2 className="size-4 animate-spin" /> : <CalendarPlus className="size-4" />}
-              Agendar
+              {editEvent ? 'Salvar' : 'Agendar'}
             </Button>
           </div>
         </form>

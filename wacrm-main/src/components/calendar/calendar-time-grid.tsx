@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Video } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CalEvent } from './calendar-grid'
@@ -68,11 +68,15 @@ interface Props {
   events: CalEvent[]
   onSlotClick: (date: Date, hour: number, minute: number) => void
   onEventClick: (event: CalEvent) => void
+  /** Fired on dropping a dragged event card onto a 15-minute slot —
+   *  reschedules it to that day/time, keeping its original duration. */
+  onEventDrop?: (eventId: string, date: Date, hour: number, minute: number) => void
 }
 
-export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick }: Props) {
+export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick, onEventDrop }: Props) {
   const today = new Date()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
 
   // Scroll to current time on mount
   useEffect(() => {
@@ -163,26 +167,41 @@ export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick }: Pr
                   todayCol && 'bg-primary/[0.02]',
                 )}
               >
-                {/* Horizontal grid lines — clickable to create event.
-                    Each hour is split into four 15-minute slots so a click
-                    lands on the exact time under the cursor, not just the
+                {/* Horizontal grid lines — clickable to create event, and
+                    drop targets to reschedule a dragged event. Each hour
+                    is split into four 15-minute slots so both actions
+                    land on the exact time under the cursor, not just the
                     hour. */}
                 {HOURS.map((h) => (
                   <div key={h}>
-                    {QUARTER_MINUTES.map((m) => (
-                      <div
-                        key={m}
-                        style={{
-                          top: (h - HOUR_START) * HOUR_PX + (m / 60) * HOUR_PX,
-                          height: QUARTER_PX,
-                        }}
-                        className={cn(
-                          'absolute left-0 right-0 hover:bg-accent/20 cursor-pointer transition-colors',
-                          m === 0 ? 'border-t border-border/40' : 'border-t border-border/10',
-                        )}
-                        onClick={() => onSlotClick(day, h, m)}
-                      />
-                    ))}
+                    {QUARTER_MINUTES.map((m) => {
+                      const slotKey = `${k}-${h}-${m}`
+                      return (
+                        <div
+                          key={m}
+                          style={{
+                            top: (h - HOUR_START) * HOUR_PX + (m / 60) * HOUR_PX,
+                            height: QUARTER_PX,
+                          }}
+                          className={cn(
+                            'absolute left-0 right-0 cursor-pointer transition-colors',
+                            m === 0 ? 'border-t border-border/40' : 'border-t border-border/10',
+                            dragOverKey === slotKey ? 'bg-primary/20' : 'hover:bg-accent/20',
+                          )}
+                          onClick={() => onSlotClick(day, h, m)}
+                          onDragOver={(e) => { if (onEventDrop) e.preventDefault() }}
+                          onDragEnter={(e) => { if (onEventDrop) { e.preventDefault(); setDragOverKey(slotKey) } }}
+                          onDragLeave={() => setDragOverKey((prev) => (prev === slotKey ? null : prev))}
+                          onDrop={(e) => {
+                            if (!onEventDrop) return
+                            e.preventDefault()
+                            setDragOverKey(null)
+                            const eventId = e.dataTransfer.getData('text/plain')
+                            if (eventId) onEventDrop(eventId, day, h, m)
+                          }}
+                        />
+                      )
+                    })}
                   </div>
                 ))}
 
@@ -212,10 +231,17 @@ export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick }: Pr
                     <button
                       key={ev.id}
                       type="button"
+                      draggable={!!onEventDrop}
+                      onDragStart={(e) => {
+                        e.stopPropagation()
+                        e.dataTransfer.setData('text/plain', ev.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
                       onClick={(e) => { e.stopPropagation(); onEventClick(ev) }}
                       style={{ top: top + 1, height: height - 2, width: colW, left: colL }}
                       className={cn(
                         'absolute z-10 overflow-hidden rounded-md px-1.5 py-1 text-left ring-1 transition-opacity hover:opacity-90',
+                        onEventDrop && 'cursor-grab active:cursor-grabbing',
                         ev.status === 'cancelled'
                           ? 'bg-muted/60 text-muted-foreground ring-border line-through'
                           : 'bg-primary/20 text-primary ring-primary/30 hover:bg-primary/30',

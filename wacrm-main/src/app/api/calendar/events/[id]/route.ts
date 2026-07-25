@@ -17,7 +17,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!profile?.account_id) return NextResponse.json({ error: 'No account' }, { status: 403 })
 
   const body = await request.json()
-  const { title, description, start_at, end_at, attendee_emails } = body
+  const { title, description, start_at, end_at, attendee_emails, contact_id, deal_id, assigned_to } = body
 
   const { data: evt } = await supabase
     .from('calendar_events')
@@ -45,6 +45,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (start_at !== undefined) updates.start_at = start_at
   if (end_at !== undefined) updates.end_at = end_at
   if (attendee_emails !== undefined) updates.attendees = attendee_emails.map((e: string) => ({ email: e }))
+  if (contact_id !== undefined) updates.contact_id = contact_id
+  if (deal_id !== undefined) updates.deal_id = deal_id
+  if (assigned_to !== undefined) updates.assigned_to = assigned_to
 
   const { data: updated, error } = await supabaseAdmin().from('calendar_events').update(updates).eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

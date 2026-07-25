@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import {
   AlertCircle,
   Briefcase,
@@ -12,6 +13,7 @@ import {
   Clock,
   ExternalLink,
   Loader2,
+  Pencil,
   Settings,
   Trash2,
   User,
@@ -87,6 +89,7 @@ export default function AgendaPage() {
 
   const [showModal, setShowModal] = useState(false)
   const [defaultDate, setDefaultDate] = useState<Date | undefined>()
+  const [editEvent, setEditEvent] = useState<EnrichedEvent | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<EnrichedEvent | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -143,6 +146,7 @@ export default function AgendaPage() {
   const handleSlotClick = (date: Date, hour: number, minute: number) => {
     const d = new Date(date)
     d.setHours(hour, minute, 0, 0)
+    setEditEvent(null)
     setDefaultDate(d)
     setShowModal(true)
   }
@@ -150,6 +154,7 @@ export default function AgendaPage() {
   const handleDayClick = (date: Date) => {
     const d = new Date(date)
     d.setHours(9, 0, 0, 0)
+    setEditEvent(null)
     setDefaultDate(d)
     setShowModal(true)
   }
@@ -158,12 +163,49 @@ export default function AgendaPage() {
     setSelectedEvent(events.find((e) => e.id === ev.id) ?? null)
   }
 
+  const handleEditEvent = (ev: EnrichedEvent) => {
+    setEditEvent(ev)
+    setDefaultDate(undefined)
+    setShowModal(true)
+  }
+
+  const handleUpdated = () => {
+    // The PUT response isn't joined with contact/deal — reload from the
+    // GET route instead of patching local state with a partial shape.
+    load()
+    setSelectedEvent(null)
+  }
+
+  const handleEventDrop = async (eventId: string, date: Date, hour: number, minute: number) => {
+    const ev = events.find((e) => e.id === eventId)
+    if (!ev) return
+    const durationMs = new Date(ev.end_at).getTime() - new Date(ev.start_at).getTime()
+    const newStart = new Date(date)
+    newStart.setHours(hour, minute, 0, 0)
+    const newEnd = new Date(newStart.getTime() + durationMs)
+
+    // Optimistic move so the card jumps immediately instead of waiting
+    // for the round-trip.
+    setEvents((prev) => prev.map((e) =>
+      e.id === eventId ? { ...e, start_at: newStart.toISOString(), end_at: newEnd.toISOString() } : e,
+    ))
+
+    const res = await fetch(`/api/calendar/events/${eventId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_at: newStart.toISOString(), end_at: newEnd.toISOString() }),
+    })
+    if (!res.ok) {
+      toast.error('Falha ao mover o evento')
+      load()
+    }
+  }
+
   const handleCreated = (ev: CalendarEvent) => {
     setEvents((prev) => [...prev, ev as EnrichedEvent].sort((a, b) => a.start_at.localeCompare(b.start_at)))
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Remover este evento da agenda?')) return
     setDeleting(id)
     await fetch(`/api/calendar/events/${id}`, { method: 'DELETE' })
     setEvents((prev) => prev.filter((e) => e.id !== id))
@@ -225,7 +267,7 @@ export default function AgendaPage() {
               </button>
             ))}
           </div>
-          <Button onClick={() => { setDefaultDate(undefined); setShowModal(true) }}>
+          <Button onClick={() => { setEditEvent(null); setDefaultDate(undefined); setShowModal(true) }}>
             <CalendarPlus className="size-4" />
             Novo evento
           </Button>
@@ -265,6 +307,7 @@ export default function AgendaPage() {
                 events={gridEvents}
                 onSlotClick={handleSlotClick}
                 onEventClick={handleEventClick}
+                onEventDrop={handleEventDrop}
               />
             )}
 
@@ -274,6 +317,7 @@ export default function AgendaPage() {
                 events={gridEvents}
                 onSlotClick={handleSlotClick}
                 onEventClick={handleEventClick}
+                onEventDrop={handleEventDrop}
               />
             )}
 
@@ -296,6 +340,7 @@ export default function AgendaPage() {
             <EventDetailPanel
               ev={selectedEvent}
               onClose={() => setSelectedEvent(null)}
+              onEdit={() => handleEditEvent(selectedEvent)}
               onDelete={handleDelete}
               deleting={deleting}
             />
@@ -330,8 +375,10 @@ export default function AgendaPage() {
 
       <ScheduleEventModal
         open={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => { setShowModal(false); setEditEvent(null) }}
         onCreated={handleCreated}
+        editEvent={editEvent}
+        onUpdated={handleUpdated}
         defaultDate={defaultDate}
       />
     </div>
@@ -340,12 +387,15 @@ export default function AgendaPage() {
 
 // ─── Event detail panel ──────────────────────────────────────────────────────
 
-function EventDetailPanel({ ev, onClose, onDelete, deleting }: {
+function EventDetailPanel({ ev, onClose, onEdit, onDelete, deleting }: {
   ev: EnrichedEvent
   onClose: () => void
+  onEdit: () => void
   onDelete: (id: string) => void
   deleting: string | null
 }) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
   return (
     <div className="w-72 shrink-0 rounded-xl border border-border bg-card p-4 space-y-4 self-start sticky top-4">
       <div className="flex items-start justify-between gap-2">
@@ -395,15 +445,47 @@ function EventDetailPanel({ ev, onClose, onDelete, deleting }: {
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => onDelete(ev.id)}
-        disabled={deleting === ev.id}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-      >
-        {deleting === ev.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-        Remover evento
-      </button>
+      {confirmingDelete ? (
+        <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5">
+          <p className="text-xs text-destructive">Remover este evento da agenda?</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              className="flex-1 rounded-md border border-border py-1.5 text-xs text-muted-foreground hover:bg-muted"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(ev.id)}
+              disabled={deleting === ev.id}
+              className="flex-1 rounded-md bg-destructive/10 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/20 disabled:opacity-50"
+            >
+              {deleting === ev.id ? <Loader2 className="mx-auto size-3.5 animate-spin" /> : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            <Pencil className="size-3.5" />
+            Editar
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="size-3.5" />
+            Remover
+          </button>
+        </div>
+      )}
     </div>
   )
 }
