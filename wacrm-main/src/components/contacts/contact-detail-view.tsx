@@ -1,19 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
 import type { Contact, ContactNote, CustomField, Deal, TrackingLink, PatientRecord, PatientRecordProduct, PatientRecordPhoto } from '@/types';
 import { CustomFieldInput } from '@/components/shared/custom-field-input';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
 import {
   Dialog,
   DialogContent,
@@ -1113,7 +1107,9 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
 }
 
 // ---------------------------------------------------------------------------
-// ContactDetailView — Sheet wrapper (standalone use)
+// ContactDetailView — centered popup wrapper (standalone use), same shell
+// as the deal popup's own "Contato" tab (deal-modal.tsx) so a contact
+// looks identical whether opened from a deal or from /contacts directly.
 // ---------------------------------------------------------------------------
 
 export function ContactDetailView({
@@ -1122,21 +1118,44 @@ export function ContactDetailView({
   contactId,
   onUpdated,
 }: ContactDetailViewProps) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="bg-popover border-border text-popover-foreground sm:max-w-2xl w-full p-0 flex flex-col"
+  useEffect(() => {
+    if (!open) return;
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onOpenChange(false); };
+    window.addEventListener('keydown', fn);
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', fn); document.body.style.overflow = ''; };
+  }, [open, onOpenChange]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <>
+      <div
+        className="fixed inset-0 z-[45] bg-black/50 backdrop-blur-[3px] animate-in fade-in duration-200"
+        onClick={() => onOpenChange(false)}
+        aria-hidden
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4"
       >
-        <SheetHeader className="sr-only">
-          <SheetTitle>Detalhes do contato</SheetTitle>
-          <SheetDescription>Veja e edite as informações deste contato.</SheetDescription>
-        </SheetHeader>
-        {open && contactId && (
-          <ContactDetailContent contactId={contactId} onUpdated={onUpdated} />
-        )}
-      </SheetContent>
-    </Sheet>
+        <div className="relative flex w-full flex-col bg-background shadow-2xl sm:max-w-3xl sm:rounded-2xl h-[95dvh] sm:h-[85vh] max-h-[95dvh] sm:max-h-[90vh] animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-250">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            aria-label="Fechar"
+            className="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <X className="size-4" />
+          </button>
+          {contactId && (
+            <ContactDetailContent contactId={contactId} onUpdated={onUpdated} />
+          )}
+        </div>
+      </div>
+    </>,
+    document.body,
   );
 }
 
