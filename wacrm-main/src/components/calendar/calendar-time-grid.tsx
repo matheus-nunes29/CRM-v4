@@ -9,6 +9,8 @@ const HOUR_START = 7
 const HOUR_END = 22
 const TOTAL_HOURS = HOUR_END - HOUR_START
 const HOUR_PX = 68
+const QUARTER_MINUTES = [0, 15, 30, 45] as const
+const QUARTER_PX = HOUR_PX / QUARTER_MINUTES.length
 
 const HOURS = Array.from({ length: TOTAL_HOURS }, (_, i) => HOUR_START + i)
 
@@ -64,7 +66,7 @@ function layoutEvents(events: CalEvent[]) {
 interface Props {
   days: Date[]
   events: CalEvent[]
-  onSlotClick: (date: Date, hour: number) => void
+  onSlotClick: (date: Date, hour: number, minute: number) => void
   onEventClick: (event: CalEvent) => void
 }
 
@@ -161,14 +163,27 @@ export function CalendarTimeGrid({ days, events, onSlotClick, onEventClick }: Pr
                   todayCol && 'bg-primary/[0.02]',
                 )}
               >
-                {/* Horizontal grid lines — clickable to create event */}
+                {/* Horizontal grid lines — clickable to create event.
+                    Each hour is split into four 15-minute slots so a click
+                    lands on the exact time under the cursor, not just the
+                    hour. */}
                 {HOURS.map((h) => (
-                  <div
-                    key={h}
-                    style={{ top: (h - HOUR_START) * HOUR_PX, height: HOUR_PX }}
-                    className="absolute left-0 right-0 border-t border-border/40 hover:bg-accent/20 cursor-pointer transition-colors"
-                    onClick={() => onSlotClick(day, h)}
-                  />
+                  <div key={h}>
+                    {QUARTER_MINUTES.map((m) => (
+                      <div
+                        key={m}
+                        style={{
+                          top: (h - HOUR_START) * HOUR_PX + (m / 60) * HOUR_PX,
+                          height: QUARTER_PX,
+                        }}
+                        className={cn(
+                          'absolute left-0 right-0 hover:bg-accent/20 cursor-pointer transition-colors',
+                          m === 0 ? 'border-t border-border/40' : 'border-t border-border/10',
+                        )}
+                        onClick={() => onSlotClick(day, h, m)}
+                      />
+                    ))}
+                  </div>
                 ))}
 
                 {/* Current-time red line */}

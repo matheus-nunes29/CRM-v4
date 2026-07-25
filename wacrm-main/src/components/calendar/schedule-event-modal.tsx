@@ -42,8 +42,10 @@ function toLocalDatetimeValue(date: Date) {
 
 function computeDefaults(base?: Date) {
   const now = base ? new Date(base) : new Date()
+  // No base date (opened without clicking a slot) — round up to the next
+  // quarter hour. A base date already carries the exact day/hour/minute
+  // the user clicked, so it's used as-is.
   if (!base) now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0)
-  else now.setHours(9, 0, 0, 0)
   return { start: now, end: new Date(now.getTime() + 60 * 60 * 1000) }
 }
 

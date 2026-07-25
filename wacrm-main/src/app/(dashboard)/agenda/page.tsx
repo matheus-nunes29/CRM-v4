@@ -140,9 +140,9 @@ export default function AgendaPage() {
 
   // ── Event handlers ──────────────────────────────────────────────────────
 
-  const handleSlotClick = (date: Date, hour: number) => {
+  const handleSlotClick = (date: Date, hour: number, minute: number) => {
     const d = new Date(date)
-    d.setHours(hour, 0, 0, 0)
+    d.setHours(hour, minute, 0, 0)
     setDefaultDate(d)
     setShowModal(true)
   }
