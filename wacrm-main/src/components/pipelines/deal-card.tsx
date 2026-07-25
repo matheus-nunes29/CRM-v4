@@ -51,7 +51,11 @@ export function DealCard({ deal, onEdit, isOverlay, nextEvent, nextStageId, onQu
   const contactLabel = deal.contact?.name || deal.contact?.phone || "Sem contato";
   const assigneeLabel = deal.assignee?.full_name || null;
   const isOpen = !deal.status || deal.status === 'open'
-  const showQuickActions = !isOverlay && (onQuickWin || onQuickLose || onQuickMoveNext)
+  // isOpen is required here too, not just on the buttons inside — a
+  // won/lost deal has none of Ganhar/Perder/Próxima etapa available, so
+  // without this the bar itself still rendered (and showed on hover) with
+  // nothing inside it: an empty rounded strip floating under the card.
+  const showQuickActions = !isOverlay && isOpen && (onQuickWin || onQuickLose || onQuickMoveNext)
 
   return (
     <div className={`group relative w-full`}>
