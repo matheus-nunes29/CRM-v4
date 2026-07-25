@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
-  AlertCircle,
   Briefcase,
   CalendarDays,
   CalendarPlus,
@@ -14,7 +13,6 @@ import {
   ExternalLink,
   Loader2,
   Pencil,
-  Settings,
   Trash2,
   User,
   Video,
@@ -82,7 +80,6 @@ export default function AgendaPage() {
 
   const [events, setEvents] = useState<EnrichedEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [hasGoogleIntegration, setHasGoogleIntegration] = useState<boolean | null>(null)
 
   const [view, setView] = useState<View>('week')
   const [baseDate, setBaseDate] = useState<Date>(today)
@@ -101,7 +98,6 @@ export default function AgendaPage() {
     if (!res.ok) { setLoading(false); return }
     const data = await res.json()
     setEvents(data.events ?? [])
-    setHasGoogleIntegration(data.has_google_integration ?? false)
     setLoading(false)
   }, [])
 
@@ -273,23 +269,6 @@ export default function AgendaPage() {
           </Button>
         </div>
       </div>
-
-      {/* ── Google Calendar nudge ── */}
-      {!loading && hasGoogleIntegration === false && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5">
-          <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
-            <AlertCircle className="size-4 shrink-0 text-amber-500" />
-            <span>Conecte o <strong className="text-foreground">Google Calendar</strong> para sincronizar nos dois sentidos.</span>
-          </div>
-          <Link
-            href="/settings?tab=calendar"
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors"
-          >
-            <Settings className="size-3.5" />
-            Conectar
-          </Link>
-        </div>
-      )}
 
       {loading && (
         <div className="flex flex-1 items-center justify-center py-20">
