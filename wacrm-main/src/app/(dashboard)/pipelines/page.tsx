@@ -62,7 +62,7 @@ export default function PipelinesPage() {
   const [loading, setLoading] = useState(true);
   const [nextEventsMap, setNextEventsMap] = useState<Record<string, NextEventInfo>>({});
   const [ownerFilter, setOwnerFilter] = useState<string>("");
-  const [members, setMembers] = useState<{ user_id: string; full_name: string }[]>([]);
+  const [members, setMembers] = useState<{ id: string; user_id: string; full_name: string }[]>([]);
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -527,7 +527,7 @@ export default function PipelinesPage() {
               >
                 <option value="">Toda equipe</option>
                 {members.map(m => (
-                  <option key={m.user_id} value={m.user_id}>{m.full_name || m.user_id}</option>
+                  <option key={m.id} value={m.id}>{m.full_name || m.user_id}</option>
                 ))}
               </select>
               <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-muted-foreground" />

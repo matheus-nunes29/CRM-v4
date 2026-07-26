@@ -130,7 +130,7 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [editAssignedTo, setEditAssignedTo] = useState<string>('');
   const [savingDetails, setSavingDetails] = useState(false);
 
-  const [members, setMembers] = useState<{ user_id: string; full_name: string }[]>([]);
+  const [members, setMembers] = useState<{ id: string; user_id: string; full_name: string }[]>([]);
 
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [contactTagIds, setContactTagIds] = useState<string[]>([]);
@@ -186,7 +186,7 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
     setLoading(true);
     const [contactRes, membersRes] = await Promise.all([
       supabase.from('contacts').select('*').eq('id', contactId).single(),
-      supabase.from('profiles').select('user_id, full_name').order('full_name'),
+      supabase.from('profiles').select('id, user_id, full_name').order('full_name'),
     ]);
     if (contactRes.data) {
       const data = contactRes.data;
@@ -203,7 +203,7 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
         setTrackingLink(null);
       }
     }
-    if (membersRes.data) setMembers(membersRes.data as { user_id: string; full_name: string }[]);
+    if (membersRes.data) setMembers(membersRes.data as { id: string; user_id: string; full_name: string }[]);
     setLoading(false);
   }, [contactId, supabase]);
 
@@ -730,7 +730,7 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
                   >
                     <option value="">Sem responsável</option>
                     {members.map((m) => (
-                      <option key={m.user_id} value={m.user_id}>{m.full_name}</option>
+                      <option key={m.id} value={m.id}>{m.full_name}</option>
                     ))}
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />

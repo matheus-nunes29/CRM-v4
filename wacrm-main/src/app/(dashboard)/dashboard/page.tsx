@@ -65,7 +65,7 @@ import { cn } from '@/lib/utils'
 
 // ── Types ──────────────────────────────────────────────────────
 
-interface Member { user_id: string; full_name: string; avatar_url: string | null }
+interface Member { id: string; user_id: string; full_name: string; avatar_url: string | null }
 
 interface FunnelStage {
   stage_id: string
@@ -597,7 +597,7 @@ export default function DashboardPage() {
               >
                 <option value="">Toda equipe</option>
                 {members.map(m => (
-                  <option key={m.user_id} value={m.user_id}>{m.full_name || m.user_id}</option>
+                  <option key={m.id} value={m.id}>{m.full_name || m.user_id}</option>
                 ))}
               </select>
               <ChevronDown className="pointer-events-none absolute right-2.5 size-3 text-muted-foreground" />

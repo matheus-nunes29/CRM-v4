@@ -27,7 +27,7 @@ import { ScheduleEventModal, type CalendarEvent } from '@/components/calendar/sc
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface Member { user_id: string; full_name: string }
+interface Member { id: string; user_id: string; full_name: string }
 
 type StageHistoryRow = {
   id: string
@@ -776,7 +776,7 @@ function DealTab({
               >
                 <option value="">Sem responsável</option>
                 {members.map(m => (
-                  <option key={m.user_id} value={m.user_id}>{m.full_name}</option>
+                  <option key={m.id} value={m.id}>{m.full_name}</option>
                 ))}
               </select>
             ) : (

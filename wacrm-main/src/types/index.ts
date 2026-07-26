@@ -59,6 +59,13 @@ export interface Account {
  * avatar + role only.
  */
 export interface AccountMember {
+  /** profiles.id — required whenever this value gets written to or
+   *  compared against a column with a FK to profiles(id), e.g.
+   *  contacts.assigned_to / deals.assigned_to. Not the same as
+   *  user_id below (that's profiles.user_id, the FK to auth.users —
+   *  correct instead for columns like conversations.assigned_agent_id
+   *  which reference the user directly). */
+  id: string;
   user_id: string;
   full_name: string;
   email: string | null;

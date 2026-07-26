@@ -54,7 +54,7 @@ interface PipelineWithStages extends Pipeline {
   stages: PipelineStage[]
 }
 
-interface Member { user_id: string; full_name: string }
+interface Member { id: string; user_id: string; full_name: string }
 
 export default function NegociosPage() {
   const supabase = createClient()
@@ -285,7 +285,7 @@ export default function NegociosPage() {
             >
               <option value="">Toda equipe</option>
               {members.map(m => (
-                <option key={m.user_id} value={m.user_id}>{m.full_name || m.user_id}</option>
+                <option key={m.id} value={m.id}>{m.full_name || m.user_id}</option>
               ))}
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-muted-foreground" />
