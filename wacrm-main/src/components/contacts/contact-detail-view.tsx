@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
+import { findOrCreateConversationForContact } from '@/lib/inbox/find-or-create-conversation';
 import type { Contact, ContactNote, CustomField, Deal, TrackingLink, PatientRecord, PatientRecordProduct, PatientRecordPhoto } from '@/types';
 import { CustomFieldInput } from '@/components/shared/custom-field-input';
 import {
@@ -1270,6 +1272,10 @@ export function ContactDetailView({
   contactId,
   onUpdated,
 }: ContactDetailViewProps) {
+  const router = useRouter();
+  const { accountId, user } = useAuth();
+  const supabase = createClient();
+
   useEffect(() => {
     if (!open) return;
     const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onOpenChange(false); };
@@ -1277,6 +1283,17 @@ export function ContactDetailView({
     document.body.style.overflow = 'hidden';
     return () => { window.removeEventListener('keydown', fn); document.body.style.overflow = ''; };
   }, [open, onOpenChange]);
+
+  async function handleOpenInbox() {
+    if (!contactId || !accountId || !user) return;
+    const conversationId = await findOrCreateConversationForContact(supabase, contactId, accountId, user.id);
+    if (conversationId) {
+      onOpenChange(false);
+      router.push(`/inbox?c=${conversationId}`);
+    } else {
+      toast.error('Falha ao abrir conversa');
+    }
+  }
 
   if (!open) return null;
 
@@ -1302,7 +1319,7 @@ export function ContactDetailView({
             <X className="size-4" />
           </button>
           {contactId && (
-            <ContactDetailContent contactId={contactId} onUpdated={onUpdated} />
+            <ContactDetailContent contactId={contactId} onUpdated={onUpdated} onWhatsApp={handleOpenInbox} />
           )}
         </div>
       </div>

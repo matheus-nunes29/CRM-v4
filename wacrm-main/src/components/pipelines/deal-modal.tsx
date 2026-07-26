@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
+import { findOrCreateConversationForContact } from '@/lib/inbox/find-or-create-conversation'
 import { formatCurrency } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -87,7 +88,7 @@ export function DealModal({
 }: DealModalProps) {
   const supabase = createClient()
   const router = useRouter()
-  const { defaultCurrency, account, accountId } = useAuth()
+  const { defaultCurrency, account, accountId, user } = useAuth()
 
   // Loss reason picker — intercepts a click on the "Perdido" pill instead
   // of moving straight there, since marking lost may require a reason
@@ -255,21 +256,15 @@ export function DealModal({
 
   const openInboxForContact = useCallback(async () => {
     const contactId = (deal as Deal & { contact?: { id: string } })?.contact?.id
-    if (!contactId) return
-    const { data } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('contact_id', contactId)
-      .order('last_message_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (data?.id) {
+    if (!contactId || !accountId || !user) return
+    const conversationId = await findOrCreateConversationForContact(supabase, contactId, accountId, user.id)
+    if (conversationId) {
       onOpenChange(false)
-      router.push(`/inbox?c=${data.id}`)
+      router.push(`/inbox?c=${conversationId}`)
     } else {
-      toast.error('Nenhuma conversa encontrada para este contato')
+      toast.error('Falha ao abrir conversa')
     }
-  }, [deal, supabase, router, onOpenChange])
+  }, [deal, supabase, router, onOpenChange, accountId, user])
 
   // ── Status change ────────────────────────────────────────────────────────
 
@@ -506,6 +501,7 @@ export function DealModal({
                 key={deal.contact_id}
                 contactId={deal.contact_id}
                 onUpdated={() => onRefresh?.()}
+                onWhatsApp={openInboxForContact}
               />
             ) : (
               <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
