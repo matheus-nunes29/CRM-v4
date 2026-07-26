@@ -608,7 +608,8 @@ export type AutomationTriggerType =
   | 'broadcast_reply'
   | 'conversation_idle'
   | 'contact_inactive'
-  | 'deal_stagnant';
+  | 'deal_stagnant'
+  | 'appointment_upcoming';
 
 export type AutomationStepType =
   | 'send_message'
@@ -658,6 +659,11 @@ export interface ContactFieldChangedTriggerConfig {
   field?: string;
 }
 
+export interface AppointmentUpcomingTriggerConfig {
+  /** Hours before a calendar_events.start_at to fire the reminder. */
+  hours_before: number;
+}
+
 export type AutomationTriggerConfig =
   | Record<string, never>
   | KeywordMatchTriggerConfig
@@ -666,6 +672,7 @@ export type AutomationTriggerConfig =
   | StageEnteredTriggerConfig
   | InactivityTriggerConfig
   | ContactFieldChangedTriggerConfig
+  | AppointmentUpcomingTriggerConfig
   | Record<string, unknown>;
 
 export interface SendMessageStepConfig {

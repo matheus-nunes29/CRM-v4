@@ -83,6 +83,10 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Negócio Parado',
     pillClass: 'border-orange-700/30 bg-orange-700/10 text-orange-500',
   },
+  appointment_upcoming: {
+    label: 'Agendamento Próximo',
+    pillClass: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+  },
 }
 
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {

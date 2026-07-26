@@ -169,6 +169,12 @@ const TRIGGER_GROUPS: { group: string; options: { value: AutomationTriggerType; 
       { value: "time_based", label: "Agendado (Recorrente)", hint: "Dispara em um horário fixo, todos os dias" },
     ],
   },
+  {
+    group: "Agenda",
+    options: [
+      { value: "appointment_upcoming", label: "Agendamento Próximo", hint: "N horas antes do horário marcado de um compromisso do contato na Agenda — verificado a cada 15 minutos" },
+    ],
+  },
 ]
 
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: string }[] =
@@ -898,6 +904,9 @@ function TriggerCard({
                 onChange={onConfigChange}
               />
             )}
+            {type === "appointment_upcoming" && (
+              <AppointmentUpcomingConfig config={config} onChange={onConfigChange} />
+            )}
             {type === "contact_field_changed" && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -1007,6 +1016,41 @@ function InactivityTriggerConfig({
         />
         <span className="text-sm text-muted-foreground">{unit}</span>
       </div>
+    </div>
+  )
+}
+
+function AppointmentUpcomingConfig({
+  config,
+  onChange,
+}: {
+  config: Record<string, unknown>
+  onChange: (c: Record<string, unknown>) => void
+}) {
+  const hoursBefore = (config.hours_before as number) ?? 24
+
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-muted-foreground">
+        Horas antes do agendamento
+      </label>
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          min={1}
+          max={168}
+          value={hoursBefore}
+          onChange={(e) =>
+            onChange({ ...config, hours_before: Math.max(1, parseInt(e.target.value) || 24) })
+          }
+          className="w-24 bg-muted text-foreground"
+        />
+        <span className="text-sm text-muted-foreground">horas</span>
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Use <code>{"{{vars.event_title}}"}</code> e <code>{"{{vars.event_start_at}}"}</code> na
+        mensagem para citar o agendamento.
+      </p>
     </div>
   )
 }
