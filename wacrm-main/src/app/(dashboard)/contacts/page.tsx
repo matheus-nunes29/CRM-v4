@@ -111,10 +111,18 @@ export default function ContactsPage() {
   // All tags for display
   const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});
 
-  // Open sheet from ?open=id (search results, external links)
+  // Open sheet from ?open=id (search results, external links). Applied
+  // at most once per id — otherwise a lingering ?open= param (e.g. the
+  // browser's back button restoring this URL after the WhatsApp button
+  // navigated to /inbox) re-fires this effect and stomps whatever
+  // contact the user opened afterwards by clicking a row directly,
+  // snapping the popup back to the old param's contact. Same guard
+  // pattern as the Inbox page's own deep-link ref.
+  const appliedOpenParamRef = useRef<string | null>(null);
   useEffect(() => {
     const id = searchParams.get('open');
-    if (id) {
+    if (id && appliedOpenParamRef.current !== id) {
+      appliedOpenParamRef.current = id;
       setDetailContactId(id);
       setDetailOpen(true);
     }
