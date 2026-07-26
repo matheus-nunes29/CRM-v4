@@ -80,7 +80,7 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     if (input.contactId) {
       const { data: owned, error: ownErr } = await db
         .from('contacts')
-        .select('id')
+        .select('id, name, phone')
         .eq('id', input.contactId)
         .eq('account_id', input.accountId)
         .maybeSingle()
@@ -91,6 +91,14 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
       if (!owned) {
         console.warn('[automations] contact not in account, refusing dispatch', input.contactId)
         return
+      }
+      // {{contact.name}} is advertised everywhere a message can be
+      // templated, but no caller ever populated it — it always
+      // resolved to "". Fill it here once, generically, so it works
+      // no matter which trigger fired. A caller-supplied value (none
+      // do today) still wins.
+      if (!input.context?.contact_name) {
+        input.context = { ...input.context, contact_name: owned.name || owned.phone || '' }
       }
     }
 

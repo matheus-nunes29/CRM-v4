@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -179,6 +180,35 @@ const TRIGGER_GROUPS: { group: string; options: { value: AutomationTriggerType; 
 
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: string }[] =
   TRIGGER_GROUPS.flatMap((g) => g.options)
+
+// Which {{token}}s actually resolve to something for a given trigger —
+// interpolate() (engine.ts) only recognises message.text / contact.name /
+// vars.*, and vars.* is only populated by the specific trigger that sets
+// it. Keeping this list here means the picker never offers a variable
+// that would just render as an empty string.
+const MESSAGE_TRIGGERS: AutomationTriggerType[] = [
+  "new_message_received",
+  "first_inbound_message",
+  "keyword_match",
+  "broadcast_reply",
+]
+
+function variablesForTrigger(t: AutomationTriggerType): { token: string; label: string }[] {
+  const vars: { token: string; label: string }[] = [
+    { token: "{{contact.name}}", label: "Nome do contato" },
+  ]
+  if (MESSAGE_TRIGGERS.includes(t)) {
+    vars.push({ token: "{{message.text}}", label: "Texto da mensagem recebida" })
+  }
+  if (t === "appointment_upcoming") {
+    vars.push(
+      { token: "{{vars.event_title}}", label: "Título do agendamento" },
+      { token: "{{vars.event_start_at}}", label: "Data/hora do agendamento" },
+      { token: "{{vars.hours_before}}", label: "Horas de antecedência" },
+    )
+  }
+  return vars
+}
 
 function cid(): string {
   return (
@@ -788,6 +818,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
             <StepList
               steps={state.steps}
               parentPath={[]}
+              triggerType={state.trigger_type}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
               updateStep={updateStep}
@@ -1145,6 +1176,7 @@ type StepPath = (
 interface StepListProps {
   steps: BuilderStep[]
   parentPath: StepPath
+  triggerType: AutomationTriggerType
   expandedId: string | null
   setExpandedId: (id: string | null) => void
   updateStep: (path: StepPath, updater: (s: BuilderStep) => BuilderStep) => void
@@ -1246,6 +1278,7 @@ function StepRenderer({
             <div className="border-t border-border px-4 py-3">
               <StepEditor
                 step={step}
+                triggerType={props.triggerType}
                 onChange={(next) => props.updateStep(path, () => next)}
               />
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
@@ -1389,25 +1422,62 @@ function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
 
 function StepEditor({
   step,
+  triggerType,
   onChange,
 }: {
   step: BuilderStep
+  triggerType: AutomationTriggerType
   onChange: (s: BuilderStep) => void
 }) {
   const cfg = step.step_config
   const set = (patch: Record<string, unknown>) =>
     onChange({ ...step, step_config: { ...cfg, ...patch } })
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  function insertVariable(token: string) {
+    const el = textareaRef.current
+    const current = (cfg.text as string) ?? ""
+    if (!el) {
+      set({ text: current + token })
+      return
+    }
+    const start = el.selectionStart ?? current.length
+    const end = el.selectionEnd ?? current.length
+    const next = current.slice(0, start) + token + current.slice(end)
+    set({ text: next })
+    // Restore focus + caret right after the inserted token — otherwise
+    // the next click lands at the end instead of where the user was.
+    requestAnimationFrame(() => {
+      el.focus()
+      const caret = start + token.length
+      el.setSelectionRange(caret, caret)
+    })
+  }
 
   switch (step.step_type) {
     case "send_message":
       return (
         <FieldBlock label="Texto da mensagem">
           <Textarea
+            ref={textareaRef}
             value={(cfg.text as string) ?? ""}
             onChange={(e) => set({ text: e.target.value })}
             placeholder="Hi! Thanks for reaching out…"
             className="min-h-24 bg-muted text-foreground"
           />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {variablesForTrigger(triggerType).map((v) => (
+              <button
+                key={v.token}
+                type="button"
+                title={v.label}
+                onClick={() => insertVariable(v.token)}
+                className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+              >
+                {v.token}
+              </button>
+            ))}
+          </div>
         </FieldBlock>
       )
     case "send_template":
