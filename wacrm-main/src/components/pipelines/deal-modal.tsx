@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   X, Pencil, Check, ArrowRight, RotateCcw,
-  Loader2, CalendarDays, User, MessageSquare, Clock, CalendarPlus,
+  Loader2, CalendarDays, User, Clock, CalendarPlus,
   ExternalLink, History, Trash2,
 } from 'lucide-react'
 // WhatsApp icon (inline SVG — not in lucide)
@@ -730,11 +730,11 @@ function DealTab({
         </button>
       )}
 
-      {/* ── Detalhes — um card, linhas divididas (não grade de cards) */}
-      <div className="rounded-xl border border-border bg-card divide-y divide-border">
+      {/* ── Detalhes — 2 colunas, ocupa menos altura ─────────────────── */}
+      <div className="grid grid-cols-2 gap-2">
         {/* Contact */}
         {deal.contact && (
-          <div className="flex items-center gap-3 p-3">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
               {initials(deal.contact.name ?? deal.contact.phone)}
             </div>
@@ -742,13 +742,12 @@ function DealTab({
               <p className="text-[10px] text-muted-foreground">Contato</p>
               <p className="truncate text-sm font-medium text-foreground">{deal.contact.name ?? deal.contact.phone ?? '—'}</p>
             </div>
-            <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
           </div>
         )}
 
         {/* Created at */}
         {deal.created_at && (
-          <div className="flex items-center gap-3 p-3">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
             <Clock className="size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
               <p className="text-[10px] text-muted-foreground">Criado em</p>
@@ -760,7 +759,7 @@ function DealTab({
         )}
 
         {/* Assignee */}
-        <div className="flex items-center gap-3 p-3">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
           <User className="size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] text-muted-foreground">Responsável</p>
@@ -784,7 +783,7 @@ function DealTab({
         </div>
 
         {/* Expected close date */}
-        <div className="flex items-center gap-3 p-3">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
           <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] text-muted-foreground">Previsão de fechamento</p>
