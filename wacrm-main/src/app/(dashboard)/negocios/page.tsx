@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Deal, DealStatus, Pipeline, PipelineStage, TrackingLink } from '@/types'
+import type { Deal, DealStatus, LossReason, Pipeline, PipelineStage, TrackingLink } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -22,6 +23,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
   Briefcase,
   ChevronDown,
   ChevronLeft,
@@ -30,11 +39,15 @@ import {
   Megaphone,
   Pencil,
   Search,
+  Trash2,
   Users,
 } from 'lucide-react'
 import { DealForm } from '@/components/pipelines/deal-form'
 import { DealModal } from '@/components/pipelines/deal-modal'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/use-auth'
+import { useCan } from '@/hooks/use-can'
+import { GatedButton } from '@/components/ui/gated-button'
 
 const PAGE_SIZE = 25
 
@@ -60,6 +73,8 @@ export default function NegociosPage() {
   const supabase = createClient()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { account, accountId } = useAuth()
+  const canEdit = useCan('send-messages')
 
   const [deals, setDeals] = useState<DealRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,6 +96,18 @@ export default function NegociosPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDealId, setModalDealId] = useState<string | null>(null)
   const [modalStages, setModalStages] = useState<PipelineStage[]>([])
+
+  // Bulk selection (page-scoped — only the loaded rows are selectable)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [bulkAssignedTo, setBulkAssignedTo] = useState('')
+  const [bulkExpectedDate, setBulkExpectedDate] = useState('')
+  const [bulkStageId, setBulkStageId] = useState('')
+  const [bulkLossReasonId, setBulkLossReasonId] = useState('')
+  const [bulkEditing, setBulkEditing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [lossReasons, setLossReasons] = useState<LossReason[]>([])
 
   const fetchSeq = useRef(0)
 
@@ -114,6 +141,10 @@ export default function NegociosPage() {
   const fetchDeals = useCallback(async () => {
     const seq = ++fetchSeq.current
     setLoading(true)
+    // The visible rows are about to change — drop any selection that
+    // referred to the old page/filter results so the bulk bar can't act
+    // on rows the user can no longer see.
+    setSelected(new Set())
 
     const from = page * PAGE_SIZE
     const to = from + PAGE_SIZE - 1
@@ -166,6 +197,16 @@ export default function NegociosPage() {
   useEffect(() => {
     fetchDeals()
   }, [fetchDeals])
+
+  useEffect(() => {
+    if (!accountId) return
+    supabase
+      .from('loss_reasons')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('position', { ascending: true })
+      .then(({ data }) => setLossReasons((data as LossReason[]) ?? []))
+  }, [accountId, supabase])
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
@@ -225,6 +266,120 @@ export default function NegociosPage() {
   const statusLabel =
     statusFilter === 'all' ? 'Todos os status' : STATUS_META[statusFilter].label
 
+  // ── Bulk selection ─────────────────────────────────────────────────────────
+
+  const allOnPageSelected = deals.length > 0 && deals.every((d) => selected.has(d.id))
+  const someOnPageSelected = deals.some((d) => selected.has(d.id))
+
+  function toggleSelectAll() {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allOnPageSelected) deals.forEach((d) => next.delete(d.id))
+      else deals.forEach((d) => next.add(d.id))
+      return next
+    })
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectedDeals = deals.filter((d) => selected.has(d.id))
+  const selectedPipelineIds = new Set(selectedDeals.map((d) => d.pipeline_id))
+  const bulkCommonPipelineId = selectedPipelineIds.size === 1 ? [...selectedPipelineIds][0] : null
+  const bulkStageOptions = bulkCommonPipelineId ? (pipelinesMap[bulkCommonPipelineId]?.stages ?? []) : []
+  const bulkTargetStage = bulkStageOptions.find((s) => s.id === bulkStageId)
+  const bulkRequireLossReason = !!account?.require_loss_reason && bulkTargetStage?.fixed_role === 'lost'
+
+  function openBulkEdit() {
+    setBulkAssignedTo('')
+    setBulkExpectedDate('')
+    setBulkStageId('')
+    setBulkLossReasonId('')
+    setBulkEditOpen(true)
+  }
+
+  async function handleBulkEdit() {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    if (bulkStageId && bulkRequireLossReason && !bulkLossReasonId) {
+      toast.error('Selecione um motivo de perda')
+      return
+    }
+    setBulkEditing(true)
+
+    try {
+      const ops: Promise<unknown>[] = []
+
+      // Owner / expected date — plain columns, no automation side effects,
+      // safe to update in one query.
+      const fields: Record<string, unknown> = {}
+      if (bulkAssignedTo) fields.assigned_to = bulkAssignedTo
+      if (bulkExpectedDate) fields.expected_close_date = bulkExpectedDate
+      const hasFieldUpdate = Object.keys(fields).length > 0
+      if (hasFieldUpdate) {
+        fields.updated_at = new Date().toISOString()
+        ops.push(supabase.from('deals').update(fields).in('id', ids) as unknown as Promise<unknown>)
+      }
+
+      // Stage/status — routed through the per-deal API so automations,
+      // Meta CAPI and the loss-reason rule fire the same as a manual move.
+      if (bulkStageId) {
+        for (const dealId of ids) {
+          ops.push(
+            fetch(`/api/deals/${dealId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                stage_id: bulkStageId,
+                ...(bulkLossReasonId ? { loss_reason_id: bulkLossReasonId } : {}),
+              }),
+            })
+          )
+        }
+      }
+
+      await Promise.all(ops)
+
+      if (!hasFieldUpdate && !bulkStageId) {
+        toast.info('Nenhuma alteração selecionada.')
+      } else {
+        toast.success(`${ids.length} negócio${ids.length === 1 ? '' : 's'} atualizado${ids.length === 1 ? '' : 's'}.`)
+        setSelected(new Set())
+        fetchDeals()
+      }
+    } catch {
+      toast.error('Erro ao editar negócios.')
+    } finally {
+      setBulkEditing(false)
+      setBulkEditOpen(false)
+    }
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    setDeleting(true)
+
+    const { error } = await supabase.from('deals').delete().in('id', ids)
+
+    if (error) {
+      toast.error('Falha ao excluir negócios')
+    } else {
+      toast.success(`${ids.length} negócio${ids.length === 1 ? '' : 's'} excluído${ids.length === 1 ? '' : 's'}`)
+      setSelected(new Set())
+      fetchDeals()
+    }
+
+    setDeleting(false)
+    setBulkDeleteOpen(false)
+  }
+
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
@@ -238,6 +393,45 @@ export default function NegociosPage() {
                 : `${totalCount} negócio${totalCount === 1 ? '' : 's'}`}
           </p>
         </div>
+
+        {selected.size > 0 && (
+          /* Bulk action bar — appears in the header when rows are selected */
+          <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+            <span className="text-sm font-medium text-primary mr-1">
+              {selected.size} {selected.size === 1 ? 'selecionado' : 'selecionados'}
+            </span>
+            <GatedButton
+              variant="outline"
+              size="sm"
+              canAct={canEdit}
+              gateReason="edit deals"
+              onClick={openBulkEdit}
+              className="border-border gap-1.5"
+            >
+              <Pencil className="size-3.5" />
+              Editar em massa
+            </GatedButton>
+            <GatedButton
+              variant="destructive"
+              size="sm"
+              canAct={canEdit}
+              gateReason="delete deals"
+              onClick={() => setBulkDeleteOpen(true)}
+              className="gap-1.5"
+            >
+              <Trash2 className="size-3.5" />
+              Excluir selecionados
+            </GatedButton>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelected(new Set())}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Cancelar
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -298,6 +492,15 @@ export default function NegociosPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allOnPageSelected}
+                  indeterminate={!allOnPageSelected && someOnPageSelected}
+                  onCheckedChange={toggleSelectAll}
+                  disabled={deals.length === 0}
+                  aria-label="Selecionar todos os negócios nesta página"
+                />
+              </TableHead>
               <TableHead>Título</TableHead>
               <TableHead>Valor</TableHead>
               <TableHead>Data de criação</TableHead>
@@ -312,13 +515,13 @@ export default function NegociosPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-16 text-center">
+                <TableCell colSpan={9} className="py-16 text-center">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : deals.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-16 text-center">
+                <TableCell colSpan={9} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <Briefcase className="h-8 w-8 text-muted-foreground/30" />
                     <p className="text-sm text-muted-foreground">
@@ -344,6 +547,13 @@ export default function NegociosPage() {
                       setModalOpen(true)
                     }}
                   >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selected.has(deal.id)}
+                        onCheckedChange={() => toggleSelect(deal.id)}
+                        aria-label={`Selecionar ${deal.title}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{deal.title}</TableCell>
                     <TableCell className="tabular-nums text-foreground">
                       {formatValue(deal.value, deal.currency)}
@@ -475,6 +685,137 @@ export default function NegociosPage() {
           }}
         />
       )}
+
+      {/* Bulk Edit */}
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent className="bg-popover border-border text-popover-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-popover-foreground">
+              Editar {selected.size} {selected.size === 1 ? 'negócio' : 'negócios'}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              As alterações abaixo serão aplicadas a todos os negócios selecionados.
+              Deixe em branco o que não quiser alterar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            {/* Owner */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-foreground">Responsável</p>
+              <select
+                value={bulkAssignedTo}
+                onChange={(e) => setBulkAssignedTo(e.target.value)}
+                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+              >
+                <option value="">— manter —</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{m.full_name || m.user_id}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Expected close date */}
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="text-xs font-medium text-foreground">Data prevista de fechamento</p>
+              <Input
+                type="date"
+                value={bulkExpectedDate}
+                onChange={(e) => setBulkExpectedDate(e.target.value)}
+                className="bg-muted border-border text-foreground text-sm"
+              />
+            </div>
+
+            {/* Stage / status */}
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="text-xs font-medium text-foreground">Etapa / Status</p>
+              {selectedPipelineIds.size > 1 ? (
+                <p className="text-xs text-muted-foreground">
+                  Os negócios selecionados estão em funis diferentes. Selecione apenas negócios do mesmo funil pra mudar a etapa em massa.
+                </p>
+              ) : (
+                <>
+                  <select
+                    value={bulkStageId}
+                    onChange={(e) => { setBulkStageId(e.target.value); setBulkLossReasonId('') }}
+                    className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="">— manter —</option>
+                    {bulkStageOptions.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                  {bulkRequireLossReason && (
+                    <select
+                      value={bulkLossReasonId}
+                      onChange={(e) => setBulkLossReasonId(e.target.value)}
+                      className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                    >
+                      <option value="">— motivo da perda —</option>
+                      {lossReasons.map((r) => (
+                        <option key={r.id} value={r.id}>{r.label}</option>
+                      ))}
+                    </select>
+                  )}
+                  {bulkStageId && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Move os {selected.size} negócios selecionados pra essa etapa (dispara automações normalmente).
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkEditOpen(false)} className="border-border" disabled={bulkEditing}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleBulkEdit}
+              disabled={bulkEditing || (!bulkAssignedTo && !bulkExpectedDate && !bulkStageId)}
+            >
+              {bulkEditing && <Loader2 className="size-4 animate-spin" />}
+              Aplicar a {selected.size} {selected.size === 1 ? 'negócio' : 'negócios'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent className="bg-popover border-border text-popover-foreground sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-popover-foreground">
+              Excluir {selected.size} {selected.size === 1 ? 'Negócio' : 'Negócios'}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Tem certeza que deseja excluir{' '}
+              <span className="text-popover-foreground font-medium">
+                {selected.size} {selected.size === 1 ? 'negócio' : 'negócios'}
+              </span>
+              ? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="bg-popover border-border">
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteOpen(false)}
+              className="border-border text-muted-foreground hover:bg-muted"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="size-4 animate-spin" />}
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
