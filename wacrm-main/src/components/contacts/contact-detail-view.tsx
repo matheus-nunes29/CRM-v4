@@ -1308,6 +1308,9 @@ export function ContactDetailView({
         role="dialog"
         aria-modal="true"
         className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4"
+        onClick={e => {
+          if (e.target === e.currentTarget) onOpenChange(false)
+        }}
       >
         <div className="relative flex w-full flex-col bg-background shadow-2xl sm:max-w-3xl sm:rounded-2xl h-[95dvh] sm:h-[85vh] max-h-[95dvh] sm:max-h-[90vh] animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-250">
           <button
