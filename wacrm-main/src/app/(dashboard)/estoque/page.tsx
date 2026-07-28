@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Boxes, Loader2, Plus } from "lucide-react";
+import { AlertTriangle, Boxes, Loader2, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -22,6 +23,16 @@ interface StockProductRow {
   unit: string;
   total_remaining: number;
   lot_count: number;
+  min_stock_threshold: number | null;
+}
+
+/** Red at or below the minimum, amber up to twice the minimum, normal
+ *  above that. No threshold set (null) means no alert either way. */
+function stockLevel(remaining: number, threshold: number | null): "critical" | "low" | "ok" {
+  if (threshold == null) return "ok";
+  if (remaining <= threshold) return "critical";
+  if (remaining <= threshold * 2) return "low";
+  return "ok";
 }
 
 export default function EstoquePage() {
@@ -33,7 +44,7 @@ export default function EstoquePage() {
     const supabase = createClient();
     const { data: trackedProducts, error: productsErr } = await supabase
       .from("products")
-      .select("id, name, unit")
+      .select("id, name, unit, min_stock_threshold")
       .eq("tracks_stock", true)
       .order("name");
 
@@ -67,6 +78,7 @@ export default function EstoquePage() {
         unit: p.unit,
         total_remaining: totals.get(p.id)?.remaining ?? 0,
         lot_count: totals.get(p.id)?.count ?? 0,
+        min_stock_threshold: p.min_stock_threshold != null ? Number(p.min_stock_threshold) : null,
       })),
     );
   }, []);
@@ -120,21 +132,33 @@ export default function EstoquePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.map((p) => (
-                <TableRow
-                  key={p.id}
-                  className="cursor-pointer"
-                  onClick={() => (window.location.href = `/estoque/${p.id}`)}
-                >
-                  <TableCell className="font-medium">
-                    <Link href={`/estoque/${p.id}`}>{p.name}</Link>
-                  </TableCell>
-                  <TableCell>{p.lot_count}</TableCell>
-                  <TableCell>
-                    {p.total_remaining} {p.unit}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {products.map((p) => {
+                const level = stockLevel(p.total_remaining, p.min_stock_threshold);
+                return (
+                  <TableRow
+                    key={p.id}
+                    className="cursor-pointer"
+                    onClick={() => (window.location.href = `/estoque/${p.id}`)}
+                  >
+                    <TableCell className="font-medium">
+                      <Link href={`/estoque/${p.id}`}>{p.name}</Link>
+                    </TableCell>
+                    <TableCell>{p.lot_count}</TableCell>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 font-medium",
+                          level === "critical" && "text-destructive",
+                          level === "low" && "text-amber-600 dark:text-amber-400",
+                        )}
+                      >
+                        {level !== "ok" && <AlertTriangle className="size-3.5 shrink-0" />}
+                        {p.total_remaining} {p.unit}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

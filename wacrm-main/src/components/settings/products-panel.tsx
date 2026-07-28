@@ -22,6 +22,7 @@ interface Product {
   default_price: number | null
   unit: string
   tracks_stock: boolean
+  min_stock_threshold: number | null
   created_at: string
 }
 
@@ -42,6 +43,7 @@ interface FormState {
   default_price: string
   unit: string
   tracks_stock: boolean
+  min_stock_threshold: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -51,6 +53,7 @@ const EMPTY_FORM: FormState = {
   default_price: '',
   unit: 'un',
   tracks_stock: false,
+  min_stock_threshold: '',
 }
 
 export function ProductsPanel() {
@@ -93,6 +96,7 @@ export function ProductsPanel() {
       default_price: p.default_price != null ? String(p.default_price) : '',
       unit: p.unit,
       tracks_stock: p.tracks_stock,
+      min_stock_threshold: p.min_stock_threshold != null ? String(p.min_stock_threshold) : '',
     })
     setFormOpen(true)
   }
@@ -108,13 +112,21 @@ export function ProductsPanel() {
     if (!accountId) return
     setSaving(true)
 
+    const tracksStock = form.type === 'product' && form.tracks_stock
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
       type: form.type,
       default_price: form.default_price !== '' ? parseFloat(form.default_price.replace(',', '.')) : null,
       unit: form.unit.trim() || 'un',
-      tracks_stock: form.type === 'product' && form.tracks_stock,
+      tracks_stock: tracksStock,
+      // Only meaningful while tracking stock — cleared otherwise so a
+      // product that later stops tracking stock doesn't leave a stale
+      // threshold behind.
+      min_stock_threshold:
+        tracksStock && form.min_stock_threshold !== ''
+          ? parseFloat(form.min_stock_threshold.replace(',', '.'))
+          : null,
       account_id: accountId,
     }
 
@@ -225,15 +237,35 @@ export function ProductsPanel() {
           </div>
 
           {form.type === 'product' && hasFeature('estoque') && (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="p-tracks-stock"
-                checked={form.tracks_stock}
-                onCheckedChange={checked => setForm(f => ({ ...f, tracks_stock: checked === true }))}
-              />
-              <Label htmlFor="p-tracks-stock" className="font-normal">
-                Controla estoque (lotes, validade e baixa automática pelo prontuário)
-              </Label>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="p-tracks-stock"
+                  checked={form.tracks_stock}
+                  onCheckedChange={checked => setForm(f => ({ ...f, tracks_stock: checked === true }))}
+                />
+                <Label htmlFor="p-tracks-stock" className="font-normal">
+                  Controla estoque (lotes, validade e baixa automática pelo prontuário)
+                </Label>
+              </div>
+
+              {form.tracks_stock && (
+                <div className="space-y-1.5 pl-6">
+                  <Label htmlFor="p-min-stock">Quantidade mínima segura (opcional)</Label>
+                  <Input
+                    id="p-min-stock"
+                    value={form.min_stock_threshold}
+                    onChange={e => setForm(f => ({ ...f, min_stock_threshold: e.target.value }))}
+                    placeholder="Ex: 10"
+                    inputMode="decimal"
+                    className="max-w-40"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    No Estoque, o saldo aparece em vermelho nesse limite ou abaixo, e em
+                    amarelo até o dobro dele.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

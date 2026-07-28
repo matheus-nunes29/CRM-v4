@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState, use as usePromise } from "react";
 import Link from "next/link";
-import { Loader2, Plus, Wrench } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Wrench } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,6 +29,16 @@ interface ProductInfo {
   id: string;
   name: string;
   unit: string;
+  min_stock_threshold: number | null;
+}
+
+/** Same rule as the Estoque list page: red at/below the minimum, amber
+ *  up to twice the minimum, normal above — no threshold means no alert. */
+function stockLevel(remaining: number, threshold: number | null): "critical" | "low" | "ok" {
+  if (threshold == null) return "ok";
+  if (remaining <= threshold) return "critical";
+  if (remaining <= threshold * 2) return "low";
+  return "ok";
 }
 
 interface Lot {
@@ -73,7 +84,7 @@ export default function ProductStockPage({
     const supabase = createClient();
     setLoading(true);
     const [productRes, lotsRes, movementsRes] = await Promise.all([
-      supabase.from("products").select("id, name, unit").eq("id", productId).maybeSingle(),
+      supabase.from("products").select("id, name, unit, min_stock_threshold").eq("id", productId).maybeSingle(),
       supabase
         .from("product_stock_lots")
         .select("id, lot_number, expiration_date, quantity_received, quantity_remaining")
@@ -119,9 +130,23 @@ export default function ProductStockPage({
         <div className="mt-2 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">{product.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              Saldo total: {totalRemaining} {product.unit}
-            </p>
+            {(() => {
+              const threshold = product.min_stock_threshold != null ? Number(product.min_stock_threshold) : null;
+              const level = stockLevel(totalRemaining, threshold);
+              return (
+                <p
+                  className={cn(
+                    "flex items-center gap-1.5 text-sm",
+                    level === "ok" && "text-muted-foreground",
+                    level === "critical" && "font-medium text-destructive",
+                    level === "low" && "font-medium text-amber-600 dark:text-amber-400",
+                  )}
+                >
+                  {level !== "ok" && <AlertTriangle className="size-3.5 shrink-0" />}
+                  Saldo total: {totalRemaining} {product.unit}
+                </p>
+              );
+            })()}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setAdjustOpen(true)} disabled={lots.length === 0}>
