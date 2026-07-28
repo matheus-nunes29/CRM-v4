@@ -67,7 +67,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/broadcasts", label: "Disparos", icon: Radio, feature: "broadcasts" },
       { href: "/automations", label: "Automações", icon: Zap, feature: "automations" },
-      { href: "/flows", label: "Fluxos", icon: Workflow, beta: true, feature: "flows" },
+      { href: "/flows", label: "Fluxos", icon: Workflow, feature: "flows" },
     ],
   },
 ];
