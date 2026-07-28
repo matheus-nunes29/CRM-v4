@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { getIntegration, createGoogleEvent, decrypt } from '@/lib/calendar/google'
-import { getIntegration as getMicrosoftIntegration, createMicrosoftEvent } from '@/lib/calendar/microsoft'
 
 function supabaseAdmin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -29,10 +28,9 @@ export async function GET(request: NextRequest) {
   if (contactId) query = query.eq('contact_id', contactId)
   if (dealId) query = query.eq('deal_id', dealId)
 
-  const [eventsResult, integration, msIntegration] = await Promise.all([
+  const [eventsResult, integration] = await Promise.all([
     query,
     getIntegration(profile.account_id),
-    getMicrosoftIntegration(profile.account_id),
   ])
 
   if (eventsResult.error) return NextResponse.json({ error: eventsResult.error.message }, { status: 500 })
@@ -40,7 +38,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     events: eventsResult.data,
     has_google_integration: !!integration,
-    has_microsoft_integration: !!msIntegration,
   })
 }
 
@@ -67,14 +64,8 @@ export async function POST(request: NextRequest) {
   let calendarId = 'primary'
   let provider = 'internal'
 
-  // Push to whichever calendar is connected — non-blocking if it fails.
-  // Google takes priority when both are connected (no UI provider picker
-  // exists yet to let the user choose per-event).
-  const [integration, msIntegration] = await Promise.all([
-    getIntegration(profile.account_id),
-    getMicrosoftIntegration(profile.account_id),
-  ])
-
+  // Push to Google if integration is connected — non-blocking if it fails
+  const integration = await getIntegration(profile.account_id)
   if (integration) {
     try {
       const accessToken = decrypt(integration.access_token)
@@ -93,25 +84,6 @@ export async function POST(request: NextRequest) {
       provider = 'google'
     } catch (err) {
       console.error('[calendar/events POST] Google push failed, saving internally:', err)
-    }
-  } else if (msIntegration) {
-    try {
-      const accessToken = decrypt(msIntegration.access_token)
-      const msEvent = await createMicrosoftEvent(accessToken, {
-        title,
-        description,
-        startAt: start_at,
-        endAt: end_at,
-        attendeeEmails: attendee_emails ?? [],
-        addMeet: add_meet ?? false,
-        calendarId: msIntegration.calendar_id,
-      })
-      providerEventId = msEvent.id
-      meetLink = msEvent.onlineMeeting?.joinUrl ?? null
-      calendarId = msIntegration.calendar_id
-      provider = 'microsoft'
-    } catch (err) {
-      console.error('[calendar/events POST] Microsoft push failed, saving internally:', err)
     }
   }
 

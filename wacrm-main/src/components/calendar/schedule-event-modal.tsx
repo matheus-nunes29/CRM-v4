@@ -17,7 +17,6 @@ export interface CalendarEvent {
   start_at: string
   end_at: string
   meet_link: string | null
-  provider?: string
   contact_id: string | null
   deal_id: string | null
   description?: string | null
