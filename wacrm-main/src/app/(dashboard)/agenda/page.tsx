@@ -398,7 +398,7 @@ function EventDetailPanel({ ev, onClose, onEdit, onDelete, deleting }: {
           <div className="flex items-center gap-2">
             <Video className="size-3.5 shrink-0 text-blue-500" />
             <a href={ev.meet_link} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
-              Google Meet <ExternalLink className="size-3" />
+              {ev.provider === 'microsoft' ? 'Microsoft Teams' : 'Google Meet'} <ExternalLink className="size-3" />
             </a>
           </div>
         )}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { syncGoogleCalendar } from '@/lib/calendar/sync'
+import { syncMicrosoftCalendar } from '@/lib/calendar/sync-microsoft'
 
 export async function POST() {
   const supabase = await createClient()
@@ -11,8 +12,16 @@ export async function POST() {
   if (!profile?.account_id) return NextResponse.json({ error: 'No account' }, { status: 403 })
 
   try {
-    const result = await syncGoogleCalendar(profile.account_id)
-    return NextResponse.json(result)
+    const [google, microsoft] = await Promise.all([
+      syncGoogleCalendar(profile.account_id),
+      syncMicrosoftCalendar(profile.account_id),
+    ])
+    return NextResponse.json({
+      synced: google.synced + microsoft.synced,
+      deleted: google.deleted + microsoft.deleted,
+      google,
+      microsoft,
+    })
   } catch (err) {
     console.error('[calendar/sync] failed:', err)
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })

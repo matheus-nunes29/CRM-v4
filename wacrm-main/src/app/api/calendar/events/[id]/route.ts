@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { getIntegration, deleteGoogleEvent, updateGoogleEvent, decrypt } from '@/lib/calendar/google'
+import { getIntegration as getMicrosoftIntegration, deleteMicrosoftEvent, updateMicrosoftEvent } from '@/lib/calendar/microsoft'
 
 function supabaseAdmin() {
   return createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -21,19 +22,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: evt } = await supabase
     .from('calendar_events')
-    .select('provider_event_id, calendar_id, account_id')
+    .select('provider, provider_event_id, calendar_id, account_id')
     .eq('id', id)
     .eq('account_id', profile.account_id)
     .maybeSingle()
 
   if (!evt) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-  // Update in Google
-  if (evt.provider_event_id) {
+  // Update at the provider the event actually lives in
+  if (evt.provider_event_id && evt.provider === 'google') {
     const integration = await getIntegration(profile.account_id)
     if (integration) {
       const accessToken = decrypt(integration.access_token)
       await updateGoogleEvent(accessToken, evt.provider_event_id, {
+        title, description, startAt: start_at, endAt: end_at, attendeeEmails: attendee_emails,
+      }, evt.calendar_id)
+    }
+  } else if (evt.provider_event_id && evt.provider === 'microsoft') {
+    const integration = await getMicrosoftIntegration(profile.account_id)
+    if (integration) {
+      const accessToken = decrypt(integration.access_token)
+      await updateMicrosoftEvent(accessToken, evt.provider_event_id, {
         title, description, startAt: start_at, endAt: end_at, attendeeEmails: attendee_emails,
       }, evt.calendar_id)
     }
@@ -65,18 +74,24 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const { data: evt } = await supabase
     .from('calendar_events')
-    .select('provider_event_id, calendar_id, account_id')
+    .select('provider, provider_event_id, calendar_id, account_id')
     .eq('id', id)
     .eq('account_id', profile.account_id)
     .maybeSingle()
 
   if (!evt) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-  if (evt.provider_event_id) {
+  if (evt.provider_event_id && evt.provider === 'google') {
     const integration = await getIntegration(profile.account_id)
     if (integration) {
       const accessToken = decrypt(integration.access_token)
       await deleteGoogleEvent(accessToken, evt.provider_event_id, evt.calendar_id)
+    }
+  } else if (evt.provider_event_id && evt.provider === 'microsoft') {
+    const integration = await getMicrosoftIntegration(profile.account_id)
+    if (integration) {
+      const accessToken = decrypt(integration.access_token)
+      await deleteMicrosoftEvent(accessToken, evt.provider_event_id, evt.calendar_id)
     }
   }
 
