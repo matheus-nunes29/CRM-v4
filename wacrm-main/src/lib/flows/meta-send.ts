@@ -7,6 +7,7 @@ import {
   type InteractiveListSection,
   type MediaKind,
 } from '@/lib/whatsapp/meta-api'
+import { sendEvolutionMessage, type EvolutionMessageType } from '@/lib/whatsapp/evolution'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
@@ -15,6 +16,40 @@ import {
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils'
 import { supabaseAdmin } from './admin-client'
+
+const EVOLUTION_SERVER_URL = (process.env.EVOLUTION_SERVER_URL ?? '').replace(/\/$/, '')
+const EVOLUTION_GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY ?? ''
+
+/**
+ * Evolution-provider send — mirrors src/app/api/whatsapp/send/route.ts's
+ * evolution branch. No phone-variant retry (that dance is a Meta sandbox
+ * quirk; Evolution/Baileys just wants digits).
+ */
+async function sendViaEvolution(
+  config: { evolution_instance_name?: string | null; evolution_api_key?: string | null },
+  phone: string,
+  messageType: EvolutionMessageType,
+  opts: { text?: string | null; mediaUrl?: string | null; filename?: string | null } = {},
+): Promise<string> {
+  if (!EVOLUTION_SERVER_URL || !EVOLUTION_GLOBAL_API_KEY || !config.evolution_instance_name) {
+    throw new Error('Evolution API not configured for this account')
+  }
+  const apiKey = config.evolution_api_key ? decrypt(config.evolution_api_key) : EVOLUTION_GLOBAL_API_KEY
+  const result = await sendEvolutionMessage({
+    serverUrl: EVOLUTION_SERVER_URL,
+    apiKey,
+    instanceName: config.evolution_instance_name,
+    phone: phone.replace(/\D/g, ''),
+    messageType,
+    text: opts.text ?? null,
+    mediaUrl: opts.mediaUrl ?? null,
+    filename: opts.filename ?? null,
+  })
+  if (!result.ok || !result.messageId) {
+    throw new Error(result.error ?? 'Evolution send failed')
+  }
+  return result.messageId
+}
 
 // ------------------------------------------------------------
 // Flows-side Meta sender (interactive variants).
@@ -86,35 +121,39 @@ export async function engineSendText(
     throw new Error('WhatsApp not configured for this account')
   }
 
-  const accessToken = decrypt(config.access_token)
-
-  const attempt = async (phone: string): Promise<string> => {
-    const r = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
-      to: phone,
-      text: args.text,
-    })
-    return r.messageId
-  }
-
-  const variants = phoneVariants(sanitized)
   let workingPhone = sanitized
   let waMessageId = ''
-  let lastError: unknown = null
-  for (const v of variants) {
-    try {
-      waMessageId = await attempt(v)
-      workingPhone = v
-      lastError = null
-      break
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
-      lastError = err
+
+  if (config.provider === 'evolution') {
+    waMessageId = await sendViaEvolution(config, sanitized, 'text', { text: args.text })
+  } else {
+    const accessToken = decrypt(config.access_token)
+    const attempt = async (phone: string): Promise<string> => {
+      const r = await sendTextMessage({
+        phoneNumberId: config.phone_number_id,
+        accessToken,
+        to: phone,
+        text: args.text,
+      })
+      return r.messageId
     }
+
+    const variants = phoneVariants(sanitized)
+    let lastError: unknown = null
+    for (const v of variants) {
+      try {
+        waMessageId = await attempt(v)
+        workingPhone = v
+        lastError = null
+        break
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!isRecipientNotAllowedError(msg)) throw err
+        lastError = err
+      }
+    }
+    if (lastError) throw lastError
   }
-  if (lastError) throw lastError
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
@@ -195,38 +234,46 @@ export async function engineSendMedia(
     throw new Error('WhatsApp not configured for this account')
   }
 
-  const accessToken = decrypt(config.access_token)
-
-  const attempt = async (phone: string): Promise<string> => {
-    const r = await sendMediaMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
-      to: phone,
-      kind: args.kind,
-      link: args.link,
-      caption: args.caption,
-      filename: args.filename,
-    })
-    return r.messageId
-  }
-
-  const variants = phoneVariants(sanitized)
   let workingPhone = sanitized
   let waMessageId = ''
-  let lastError: unknown = null
-  for (const v of variants) {
-    try {
-      waMessageId = await attempt(v)
-      workingPhone = v
-      lastError = null
-      break
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
-      lastError = err
+
+  if (config.provider === 'evolution') {
+    waMessageId = await sendViaEvolution(config, sanitized, args.kind as EvolutionMessageType, {
+      mediaUrl: args.link,
+      text: args.caption,
+      filename: args.filename,
+    })
+  } else {
+    const accessToken = decrypt(config.access_token)
+    const attempt = async (phone: string): Promise<string> => {
+      const r = await sendMediaMessage({
+        phoneNumberId: config.phone_number_id,
+        accessToken,
+        to: phone,
+        kind: args.kind,
+        link: args.link,
+        caption: args.caption,
+        filename: args.filename,
+      })
+      return r.messageId
     }
+
+    const variants = phoneVariants(sanitized)
+    let lastError: unknown = null
+    for (const v of variants) {
+      try {
+        waMessageId = await attempt(v)
+        workingPhone = v
+        lastError = null
+        break
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!isRecipientNotAllowedError(msg)) throw err
+        lastError = err
+      }
+    }
+    if (lastError) throw lastError
   }
-  if (lastError) throw lastError
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
@@ -315,6 +362,27 @@ type SendInput =
   | (SendInteractiveButtonsEngineArgs & { kind: 'buttons' })
   | (SendInteractiveListEngineArgs & { kind: 'list' })
 
+/**
+ * Renders buttons/list options as a numbered plain-text menu — the
+ * Evolution fallback for accounts with no native interactive send.
+ * matchReplyText (engine.ts) accepts either the number or the option's
+ * title back, so this format and that matcher must stay in sync.
+ */
+function composeOptionsText(input: SendInput): string {
+  const lines = [input.bodyText, '']
+  let n = 1
+  if (input.kind === 'buttons') {
+    for (const b of input.buttons) lines.push(`${n++}. ${b.title}`)
+  } else {
+    for (const section of input.sections) {
+      if (section.title) lines.push(`*${section.title}*`)
+      for (const row of section.rows) lines.push(`${n++}. ${row.title}`)
+    }
+  }
+  if (input.footerText) lines.push('', input.footerText)
+  return lines.join('\n')
+}
+
 async function sendInteractiveViaMeta(
   input: SendInput,
 ): Promise<{ whatsapp_message_id: string }> {
@@ -347,54 +415,64 @@ async function sendInteractiveViaMeta(
     throw new Error('WhatsApp not configured for this account')
   }
 
-  const accessToken = decrypt(config.access_token)
+  let workingPhone = sanitized
+  let waMessageId = ''
+  // Evolution has no native interactive-button/list send — no such
+  // endpoint exists on the self-hosted API. Degrade to a numbered text
+  // list instead of failing outright; matchReplyText (engine.ts) lets
+  // the customer answer with either the number or the option's title.
+  const isEvolutionFallback = config.provider === 'evolution'
+  const fallbackText = isEvolutionFallback ? composeOptionsText(input) : null
 
-  const attempt = async (phone: string): Promise<string> => {
-    if (input.kind === 'buttons') {
-      const r = await sendInteractiveButtons({
+  if (isEvolutionFallback && fallbackText) {
+    waMessageId = await sendViaEvolution(config, sanitized, 'text', { text: fallbackText })
+  } else {
+    const accessToken = decrypt(config.access_token)
+    const attempt = async (phone: string): Promise<string> => {
+      if (input.kind === 'buttons') {
+        const r = await sendInteractiveButtons({
+          phoneNumberId: config.phone_number_id,
+          accessToken,
+          to: phone,
+          bodyText: input.bodyText,
+          buttons: input.buttons,
+          headerText: input.headerText,
+          footerText: input.footerText,
+        })
+        return r.messageId
+      }
+      const r = await sendInteractiveList({
         phoneNumberId: config.phone_number_id,
         accessToken,
         to: phone,
         bodyText: input.bodyText,
-        buttons: input.buttons,
+        buttonLabel: input.buttonLabel,
+        sections: input.sections,
         headerText: input.headerText,
         footerText: input.footerText,
       })
       return r.messageId
     }
-    const r = await sendInteractiveList({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
-      to: phone,
-      bodyText: input.bodyText,
-      buttonLabel: input.buttonLabel,
-      sections: input.sections,
-      headerText: input.headerText,
-      footerText: input.footerText,
-    })
-    return r.messageId
-  }
 
-  // Same phone-variant retry as automations/meta-send.ts. Numbers
-  // registered with/without a trunk 0 + Meta's sandbox quirks all
-  // need this to reliably land a message.
-  const variants = phoneVariants(sanitized)
-  let workingPhone = sanitized
-  let waMessageId = ''
-  let lastError: unknown = null
-  for (const v of variants) {
-    try {
-      waMessageId = await attempt(v)
-      workingPhone = v
-      lastError = null
-      break
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
-      lastError = err
+    // Same phone-variant retry as automations/meta-send.ts. Numbers
+    // registered with/without a trunk 0 + Meta's sandbox quirks all
+    // need this to reliably land a message.
+    const variants = phoneVariants(sanitized)
+    let lastError: unknown = null
+    for (const v of variants) {
+      try {
+        waMessageId = await attempt(v)
+        workingPhone = v
+        lastError = null
+        break
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!isRecipientNotAllowedError(msg)) throw err
+        lastError = err
+      }
     }
+    if (lastError) throw lastError
   }
-  if (lastError) throw lastError
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
@@ -404,7 +482,9 @@ async function sendInteractiveViaMeta(
   // the inbox. content_type='interactive' is supported as of
   // migration 010; sender_type='bot' distinguishes flow sends from
   // manual agent sends (the conversation list preview will pick up
-  // last_message_text as a sensible summary).
+  // last_message_text as a sensible summary). The Evolution fallback
+  // went out as plain text, so it's persisted as 'text' to match what
+  // was actually sent over the wire.
   //
   // We do NOT set interactive_reply_id here — that column is reserved
   // for the customer's tap on this message, populated by the webhook
@@ -412,8 +492,8 @@ async function sendInteractiveViaMeta(
   const { error: msgErr } = await db.from('messages').insert({
     conversation_id: input.conversationId,
     sender_type: 'bot',
-    content_type: 'interactive',
-    content_text: input.bodyText,
+    content_type: isEvolutionFallback ? 'text' : 'interactive',
+    content_text: isEvolutionFallback ? fallbackText : input.bodyText,
     message_id: waMessageId,
     status: 'sent',
   })

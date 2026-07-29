@@ -1,4 +1,5 @@
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
+import { sendEvolutionMessage } from '@/lib/whatsapp/evolution'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
@@ -7,6 +8,9 @@ import {
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils'
 import { supabaseAdmin } from './admin-client'
+
+const EVOLUTION_SERVER_URL = (process.env.EVOLUTION_SERVER_URL ?? '').replace(/\/$/, '')
+const EVOLUTION_GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY ?? ''
 
 // ------------------------------------------------------------
 // Automation-side Meta sender.
@@ -92,49 +96,74 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     throw new Error('WhatsApp not configured for this account')
   }
 
-  const accessToken = decrypt(config.access_token)
+  let workingPhone = sanitized
+  let waMessageId = ''
 
-  const attempt = async (phone: string): Promise<string> => {
+  if (config.provider === 'evolution') {
+    // Templates are a Meta Business Platform construct — Evolution/Baileys
+    // has no equivalent send path (same rule as /api/whatsapp/send).
     if (input.kind === 'template') {
-      const r = await sendTemplateMessage({
+      throw new Error('Templates are not supported on the Evolution provider')
+    }
+    if (!EVOLUTION_SERVER_URL || !EVOLUTION_GLOBAL_API_KEY || !config.evolution_instance_name) {
+      throw new Error('Evolution API not configured for this account')
+    }
+    const apiKey = config.evolution_api_key ? decrypt(config.evolution_api_key) : EVOLUTION_GLOBAL_API_KEY
+    const result = await sendEvolutionMessage({
+      serverUrl: EVOLUTION_SERVER_URL,
+      apiKey,
+      instanceName: config.evolution_instance_name,
+      phone: sanitized.replace(/\D/g, ''),
+      messageType: 'text',
+      text: input.text,
+    })
+    if (!result.ok || !result.messageId) {
+      throw new Error(result.error ?? 'Evolution send failed')
+    }
+    waMessageId = result.messageId
+  } else {
+    const accessToken = decrypt(config.access_token)
+
+    const attempt = async (phone: string): Promise<string> => {
+      if (input.kind === 'template') {
+        const r = await sendTemplateMessage({
+          phoneNumberId: config.phone_number_id,
+          accessToken,
+          to: phone,
+          templateName: input.templateName,
+          language: input.language,
+          params: input.params,
+        })
+        return r.messageId
+      }
+      const r = await sendTextMessage({
         phoneNumberId: config.phone_number_id,
         accessToken,
         to: phone,
-        templateName: input.templateName,
-        language: input.language,
-        params: input.params,
+        text: input.text,
       })
       return r.messageId
     }
-    const r = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
-      to: phone,
-      text: input.text,
-    })
-    return r.messageId
-  }
 
-  // Same phone-variant retry as /api/whatsapp/send — Meta sandbox and
-  // numbers registered with/without a trunk 0 both require this to
-  // reliably land a message.
-  const variants = phoneVariants(sanitized)
-  let workingPhone = sanitized
-  let waMessageId = ''
-  let lastError: unknown = null
-  for (const v of variants) {
-    try {
-      waMessageId = await attempt(v)
-      workingPhone = v
-      lastError = null
-      break
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
-      lastError = err
+    // Same phone-variant retry as /api/whatsapp/send — Meta sandbox and
+    // numbers registered with/without a trunk 0 both require this to
+    // reliably land a message.
+    const variants = phoneVariants(sanitized)
+    let lastError: unknown = null
+    for (const v of variants) {
+      try {
+        waMessageId = await attempt(v)
+        workingPhone = v
+        lastError = null
+        break
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!isRecipientNotAllowedError(msg)) throw err
+        lastError = err
+      }
     }
+    if (lastError) throw lastError
   }
-  if (lastError) throw lastError
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)

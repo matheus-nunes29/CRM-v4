@@ -88,6 +88,43 @@ export function matchReplyId(
 }
 
 /**
+ * Text-reply fallback for send_buttons/send_list nodes — matches the
+ * customer's typed reply against an option's 1-based position number or
+ * its title (case-insensitive). Needed for providers with no native
+ * interactive send (Evolution's numbered-text menu, composeOptionsText
+ * in meta-send.ts) but applied generally: a Meta customer who types "1"
+ * instead of tapping gets the same result.
+ */
+export function matchReplyText(
+  node: { node_type: string; config: Record<string, unknown> },
+  text: string,
+): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.toLowerCase();
+  const byPosition = <T,>(items: T[]): T | undefined =>
+    /^\d+$/.test(trimmed) ? items[Number(trimmed) - 1] : undefined;
+
+  if (node.node_type === "send_buttons") {
+    const cfg = node.config as unknown as SendButtonsNodeConfig;
+    const buttons = cfg.buttons ?? [];
+    const hit =
+      byPosition(buttons) ??
+      buttons.find((b) => b.title?.trim().toLowerCase() === normalized);
+    return hit?.next_node_key ?? null;
+  }
+  if (node.node_type === "send_list") {
+    const cfg = node.config as unknown as SendListNodeConfig;
+    const rows = (cfg.sections ?? []).flatMap((s) => s.rows ?? []);
+    const hit =
+      byPosition(rows) ??
+      rows.find((r) => r.title?.trim().toLowerCase() === normalized);
+    return hit?.next_node_key ?? null;
+  }
+  return null;
+}
+
+/**
  * Case-insensitive contains/exact match against a list of keywords.
  * Used by the trigger evaluator. Stable enough that the v3 builder
  * UI can preview matches by passing canned strings.
@@ -918,9 +955,13 @@ async function handleReplyForActiveRun(
     return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
   }
 
-  // Two ways a reply can advance:
+  // Three ways a reply can advance:
   //   1. Interactive button/list tap on a send_buttons/send_list node.
-  //   2. Text reply on a collect_input node — capture into vars.
+  //   2. Text reply on a send_buttons/send_list node — the customer
+  //      typed the option's number or title instead of tapping (the
+  //      only path at all for providers with no native interactive
+  //      send, e.g. Evolution's numbered-text fallback).
+  //   3. Text reply on a collect_input node — capture into vars.
   //
   // Everything else falls through to the fallback policy below.
   let matched: string | null = null;
@@ -930,6 +971,12 @@ async function handleReplyForActiveRun(
       currentNode.node_type === "send_list")
   ) {
     matched = matchReplyId(currentNode, message.reply_id);
+  } else if (
+    message.kind === "text" &&
+    (currentNode.node_type === "send_buttons" ||
+      currentNode.node_type === "send_list")
+  ) {
+    matched = matchReplyText(currentNode, message.text);
   } else if (
     message.kind === "text" &&
     currentNode.node_type === "collect_input"

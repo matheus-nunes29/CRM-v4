@@ -183,8 +183,11 @@ export async function POST(request: Request) {
       // Flow runner dispatch — same suppression logic as the Meta webhook:
       // a message the runner consumes (advances/starts a flow) doesn't
       // also fork into new_message_received/keyword_match/broadcast_reply
-      // automations. Button/list-reply parsing isn't implemented for this
-      // provider yet, so every inbound is treated as plain text for now.
+      // automations. Every inbound is treated as plain text: Evolution has
+      // no native interactive-button/list send (see composeOptionsText in
+      // src/lib/flows/meta-send.ts), so there's no button-tap payload to
+      // parse here either — the customer always replies with text (a
+      // number or the option's title), matched by matchReplyText.
       const flowResult = await dispatchInboundToFlows({
         accountId,
         userId: configOwnerUserId,

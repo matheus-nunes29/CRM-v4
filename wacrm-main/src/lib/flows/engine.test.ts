@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   matchReplyId,
+  matchReplyText,
   matchesKeywordTrigger,
   isAutoAdvancing,
   isSuspending,
@@ -94,6 +95,65 @@ describe("matchReplyId", () => {
         "x",
       ),
     ).toBeNull();
+  });
+});
+
+describe("matchReplyText", () => {
+  const buttonsNode = {
+    node_type: "send_buttons",
+    config: {
+      text: "Pick one",
+      buttons: [
+        { reply_id: "yes", title: "Yes", next_node_key: "confirmed" },
+        { reply_id: "no", title: "No", next_node_key: "declined" },
+      ],
+    },
+  };
+
+  it("matches by 1-based position number", () => {
+    expect(matchReplyText(buttonsNode, "1")).toBe("confirmed");
+    expect(matchReplyText(buttonsNode, "2")).toBe("declined");
+    expect(matchReplyText(buttonsNode, "3")).toBeNull();
+  });
+
+  it("matches by title, case-insensitive and trimmed", () => {
+    expect(matchReplyText(buttonsNode, "yes")).toBe("confirmed");
+    expect(matchReplyText(buttonsNode, "  YES  ")).toBe("confirmed");
+    expect(matchReplyText(buttonsNode, "maybe")).toBeNull();
+  });
+
+  it("returns null for empty/whitespace-only text", () => {
+    expect(matchReplyText(buttonsNode, "")).toBeNull();
+    expect(matchReplyText(buttonsNode, "   ")).toBeNull();
+  });
+
+  it("flattens all rows across sections for send_list, by position and title", () => {
+    const listNode = {
+      node_type: "send_list",
+      config: {
+        text: "Pick an order",
+        button_label: "View",
+        sections: [
+          { title: "Recent", rows: [{ reply_id: "o1", title: "Order 1", next_node_key: "ord_1" }] },
+          {
+            title: "Older",
+            rows: [
+              { reply_id: "o2", title: "Order 2", next_node_key: "ord_2" },
+              { reply_id: "o3", title: "Order 3", next_node_key: "ord_3" },
+            ],
+          },
+        ],
+      },
+    };
+    expect(matchReplyText(listNode, "1")).toBe("ord_1");
+    expect(matchReplyText(listNode, "3")).toBe("ord_3");
+    expect(matchReplyText(listNode, "order 2")).toBe("ord_2");
+    expect(matchReplyText(listNode, "4")).toBeNull();
+  });
+
+  it("returns null for node types without options", () => {
+    expect(matchReplyText({ node_type: "collect_input", config: {} }, "1")).toBeNull();
+    expect(matchReplyText({ node_type: "end", config: {} }, "yes")).toBeNull();
   });
 });
 
