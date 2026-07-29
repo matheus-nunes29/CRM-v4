@@ -7,7 +7,8 @@ function supabaseAdmin() {
 }
 
 const DEFAULT_CONFIG = {
-  enabled: false,
+  autoresponder_enabled: false,
+  copilot_enabled: false,
   system_prompt: '',
   allow_pricing: false,
   price_list: '',
@@ -52,7 +53,8 @@ export async function PUT(request: Request) {
 
   const update = {
     account_id: profile.account_id,
-    enabled: Boolean(body.enabled),
+    autoresponder_enabled: Boolean(body.autoresponder_enabled),
+    copilot_enabled: Boolean(body.copilot_enabled),
     system_prompt: typeof body.system_prompt === 'string' ? body.system_prompt.slice(0, 8000) : '',
     allow_pricing: Boolean(body.allow_pricing),
     price_list: typeof body.price_list === 'string' ? body.price_list.slice(0, 8000) : '',
@@ -86,7 +88,10 @@ export async function PUT(request: Request) {
     .insert({
       account_id: profile.account_id,
       changed_by: profile.id,
-      summary: update.enabled ? 'Configuração salva (agente ativo)' : 'Configuração salva (agente desativado)',
+      summary: [
+        update.autoresponder_enabled ? 'WhatsApp: ativo' : 'WhatsApp: desativado',
+        update.copilot_enabled ? 'Copiloto: ativo' : 'Copiloto: desativado',
+      ].join(' · '),
       snapshot: update,
     })
     .then(({ error: histErr }) => {

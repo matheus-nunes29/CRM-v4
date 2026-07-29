@@ -32,10 +32,10 @@ export async function isCopilotEnabled(accountId: string): Promise<boolean> {
   const db = supabaseAdmin()
   const { data } = await db
     .from('ai_agent_configs')
-    .select('enabled')
+    .select('copilot_enabled')
     .eq('account_id', accountId)
     .maybeSingle()
-  return !!data?.enabled
+  return !!data?.copilot_enabled
 }
 
 function buildSystemPrompt(accountName: string): string {

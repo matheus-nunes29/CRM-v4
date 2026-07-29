@@ -9,7 +9,7 @@ import { engineSendText } from '@/lib/automations/meta-send'
  * `scheduleAiAgentReply` only when a message wasn't consumed by an
  * active Flow — Flows/Automations always take priority, this is what
  * answers when nothing else did. See `shouldRunAiAgent` for the full
- * gate (feature flag, config.enabled, conversation.owner_type).
+ * gate (feature flag, config.autoresponder_enabled, conversation.owner_type).
  *
  * One Claude turn = one short manual tool-use loop (no SDK Tool
  * Runner — three fixed tools, easier to reason about and log
@@ -37,7 +37,7 @@ function anthropicClient(): Anthropic {
 
 interface AiAgentConfigRow {
   account_id: string
-  enabled: boolean
+  autoresponder_enabled: boolean
   system_prompt: string
   allow_pricing: boolean
   price_list: string
@@ -68,10 +68,10 @@ export async function shouldRunAiAgent(
   const db = supabaseAdmin()
   const { data: config } = await db
     .from('ai_agent_configs')
-    .select('enabled')
+    .select('autoresponder_enabled')
     .eq('account_id', accountId)
     .maybeSingle()
-  if (!config?.enabled) return false
+  if (!config?.autoresponder_enabled) return false
 
   const { data: conversation } = await db
     .from('conversations')
@@ -215,7 +215,7 @@ export async function runAiAgentReply(ctx: AiAgentContext): Promise<void> {
       .select('*')
       .eq('account_id', ctx.accountId)
       .maybeSingle<AiAgentConfigRow>()
-    if (!config?.enabled) return
+    if (!config?.autoresponder_enabled) return
 
     // Re-check ownership after the debounce delay — a human may have
     // taken the conversation over (manual reply, or clicked "Assumir")

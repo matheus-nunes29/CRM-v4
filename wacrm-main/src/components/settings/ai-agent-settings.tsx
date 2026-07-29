@@ -25,7 +25,8 @@ import { ptBR } from 'date-fns/locale'
 
 interface AiAgentConfig {
   account_id: string
-  enabled: boolean
+  autoresponder_enabled: boolean
+  copilot_enabled: boolean
   system_prompt: string
   allow_pricing: boolean
   price_list: string
@@ -229,18 +230,30 @@ export function AiAgentSettings() {
             Agente de IA
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Responde automaticamente no WhatsApp quando nenhum Fluxo/Automação capturar a mensagem, e serve de copiloto interno.
+            Duas superfícies independentes: responde automaticamente no WhatsApp quando nenhum Fluxo/Automação capturar a mensagem, e um copiloto de chat pra equipe consultar o CRM.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-          <Label htmlFor="ai-agent-enabled" className="text-sm font-medium">
-            {config.enabled ? 'Ativo' : 'Desativado'}
-          </Label>
-          <Switch
-            id="ai-agent-enabled"
-            checked={config.enabled}
-            onCheckedChange={(v) => setConfig({ ...config, enabled: !!v })}
-          />
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+            <Label htmlFor="ai-agent-autoresponder-enabled" className="text-sm font-medium">
+              WhatsApp {config.autoresponder_enabled ? '— Ativo' : '— Desativado'}
+            </Label>
+            <Switch
+              id="ai-agent-autoresponder-enabled"
+              checked={config.autoresponder_enabled}
+              onCheckedChange={(v) => setConfig({ ...config, autoresponder_enabled: !!v })}
+            />
+          </div>
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+            <Label htmlFor="ai-agent-copilot-enabled" className="text-sm font-medium">
+              Copiloto {config.copilot_enabled ? '— Ativo' : '— Desativado'}
+            </Label>
+            <Switch
+              id="ai-agent-copilot-enabled"
+              checked={config.copilot_enabled}
+              onCheckedChange={(v) => setConfig({ ...config, copilot_enabled: !!v })}
+            />
+          </div>
         </div>
       </div>
 
@@ -262,6 +275,9 @@ export function AiAgentSettings() {
 
         {/* ─────────────── COMPORTAMENTO ─────────────── */}
         <TabsContent value="comportamento" className="mt-0 space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Tudo abaixo (tom, preços, escalonamento) é usado só pelo <strong>autoresponder de WhatsApp</strong>. O copiloto interno tem um comportamento fixo, focado em consultar dados do CRM.
+          </p>
           <div className="rounded-xl border border-border bg-card p-5 space-y-4">
             <div>
               <Label htmlFor="system_prompt">Tom e persona</Label>
