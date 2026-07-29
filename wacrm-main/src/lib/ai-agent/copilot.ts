@@ -39,8 +39,10 @@ export async function isCopilotEnabled(accountId: string): Promise<boolean> {
 }
 
 function buildSystemPrompt(accountName: string): string {
+  const today = new Date().toISOString().slice(0, 10)
   return [
     `Você é o copiloto interno do CRM de "${accountName}", uma clínica de estética. Está conversando com um membro da equipe, não com um cliente — pode ser direto e técnico.`,
+    `Hoje é ${today}. Use essa data pra calcular períodos relativos ("esse mês", "essa semana", "últimos 30 dias") — ex: "esse mês" = data_inicio no dia 1 do mês corrente.`,
     'Use as ferramentas disponíveis para consultar dados reais antes de responder. Nunca invente nomes, números ou status que você não consultou.',
     'Você só tem acesso de LEITURA. Se pedirem uma ação (mudar etapa, enviar mensagem, editar algo), explique que ainda não pode executar isso e diga onde a pessoa faz isso manualmente no CRM.',
     'Respostas curtas e objetivas — quem pergunta já conhece o CRM, não precisa de explicações básicas.',
@@ -87,6 +89,21 @@ function buildTools(): Anthropic.Tool[] {
       name: 'resumo_funil',
       description: 'Retorna a contagem de negócios abertos por etapa, em cada funil (pipeline) da conta.',
       input_schema: { type: 'object', properties: {}, additionalProperties: false },
+    },
+    {
+      name: 'negocios_por_status',
+      description:
+        'Lista negócios ganhos ou perdidos num período, com a soma dos valores — use pra perguntas de faturamento/vendas ("quanto ganhamos esse mês", "negócios perdidos essa semana"). O período é sempre baseado na última atualização do negócio (updated_at), que é uma aproximação de quando ele foi fechado — pode incluir edições posteriores não relacionadas ao fechamento; mencione essa ressalva se o número parecer decisivo pra alguma decisão.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['won', 'lost'], description: "'won' para ganhos, 'lost' para perdidos" },
+          data_inicio: { type: 'string', description: 'Data inicial YYYY-MM-DD (inclusive). Sem isso, usa os últimos 30 dias.' },
+          data_fim: { type: 'string', description: 'Data final YYYY-MM-DD (inclusive). Sem isso, usa hoje.' },
+        },
+        required: ['status'],
+        additionalProperties: false,
+      },
     },
   ]
 }
@@ -190,6 +207,36 @@ async function executeTool(
         result.push({ funil: p.name, etapas })
       }
       return result.length ? JSON.stringify(result) : 'Nenhum funil configurado nesta conta.'
+    }
+
+    case 'negocios_por_status': {
+      const status = args.status === 'lost' ? 'lost' : args.status === 'won' ? 'won' : null
+      if (!status) return "status inválido — use 'won' ou 'lost'."
+
+      const isValidDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
+
+      const dataInicio = isValidDate(args.data_inicio)
+        ? args.data_inicio
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      // Inclusive end-of-day: add one day and use "<" rather than "<=" on
+      // a bare date, so a deal updated later on data_fim itself is included.
+      const dataFimExclusive = isValidDate(args.data_fim)
+        ? new Date(new Date(`${args.data_fim}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000).toISOString()
+        : new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toISOString()
+
+      const { data } = await db
+        .from('deals')
+        .select('title, value, updated_at, contact:contacts(name)')
+        .eq('account_id', accountId)
+        .eq('status', status)
+        .gte('updated_at', `${dataInicio}T00:00:00Z`)
+        .lt('updated_at', dataFimExclusive)
+        .order('updated_at', { ascending: false })
+        .limit(50)
+
+      if (!data?.length) return `Nenhum negócio ${status === 'won' ? 'ganho' : 'perdido'} nesse período.`
+      const total = data.reduce((sum, d) => sum + (Number(d.value) || 0), 0)
+      return JSON.stringify({ total_valor: total, quantidade: data.length, negocios: data })
     }
 
     default:
