@@ -588,6 +588,7 @@ async function advanceFromNodeKey(
   nodes: Map<string, FlowNodeRow>,
 ): Promise<{ outcome: "advanced" | "completed" | "handed_off" | "failed" }> {
   let currentKey: string | null = startNodeKey;
+  try {
   // Defensive cap — if a flow has a cycle (which the validator
   // SHOULD catch but doesn't yet in v1), we bail rather than loop.
   for (let safety = 0; safety < 64; safety += 1) {
@@ -770,7 +771,16 @@ async function advanceFromNodeKey(
       continue;
     }
     if (node.node_type === "send_buttons") {
-      await sendButtonsAndSuspend(db, run, node);
+      try {
+        await sendButtonsAndSuspend(db, run, node);
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "send_buttons_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "send_buttons_failed");
+        return { outcome: "failed" };
+      }
       // Persist the new current_node_key via optimistic UPDATE.
       const advanced = await advanceCurrentNodeKey(
         db,
@@ -786,7 +796,16 @@ async function advanceFromNodeKey(
       return { outcome: "advanced" };
     }
     if (node.node_type === "send_list") {
-      await sendListAndSuspend(db, run, node);
+      try {
+        await sendListAndSuspend(db, run, node);
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "send_list_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "send_list_failed");
+        return { outcome: "failed" };
+      }
       const advanced = await advanceCurrentNodeKey(
         db,
         run.id,
@@ -822,6 +841,22 @@ async function advanceFromNodeKey(
   });
   await endRun(db, run.id, "failed", "advance_loop_overflow");
   return { outcome: "failed" };
+  } catch (err) {
+    // Backstop for anything not already caught by a node-type-specific
+    // handler above (e.g. a DB error on the logEvent/lookup calls
+    // themselves). Without this, an uncaught throw here propagates all
+    // the way up to dispatchInboundToFlows' own try/catch, which returns
+    // consumed:false but never calls endRun — the row stays `active`
+    // with a stale current_node_key forever, invisible to the stale-run
+    // cron sweep (that only catches timeouts, not never-advanced runs).
+    console.error("[flows] advanceFromNodeKey unhandled error:", err instanceof Error ? err.message : err);
+    await logEvent(db, run.id, "error", currentKey, {
+      reason: "unexpected_error",
+      detail: err instanceof Error ? err.message : String(err),
+    }).catch(() => {});
+    await endRun(db, run.id, "failed", "unexpected_error").catch(() => {});
+    return { outcome: "failed" };
+  }
 }
 
 /**
