@@ -6,8 +6,12 @@ import {
   insertMessage,
   maybeAutoCreateDeal,
   normalisePhone,
+  flagBroadcastReplyIfAny,
+  db,
 } from '@/lib/whatsapp/inbound-message'
 import { decryptAndStoreMedia, storeBase64Media } from '@/lib/whatsapp/decrypt-media'
+import { dispatchInboundToFlows } from '@/lib/flows/engine'
+import { runAutomationsForTrigger } from '@/lib/automations/engine'
 
 const LOG = '[evolution/webhook]'
 
@@ -144,11 +148,24 @@ export async function POST(request: Request) {
     // contact's real name with it.
     const senderName = isFromMe ? '' : (payload.data?.pushName ?? '')
 
-    const contact = await findOrCreateContact(LOG, accountId, configOwnerUserId, senderPhone, senderName)
+    const { contact, wasCreated } = await findOrCreateContact(LOG, accountId, configOwnerUserId, senderPhone, senderName)
     if (!contact) return NextResponse.json({ status: 'error_contact' })
 
     const conversation = await findOrCreateConversation(LOG, accountId, configOwnerUserId, contact.id)
     if (!conversation) return NextResponse.json({ status: 'error_conversation' })
+
+    // Determine whether this is the contact's very first inbound message
+    // BEFORE inserting, so the count is accurate — mirrors the Meta
+    // webhook. Only meaningful for genuine customer messages.
+    let isFirstInboundMessage = false
+    if (!isFromMe) {
+      const { count: priorCustomerMsgCount } = await db()
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversation.id)
+        .eq('sender_type', 'customer')
+      isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
+    }
 
     await insertMessage(LOG, conversation.id, {
       contentType, contentText, mediaUrl, msgId, timestamp,
@@ -156,10 +173,67 @@ export async function POST(request: Request) {
     })
 
     // Only genuinely inbound (customer) messages should ever spin up a
-    // new deal — an echo of something you said from your own phone isn't
-    // a new lead.
+    // new deal, run Flows/Automations, or count as a broadcast reply —
+    // an echo of something you said from your own phone isn't a new lead
+    // or a fresh trigger.
     if (!isFromMe) {
       await maybeAutoCreateDeal(LOG, accountId, configOwnerUserId, contact.id, contact.name || senderPhone)
+      await flagBroadcastReplyIfAny(accountId, contact.id)
+
+      // Flow runner dispatch — same suppression logic as the Meta webhook:
+      // a message the runner consumes (advances/starts a flow) doesn't
+      // also fork into new_message_received/keyword_match/broadcast_reply
+      // automations. Button/list-reply parsing isn't implemented for this
+      // provider yet, so every inbound is treated as plain text for now.
+      const flowResult = await dispatchInboundToFlows({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contact.id,
+        conversationId: conversation.id,
+        message: { kind: 'text', text: contentText ?? '', meta_message_id: msgId },
+        isFirstInboundMessage,
+      })
+      const flowConsumed = flowResult.consumed
+
+      const automationTriggers: (
+        | 'new_contact_created'
+        | 'first_inbound_message'
+        | 'new_message_received'
+        | 'keyword_match'
+      )[] = []
+      if (!flowConsumed) automationTriggers.push('new_message_received', 'keyword_match')
+      if (wasCreated) automationTriggers.unshift('new_contact_created')
+      if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
+      for (const triggerType of automationTriggers) {
+        runAutomationsForTrigger({
+          accountId,
+          triggerType,
+          contactId: contact.id,
+          context: { message_text: contentText ?? '', conversation_id: conversation.id },
+        }).catch((err) => console.error(`${LOG} automations dispatch failed:`, err))
+      }
+
+      if (!flowConsumed) {
+        try {
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+          const { count } = await db()
+            .from('broadcast_recipients')
+            .select('id', { count: 'exact', head: true })
+            .eq('contact_id', contact.id)
+            .in('status', ['sent', 'delivered', 'read'])
+            .gte('updated_at', sevenDaysAgo)
+          if ((count ?? 0) > 0) {
+            runAutomationsForTrigger({
+              accountId,
+              triggerType: 'broadcast_reply',
+              contactId: contact.id,
+              context: { message_text: contentText ?? '', conversation_id: conversation.id },
+            }).catch((err) => console.error(`${LOG} broadcast_reply automation failed:`, err))
+          }
+        } catch (err) {
+          console.error(`${LOG} broadcast_reply check failed:`, err)
+        }
+      }
     }
   }
 

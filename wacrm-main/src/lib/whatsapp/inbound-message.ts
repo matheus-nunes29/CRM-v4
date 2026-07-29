@@ -22,6 +22,12 @@ export function db() {
   return _admin
 }
 
+/**
+ * `wasCreated` lets callers fire a `new_contact_created` automation/flow
+ * trigger only when this call actually inserted the row — mirrors the
+ * Meta webhook's own local `findOrCreateContact` (src/app/api/whatsapp/
+ * webhook/route.ts), which this module doesn't share code with.
+ */
 export async function findOrCreateContact(
   logPrefix: string,
   accountId: string,
@@ -44,7 +50,7 @@ export async function findOrCreateContact(
         .update({ name, updated_at: new Date().toISOString() })
         .eq('id', existing.id)
     }
-    return existing
+    return { contact: existing, wasCreated: false }
   }
 
   const { data: created, error } = await db()
@@ -61,9 +67,9 @@ export async function findOrCreateContact(
       .eq('account_id', accountId)
       .eq('phone', phone)
       .maybeSingle()
-    return raced ?? null
+    return { contact: raced ?? null, wasCreated: false }
   }
-  return created
+  return { contact: created, wasCreated: true }
 }
 
 /**
@@ -326,6 +332,39 @@ export async function maybeAutoCreateDeal(
     }
   } catch (err) {
     console.error(`${logPrefix} auto_create_deal failed:`, err)
+  }
+}
+
+/**
+ * Marks the most recent unreplied broadcast to this contact (if any) as
+ * replied. Mirrors the Meta webhook's local `flagBroadcastReplyIfAny`
+ * (src/app/api/whatsapp/webhook/route.ts) — kept here instead of shared
+ * with it since that file has its own contact/conversation model.
+ */
+export async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
+  try {
+    const { data: recs, error } = await db()
+      .from('broadcast_recipients')
+      .select('id, status, broadcast_id, broadcasts!inner(account_id)')
+      .eq('contact_id', contactId)
+      .eq('broadcasts.account_id', accountId)
+      .in('status', ['sent', 'delivered', 'read'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (error || !recs || recs.length === 0) return
+
+    const row = recs[0] as { id: string }
+    const { error: updErr } = await db()
+      .from('broadcast_recipients')
+      .update({ status: 'replied', replied_at: new Date().toISOString() })
+      .eq('id', row.id)
+
+    if (updErr) {
+      console.error('flagBroadcastReplyIfAny failed:', updErr)
+    }
+  } catch (err) {
+    console.error('flagBroadcastReplyIfAny failed:', err)
   }
 }
 
