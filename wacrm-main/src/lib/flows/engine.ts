@@ -549,7 +549,7 @@ async function advanceFromNodeKey(
   run: FlowRunRow,
   startNodeKey: string,
   nodes: Map<string, FlowNodeRow>,
-): Promise<{ outcome: "advanced" | "completed" | "handed_off" }> {
+): Promise<{ outcome: "advanced" | "completed" | "handed_off" | "failed" }> {
   let currentKey: string | null = startNodeKey;
   // Defensive cap — if a flow has a cycle (which the validator
   // SHOULD catch but doesn't yet in v1), we bail rather than loop.
@@ -559,7 +559,7 @@ async function advanceFromNodeKey(
         reason: "next_node_key was null mid-advance",
       });
       await endRun(db, run.id, "failed", "missing_next_node");
-      return { outcome: "completed" };
+      return { outcome: "failed" };
     }
     const node: FlowNodeRow | null = nodes.get(currentKey) ?? null;
     if (!node) {
@@ -567,7 +567,7 @@ async function advanceFromNodeKey(
         reason: "node_not_found",
       });
       await endRun(db, run.id, "failed", "node_not_found");
-      return { outcome: "completed" };
+      return { outcome: "failed" };
     }
     await logEvent(db, run.id, "node_entered", node.node_key, {
       node_type: node.node_type,
@@ -597,7 +597,7 @@ async function advanceFromNodeKey(
           detail: err instanceof Error ? err.message : String(err),
         });
         await endRun(db, run.id, "failed", "send_text_failed");
-        return { outcome: "completed" };
+        return { outcome: "failed" };
       }
       currentKey = cfg.next_node_key;
       continue;
@@ -628,7 +628,7 @@ async function advanceFromNodeKey(
           detail: err instanceof Error ? err.message : String(err),
         });
         await endRun(db, run.id, "failed", "send_media_failed");
-        return { outcome: "completed" };
+        return { outcome: "failed" };
       }
       currentKey = cfg.next_node_key;
       continue;
@@ -666,7 +666,7 @@ async function advanceFromNodeKey(
           detail: err instanceof Error ? err.message : String(err),
         });
         await endRun(db, run.id, "failed", "collect_input_prompt_failed");
-        return { outcome: "completed" };
+        return { outcome: "failed" };
       }
       const advanced = await advanceCurrentNodeKey(
         db,
@@ -694,7 +694,7 @@ async function advanceFromNodeKey(
           detail: err instanceof Error ? err.message : String(err),
         });
         await endRun(db, run.id, "failed", "condition_evaluation_failed");
-        return { outcome: "completed" };
+        return { outcome: "failed" };
       }
       currentKey =
         branch === "true" ? cfg.true_next : cfg.false_next;
@@ -777,14 +777,14 @@ async function advanceFromNodeKey(
       reason: `unknown_node_type:${node.node_type}`,
     });
     await endRun(db, run.id, "failed", "unknown_node_type");
-    return { outcome: "completed" };
+    return { outcome: "failed" };
   }
   // Safety break — log + fail.
   await logEvent(db, run.id, "error", currentKey, {
     reason: "advance_loop_safety_break",
   });
   await endRun(db, run.id, "failed", "advance_loop_overflow");
-  return { outcome: "completed" };
+  return { outcome: "failed" };
 }
 
 /**
@@ -977,8 +977,12 @@ async function handleReplyForActiveRun(
       if (!error) run.reprompt_count = 0;
     }
     const outcome = await advanceFromNodeKey(db, run, matched, nodes);
+    // A mid-run failure (send error, bad condition, etc.) already ended
+    // the run as "failed" inside advanceFromNodeKey — report consumed:
+    // false here too so automations get a chance to react instead of
+    // the customer's message silently going nowhere.
     return {
-      consumed: true,
+      consumed: outcome.outcome !== "failed",
       flow_run_id: run.id,
       outcome: outcome.outcome,
     };
@@ -1109,8 +1113,11 @@ async function startNewRun(
 
   // Run the advance loop starting from the entry node.
   const outcome = await advanceFromNodeKey(db, run, flow.entry_node_id!, nodes);
+  // Same reasoning as handleReplyForActiveRun: a failure ending the run
+  // right at the start shouldn't also swallow the inbound message —
+  // let automations have a shot at it.
   return {
-    consumed: true,
+    consumed: outcome.outcome !== "failed",
     flow_run_id: run.id,
     outcome: outcome.outcome === "advanced" ? "started" : outcome.outcome,
   };

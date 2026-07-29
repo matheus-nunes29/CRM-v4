@@ -7,6 +7,9 @@ name: Automations cron ticks
 # /api/cron/appointment-reminders is designed around a 15-minute tick
 # (TICK_MINUTES in that route). /api/cron/inactivity-triggers checks
 # hour/day-based thresholds and only needs to run hourly.
+# /api/flows/cron sweeps flow_runs abandoned mid-conversation — without
+# it a contact who goes silent mid-flow stays "active" forever and can
+# never trigger a new flow run (see that route's own doc comment).
 on:
   schedule:
     - cron: "*/15 * * * *"
@@ -31,3 +34,12 @@ jobs:
         run: |
           curl -sf -X GET "https://app.pyvocrm.com.br/api/cron/inactivity-triggers" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  flows-sweep:
+    if: github.event.schedule == '0 * * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sweep abandoned flow runs
+        run: |
+          curl -sf -X GET "https://app.pyvocrm.com.br/api/flows/cron" \
+            -H "x-cron-secret: ${{ secrets.AUTOMATION_CRON_SECRET }}"
