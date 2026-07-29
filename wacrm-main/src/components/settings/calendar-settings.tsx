@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { CalendarDays, CheckCircle2, ExternalLink, Loader2, LogOut, AlertCircle } from 'lucide-react'
+import { CalendarDays, CheckCircle2, ExternalLink, Loader2, LogOut, AlertCircle, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSearchParams } from 'next/navigation'
+import { useAuth } from '@/hooks/use-auth'
 
 interface Integration {
   id: string
@@ -17,6 +18,7 @@ interface Integration {
 export function CalendarSettings() {
   const supabase = createClient()
   const searchParams = useSearchParams()
+  const { hasFeature } = useAuth()
   const [integration, setIntegration] = useState<Integration | null>(null)
   const [loading, setLoading] = useState(true)
   const [disconnecting, setDisconnecting] = useState(false)
@@ -47,6 +49,18 @@ export function CalendarSettings() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!hasFeature('calendar')) {
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-5 py-12 text-center">
+        <Lock className="size-6 text-muted-foreground" />
+        <p className="text-sm font-medium text-foreground">Recurso desativado</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          A integração com Google Calendar não está habilitada para esta conta. Fale com o administrador da plataforma pra ativar.
+        </p>
       </div>
     )
   }

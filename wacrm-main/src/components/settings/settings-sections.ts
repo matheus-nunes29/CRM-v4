@@ -51,6 +51,10 @@ export interface SectionMeta {
   label: string;
   icon: LucideIcon;
   group: 'top' | 'account' | 'workspace';
+  /** Feature key gating this section (mirrors sidebar.tsx's NavItem.feature)
+   *  — hidden unless the current account's enabled_features includes it.
+   *  Undefined = always shown. */
+  feature?: string;
 }
 
 export const SECTION_META: Record<SettingsSection, SectionMeta> = {
@@ -67,7 +71,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   members: { id: 'members', label: 'Membros da equipe', icon: UsersRound, group: 'workspace' },
   api: { id: 'api', label: 'Chaves de API', icon: KeyRound, group: 'workspace' },
   reports: { id: 'reports', label: 'Exportar dados', icon: Download, group: 'workspace' },
-  calendar: { id: 'calendar', label: 'Agenda', icon: CalendarDays, group: 'workspace' },
+  calendar: { id: 'calendar', label: 'Agenda', icon: CalendarDays, group: 'workspace', feature: 'calendar' },
 };
 
 export const RAIL_GROUPS: { label: string | null; group: SectionMeta['group'] }[] = [
