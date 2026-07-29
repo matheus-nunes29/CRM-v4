@@ -1,0 +1,33 @@
+name: Automations cron ticks
+
+# The app is self-hosted (Coolify on a VPS, not Vercel), so there's no
+# Vercel Cron and no confirmed VPS crontab for these two endpoints —
+# this workflow is the actual, verifiable scheduler for them.
+#
+# /api/cron/appointment-reminders is designed around a 15-minute tick
+# (TICK_MINUTES in that route). /api/cron/inactivity-triggers checks
+# hour/day-based thresholds and only needs to run hourly.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  appointment-reminders:
+    if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tick appointment-reminders
+        run: |
+          curl -sf -X GET "https://app.pyvocrm.com.br/api/cron/appointment-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  inactivity-triggers:
+    if: github.event.schedule == '0 * * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tick inactivity-triggers
+        run: |
+          curl -sf -X GET "https://app.pyvocrm.com.br/api/cron/inactivity-triggers" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
