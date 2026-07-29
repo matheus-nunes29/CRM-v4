@@ -93,7 +93,7 @@ function buildTools(): Anthropic.Tool[] {
     {
       name: 'negocios_por_status',
       description:
-        'Lista negócios ganhos ou perdidos num período, com a soma dos valores — use pra perguntas de faturamento/vendas ("quanto ganhamos esse mês", "negócios perdidos essa semana"). O período é sempre baseado na última atualização do negócio (updated_at), que é uma aproximação de quando ele foi fechado — pode incluir edições posteriores não relacionadas ao fechamento; mencione essa ressalva se o número parecer decisivo pra alguma decisão.',
+        'Lista negócios ganhos ou perdidos num período, com a soma dos valores — use pra perguntas de faturamento/vendas ("quanto ganhamos esse mês", "negócios perdidos essa semana"). Filtra pela data real de entrada na etapa de ganho/perda quando o funil tem essa etapa marcada; a resposta inclui um campo "fonte" — se vier "ultima_atualizacao_aproximada", avise que é uma aproximação (funil sem etapa de ganho/perda marcada).',
       input_schema: {
         type: 'object',
         properties: {
@@ -224,6 +224,50 @@ async function executeTool(
         ? new Date(new Date(`${args.data_fim}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000).toISOString()
         : new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toISOString()
 
+      // Prefer deal_stage_history for the real "entered the won/lost
+      // stage" timestamp over the deals.updated_at approximation — find
+      // the account's stage(s) tagged with this fixed_role first.
+      const { data: pipelines } = await db.from('pipelines').select('id').eq('account_id', accountId)
+      const pipelineIds = (pipelines ?? []).map((p) => p.id as string)
+      const { data: stages } = pipelineIds.length
+        ? await db.from('pipeline_stages').select('id').in('pipeline_id', pipelineIds).eq('fixed_role', status)
+        : { data: [] as { id: string }[] }
+      const stageIds = (stages ?? []).map((s) => s.id as string)
+
+      if (stageIds.length > 0) {
+        const { data: historyRows } = await db
+          .from('deal_stage_history')
+          .select('deal_id, entered_at')
+          .in('stage_id', stageIds)
+          .gte('entered_at', `${dataInicio}T00:00:00Z`)
+          .lt('entered_at', dataFimExclusive)
+          .order('entered_at', { ascending: false })
+          .limit(50)
+
+        if (!historyRows?.length) return `Nenhum negócio ${status === 'won' ? 'ganho' : 'perdido'} nesse período.`
+
+        const dealIds = historyRows.map((h) => h.deal_id as string)
+        const { data: deals } = await db
+          .from('deals')
+          .select('id, title, value, contact:contacts(name)')
+          .in('id', dealIds)
+          .eq('account_id', accountId)
+
+        const negocios = historyRows.map((h) => {
+          const d = deals?.find((x) => x.id === h.deal_id)
+          return {
+            titulo: d?.title ?? '(negócio removido)',
+            valor: d?.value ?? 0,
+            contato: (d?.contact as { name?: string } | null)?.name,
+            data: h.entered_at,
+          }
+        })
+        const total = negocios.reduce((sum, d) => sum + (Number(d.valor) || 0), 0)
+        return JSON.stringify({ total_valor: total, quantidade: negocios.length, negocios, fonte: 'entrada_na_etapa' })
+      }
+
+      // Fallback for accounts whose pipeline has no stage tagged with
+      // this fixed_role — same approximation as before (deals.updated_at).
       const { data } = await db
         .from('deals')
         .select('title, value, updated_at, contact:contacts(name)')
@@ -236,7 +280,7 @@ async function executeTool(
 
       if (!data?.length) return `Nenhum negócio ${status === 'won' ? 'ganho' : 'perdido'} nesse período.`
       const total = data.reduce((sum, d) => sum + (Number(d.value) || 0), 0)
-      return JSON.stringify({ total_valor: total, quantidade: data.length, negocios: data })
+      return JSON.stringify({ total_valor: total, quantidade: data.length, negocios: data, fonte: 'ultima_atualizacao_aproximada' })
     }
 
     default:
