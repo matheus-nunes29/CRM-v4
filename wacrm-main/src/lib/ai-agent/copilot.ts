@@ -13,7 +13,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
  * server-side.
  */
 
-const MODEL = 'claude-opus-5'
+const MODEL = 'claude-haiku-4-5'
 const MAX_TOOL_ITERATIONS = 4
 const MAX_HISTORY_MESSAGES = 20
 
@@ -269,7 +269,8 @@ export async function runCopilotTurn(accountId: string, history: CopilotMessage[
       system: systemPrompt,
       tools,
       messages,
-      output_config: { effort: 'medium' },
+      // No output_config.effort here — it 400s on Haiku 4.5 (effort is
+      // Opus/Sonnet-5-tier only). Revisit if MODEL changes.
     })
 
     messages.push({ role: 'assistant', content: response.content })

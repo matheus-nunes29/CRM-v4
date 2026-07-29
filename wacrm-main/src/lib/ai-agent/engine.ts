@@ -19,7 +19,7 @@ import { engineSendText } from '@/lib/automations/meta-send'
  * Automations engine already uses for both providers (Meta/Evolution).
  */
 
-const MODEL = 'claude-opus-5'
+const MODEL = 'claude-haiku-4-5'
 /** Wait this long after the last inbound message before replying, so a
  *  burst of rapid-fire customer messages produces one reply, not one
  *  per message. In-memory only — fine for the current single-instance
@@ -302,7 +302,8 @@ export async function runAiAgentReply(ctx: AiAgentContext): Promise<void> {
         system: systemPrompt,
         tools,
         messages: anthropicMessages,
-        output_config: { effort: 'medium' },
+        // No output_config.effort here — it 400s on Haiku 4.5 (effort is
+        // Opus/Sonnet-5-tier only). Revisit if MODEL changes.
       })
 
       anthropicMessages.push({ role: 'assistant', content: response.content })
