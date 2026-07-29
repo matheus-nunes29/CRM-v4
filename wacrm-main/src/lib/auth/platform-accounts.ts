@@ -39,6 +39,7 @@ export const AVAILABLE_FEATURES = [
   { key: "flows", label: "Flows", implemented: true },
   { key: "estoque", label: "Estoque", implemented: true },
   { key: "calendar", label: "Agenda (Google Calendar)", implemented: true },
+  { key: "ai_agent", label: "Agente de IA (WhatsApp + Copiloto)", implemented: true },
   { key: "dre", label: "DRE (financeiro)", implemented: false },
 ] as const;
 

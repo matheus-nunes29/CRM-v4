@@ -7,6 +7,7 @@ import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
+import { shouldRunAiAgent, scheduleAiAgentReply } from '@/lib/ai-agent/engine'
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -712,6 +713,26 @@ async function processMessage(
         conversation_id: conversation.id,
       },
     }).catch((err) => console.error('[automations] dispatch failed:', err))
+  }
+
+  // AI agent fallback — only when nothing else (an active Flow) just
+  // handled this message. Automations aren't consulted here: they're
+  // one-off trigger reactions (tag/welcome/etc.), not a "did this
+  // message get answered" signal, so they run in parallel above
+  // regardless of the AI agent taking the conversation.
+  if (!flowConsumed) {
+    shouldRunAiAgent(accountId, conversation.id)
+      .then((run) => {
+        if (run) {
+          scheduleAiAgentReply({
+            accountId,
+            userId: configOwnerUserId,
+            conversationId: conversation.id,
+            contactId: contactRecord.id,
+          })
+        }
+      })
+      .catch((err) => console.error('[ai-agent] gate failed:', err))
   }
 
   // broadcast_reply: fires if this contact has received a broadcast message

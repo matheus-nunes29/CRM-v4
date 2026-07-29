@@ -305,6 +305,10 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   contact?: Contact;
+  /** Who is allowed to answer next — flips to 'ai' while the AI agent
+   *  owns the conversation, back to 'human' the instant a real agent
+   *  replies manually or clicks "Assumir conversa". */
+  owner_type?: 'human' | 'ai';
 }
 
 export type SenderType = 'customer' | 'agent' | 'bot';
@@ -345,6 +349,10 @@ export interface Message {
   group_sender_name?: string | null;
   /** Sender's phone inside a WhatsApp group. */
   group_sender_phone?: string | null;
+  /** True when this message was authored by the AI agent (as opposed to
+   *  a Flow/Automation bot message) — drives the Inbox badge and the
+   *  "Corrigir resposta" action. */
+  ai_generated?: boolean;
 }
 
 export type ReactionActor = 'customer' | 'agent';

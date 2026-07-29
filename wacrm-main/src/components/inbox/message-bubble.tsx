@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Message, MessageReaction } from "@/types";
 import {
@@ -13,11 +14,23 @@ import {
   LayoutTemplate,
   ImageOff,
   CornerDownLeft,
+  Bot,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { linkifyText } from "@/lib/inbox/linkify";
 
 interface MessageBubbleProps {
@@ -27,6 +40,112 @@ interface MessageBubbleProps {
   reactions?: MessageReaction[];
   currentUserId?: string;
   onToggleReaction?: (emoji: string) => void;
+  /** Needed only to file a correction (POST /api/ai-agent/corrections)
+   *  on messages the AI agent sent — see `message.ai_generated`. */
+  conversationId?: string;
+}
+
+/** "Corrigir resposta" affordance + dialog, shown under AI-agent bubbles
+ *  only. Kept local to the bubble rather than wired into <MessageActions>'
+ *  hover toolbar — this is rare enough (flagging a bad reply) that it
+ *  doesn't need to compete for space with reply/react on every message. */
+function CorrectResponseAction({
+  message,
+  conversationId,
+}: {
+  message: Message;
+  conversationId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [correctedResponse, setCorrectedResponse] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit() {
+    if (!correctedResponse.trim()) {
+      toast.error("Escreva a resposta correta");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/ai-agent/corrections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          message_id: message.id,
+          original_response: message.content_text ?? "",
+          corrected_response: correctedResponse.trim(),
+          note: note.trim(),
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(payload.error || "Falha ao salvar correção");
+        return;
+      }
+      toast.success("Correção salva — o agente vai usar isso da próxima vez");
+      setOpen(false);
+      setCorrectedResponse("");
+      setNote("");
+    } catch {
+      toast.error("Falha de rede ao salvar correção");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-0.5 flex items-center gap-1 self-end text-[10px] text-muted-foreground hover:text-foreground hover:underline"
+      >
+        <Bot className="h-3 w-3" />
+        Corrigir resposta
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="border-border bg-popover">
+          <DialogHeader>
+            <DialogTitle>Corrigir resposta do agente</DialogTitle>
+            <DialogDescription>
+              A correção vira automaticamente um item na base de conhecimento — o agente evita repetir o erro.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Resposta certa</Label>
+              <Textarea
+                rows={3}
+                value={correctedResponse}
+                onChange={(e) => setCorrectedResponse(e.target.value)}
+                placeholder="O que o agente deveria ter respondido"
+              />
+            </div>
+            <div>
+              <Label>Nota (opcional)</Label>
+              <Textarea
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Contexto extra, se ajudar"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={submit} disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar correção
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function StatusIcon({ status }: { status: Message["status"] }) {
@@ -293,6 +412,7 @@ export function MessageBubble({
   reactions,
   currentUserId,
   onToggleReaction,
+  conversationId,
 }: MessageBubbleProps) {
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
   const time = format(new Date(message.created_at), "HH:mm");
@@ -367,6 +487,9 @@ export function MessageBubble({
           currentUserId={currentUserId}
           onToggle={onToggleReaction}
         />
+      )}
+      {message.ai_generated && (
+        <CorrectResponseAction message={message} conversationId={conversationId} />
       )}
     </div>
   );

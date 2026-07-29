@@ -27,13 +27,17 @@ export async function PATCH(
   if (!profile?.account_id) return NextResponse.json({ error: 'No account' }, { status: 400 })
 
   const body = await req.json()
-  const { status, assigned_agent_id } = body as {
+  const { status, assigned_agent_id, owner_type } = body as {
     status?: 'open' | 'pending' | 'closed'
     assigned_agent_id?: string | null
+    owner_type?: 'human' | 'ai'
   }
 
-  if (!status && assigned_agent_id === undefined) {
-    return NextResponse.json({ error: 'status or assigned_agent_id required' }, { status: 400 })
+  if (!status && assigned_agent_id === undefined && !owner_type) {
+    return NextResponse.json(
+      { error: 'status, assigned_agent_id or owner_type required' },
+      { status: 400 },
+    )
   }
 
   const admin = supabaseAdmin()
@@ -50,6 +54,7 @@ export async function PATCH(
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (status) update.status = status
   if (assigned_agent_id !== undefined) update.assigned_agent_id = assigned_agent_id
+  if (owner_type === 'human' || owner_type === 'ai') update.owner_type = owner_type
 
   const { error } = await admin
     .from('conversations')

@@ -19,6 +19,7 @@ import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import { TrackingLinksManager } from '@/components/settings/tracking-links-manager';
 import { ReportsPanel } from '@/components/settings/reports-panel';
 import { CalendarSettings } from '@/components/settings/calendar-settings';
+import { AiAgentSettings } from '@/components/settings/ai-agent-settings';
 import {
   resolveSection,
   type SettingsSection,
@@ -64,6 +65,7 @@ export default function SettingsPage() {
     api: <ApiKeysSettings />,
     reports: <ReportsPanel />,
     calendar: <CalendarSettings />,
+    'ai-agent': <AiAgentSettings />,
   };
 
   return (

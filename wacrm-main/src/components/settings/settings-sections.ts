@@ -1,4 +1,5 @@
 import {
+  Bot,
   CalendarDays,
   Coins,
   Download,
@@ -39,6 +40,7 @@ export const SETTINGS_SECTIONS = [
   'api',
   'reports',
   'calendar',
+  'ai-agent',
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
@@ -72,6 +74,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   api: { id: 'api', label: 'Chaves de API', icon: KeyRound, group: 'workspace' },
   reports: { id: 'reports', label: 'Exportar dados', icon: Download, group: 'workspace' },
   calendar: { id: 'calendar', label: 'Agenda', icon: CalendarDays, group: 'workspace', feature: 'calendar' },
+  'ai-agent': { id: 'ai-agent', label: 'Agente de IA', icon: Bot, group: 'workspace', feature: 'ai_agent' },
 };
 
 export const RAIL_GROUPS: { label: string | null; group: SectionMeta['group'] }[] = [

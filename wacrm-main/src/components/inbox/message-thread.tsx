@@ -26,6 +26,7 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  Bot,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -589,6 +590,22 @@ export function MessageThread({
     [conversation, onStatusChange]
   );
 
+  const [assumingConversation, setAssumingConversation] = useState(false);
+  const handleAssumeConversation = useCallback(async () => {
+    if (!conversation) return;
+    setAssumingConversation(true);
+    try {
+      await fetch(`/api/conversations/${conversation.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ owner_type: "human" }),
+      });
+      onRefresh?.();
+    } finally {
+      setAssumingConversation(false);
+    }
+  }, [conversation, onRefresh]);
+
   const handleOpenTemplates = useCallback(() => {
     setTemplateModalOpen(true);
   }, []);
@@ -868,6 +885,23 @@ export function MessageThread({
             <Clock className="h-3 w-3" />
             {sessionInfo.remaining}
           </Badge>
+
+          {/* Agente IA — visível só enquanto ele está no controle da
+              conversa. "Assumir" devolve pro humano na hora; enviar uma
+              mensagem manual também faz isso automaticamente (ver
+              /api/whatsapp/send). */}
+          {conversation.owner_type === "ai" && (
+            <button
+              type="button"
+              onClick={handleAssumeConversation}
+              disabled={assumingConversation}
+              title="Clique para assumir a conversa você mesmo"
+              className="ml-1 hidden shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-60 sm:ml-2 sm:inline-flex"
+            >
+              <Bot className="h-3 w-3" />
+              {assumingConversation ? "Assumindo…" : "Agente IA — Assumir"}
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -1076,6 +1110,7 @@ export function MessageThread({
                           reactions={msgReactions}
                           currentUserId={user?.id}
                           onToggleReaction={handlePillToggle}
+                          conversationId={conversation.id}
                         />
                       </MessageActions>
                     );

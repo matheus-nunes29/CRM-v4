@@ -449,13 +449,16 @@ export async function POST(request: Request) {
       )
     }
 
-    // Update conversation
+    // Update conversation — owner_type flips back to 'human' here too:
+    // a real agent sending manually is the strongest "yield, human is
+    // here" signal, same reasoning as the flow_runs pause right below.
     await supabase
       .from('conversations')
       .update({
         last_message_text: content_text || `[${message_type}]`,
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        owner_type: 'human',
       })
       .eq('id', conversation_id)
 
