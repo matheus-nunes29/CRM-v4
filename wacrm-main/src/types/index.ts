@@ -597,7 +597,6 @@ export type AutomationTriggerType =
   | 'conversation_assigned'
   | 'tag_added'
   | 'tag_removed'
-  | 'time_based'
   | 'deal_stage_entered'
   | 'deal_stage_left'
   | 'deal_created'

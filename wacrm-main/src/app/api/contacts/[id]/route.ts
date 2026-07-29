@@ -32,7 +32,10 @@ export async function PATCH(
     company?: string | null
     phone?: string | null
     assigned_to?: string | null
-    changed_field?: string
+    /** Which fields the caller actually changed (not just which ones it
+     *  sent) — lets contact_field_changed fire once per real change
+     *  instead of always reporting the first key in the payload. */
+    changed_fields?: string[]
   }
 
   const admin = supabaseAdmin()
@@ -45,7 +48,7 @@ export async function PATCH(
     .maybeSingle()
   if (!contact) return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
 
-  const { changed_field, ...fields } = body
+  const { changed_fields, ...fields } = body
   const update = { ...fields, updated_at: new Date().toISOString() }
 
   const { error } = await admin
@@ -54,12 +57,18 @@ export async function PATCH(
     .eq('id', contactId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  runAutomationsForTrigger({
-    accountId: profile.account_id,
-    triggerType: 'contact_field_changed',
-    contactId,
-    context: { changed_field: changed_field ?? Object.keys(fields)[0] },
-  }).catch((err) => console.error('[automations] contact_field_changed error:', err))
+  // One dispatch per field that actually changed, so an automation
+  // configured for e.g. "email" only matches when the email itself
+  // changed — not whenever any field in the same save happened to change.
+  const fieldsToReport = changed_fields?.length ? changed_fields : Object.keys(fields)
+  for (const changed_field of fieldsToReport) {
+    runAutomationsForTrigger({
+      accountId: profile.account_id,
+      triggerType: 'contact_field_changed',
+      contactId,
+      context: { changed_field },
+    }).catch((err) => console.error('[automations] contact_field_changed error:', err))
+  }
 
   return NextResponse.json({ ok: true })
 }

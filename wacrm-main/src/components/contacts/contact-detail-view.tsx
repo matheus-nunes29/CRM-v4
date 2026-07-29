@@ -366,16 +366,29 @@ const [showScheduleModal, setShowScheduleModal] = useState(false);
       return;
     }
     setSavingDetails(true);
+
+    const nextValues: Record<string, string | null> = {
+      name: editName.trim() || null,
+      phone: editPhone.trim(),
+      email: editEmail.trim() || null,
+      company: editCompany.trim() || null,
+      assigned_to: editAssignedTo || null,
+    };
+    const prevValues: Record<string, string | null> = {
+      name: contact?.name ?? null,
+      phone: contact?.phone ?? null,
+      email: contact?.email ?? null,
+      company: contact?.company ?? null,
+      assigned_to: contact?.assigned_to ?? null,
+    };
+    const changed_fields = Object.keys(nextValues).filter(
+      (key) => nextValues[key] !== prevValues[key],
+    );
+
     const res = await fetch(`/api/contacts/${contactId}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        name: editName.trim() || null,
-        phone: editPhone.trim(),
-        email: editEmail.trim() || null,
-        company: editCompany.trim() || null,
-        assigned_to: editAssignedTo || null,
-      }),
+      body: JSON.stringify({ ...nextValues, changed_fields }),
     });
     if (!res.ok) {
       toast.error('Falha ao atualizar contato');

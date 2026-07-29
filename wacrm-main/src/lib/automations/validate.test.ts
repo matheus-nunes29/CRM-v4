@@ -218,15 +218,6 @@ describe("validateTriggerForActivation", () => {
     ).toEqual([]);
   });
 
-  it("requires schedule on time_based triggers", () => {
-    expect(validateTriggerForActivation("time_based", {})).toEqual([
-      { path: "trigger.schedule", message: "schedule is required" },
-    ]);
-    expect(
-      validateTriggerForActivation("time_based", { schedule: "0 9 * * *" }),
-    ).toEqual([]);
-  });
-
   it("requires tag_id on tag_added triggers", () => {
     expect(validateTriggerForActivation("tag_added", {})).toEqual([
       { path: "trigger.tag_id", message: "tag is required" },

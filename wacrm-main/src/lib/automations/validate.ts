@@ -180,10 +180,6 @@ export function validateTriggerForActivation(
         message: 'match type must be "exact" or "contains"',
       })
     }
-  } else if (triggerType === 'time_based') {
-    if (!nonEmpty(cfg.schedule)) {
-      issues.push({ path: 'trigger.schedule', message: 'schedule is required' })
-    }
   } else if (triggerType === 'tag_added' || triggerType === 'tag_removed') {
     if (!nonEmpty(cfg.tag_id)) {
       issues.push({ path: 'trigger.tag_id', message: 'tag is required' })

@@ -35,10 +35,6 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Tag Removida',
     pillClass: 'border-amber-600/30 bg-amber-600/10 text-amber-400',
   },
-  time_based: {
-    label: 'Agendado',
-    pillClass: 'border-slate-500/30 bg-slate-500/10 text-muted-foreground',
-  },
   deal_stage_entered: {
     label: 'Entrou na Etapa',
     pillClass: 'border-orange-500/30 bg-orange-500/10 text-orange-300',

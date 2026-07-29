@@ -165,12 +165,6 @@ const TRIGGER_GROUPS: { group: string; options: { value: AutomationTriggerType; 
     ],
   },
   {
-    group: "Tempo",
-    options: [
-      { value: "time_based", label: "Agendado (Recorrente)", hint: "Dispara em um horário fixo, todos os dias" },
-    ],
-  },
-  {
     group: "Agenda",
     options: [
       { value: "appointment_upcoming", label: "Agendamento Próximo", hint: "N horas antes do horário marcado de um compromisso do contato na Agenda — verificado a cada 15 minutos" },
@@ -911,16 +905,6 @@ function TriggerCard({
                   onChange={(v) => onConfigChange({ ...config, tag_id: v })}
                 />
               </div>
-            )}
-            {type === "time_based" && (
-              <Input
-                placeholder="Expressão cron ou HH:mm"
-                value={(config.schedule as string) ?? ""}
-                onChange={(e) =>
-                  onConfigChange({ ...config, schedule: e.target.value })
-                }
-                className="bg-muted text-foreground"
-              />
             )}
             {(type === "deal_stage_entered" || type === "deal_stage_left") && (
               <StageEnteredTriggerConfig
