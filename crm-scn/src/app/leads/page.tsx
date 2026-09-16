@@ -128,8 +128,9 @@ export default function LeadsPage() {
   }
 
   function exportCSV() {
-    const headers = ['Empresa','Lead','Telefone','Email','Origem','Etapa','Sit. BDR','Sit. Closer','Closer','Segmento','Faturamento','Tier','TCV','Temperatura','Data Entrada','Data RA','Data RR','Data Assinatura','Data Ativação','BANT','Data FUP']
-    const rows = filtered.map(l => [
+    const headers = ['Nº','Empresa','Lead','Telefone','Email','Origem','Etapa','Sit. BDR','Sit. Closer','Closer','Segmento','Faturamento','Tier','TCV','Temperatura','Data Entrada','Data RA','Data RR','Data Assinatura','Data Ativação','BANT','Data FUP']
+    const rows = filtered.map((l, i) => [
+      i + 1,
       l.empresa||'', (l as any).nome_lead||'', l.telefone||'', (l as any).email||'',
       l.origem||'', getPipelineStage(l), (l as any).situacao_pre_vendas||'', l.situacao_closer||'',
       l.closer||'', l.segmento||'', l.faturamento||'', l.tier||'',
@@ -424,6 +425,7 @@ export default function LeadsPage() {
                       style={{ cursor:'pointer', width:15, height:15, accentColor:R }} />
                   </th>}
                   {[
+                    { h:'Nº', w:50 },
                     { h:'Empresa', w:200 },
                     { h:'Lead', w:150 },
                     { h:'Faturamento / Tier', w:140 },
@@ -450,6 +452,10 @@ export default function LeadsPage() {
                         }}
                         style={{ cursor:'pointer', width:15, height:15, accentColor:R }} />
                     </td>}
+                    {/* Número */}
+                    <td style={{ padding:'10px 12px', fontSize:12, fontWeight:600, color:GRAY2 }}>
+                      {(page - 1) * PAGE_SIZE + i + 1}
+                    </td>
                     {/* Empresa */}
                     <td style={{ padding:'10px 12px' }}>
                       <a href={`/leads/${l.id}?from=leads`} onClick={e => { if (!e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); router.push(`/leads/${l.id}?from=leads`) } }} style={{ fontWeight:700, color:R, cursor:'pointer', textDecoration:'none' }}
