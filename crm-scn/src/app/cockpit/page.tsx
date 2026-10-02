@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase, Cliente, HealthScoreEntry, Projeto, FcaEntry } from '@/lib/supabase'
 import CRMLayout from '../_components/CRMLayout'
 import { R, WHITE, GRAY1, GRAY2, GRAY3, GRAY4, GRAY5, GREEN, BLUE, YELLOW, SEGMENTOS } from '@/lib/crm-constants'
-import { Plus, Search, Building2, TrendingUp, Layers, Users, ArrowUp, ArrowDown, Minus, AlertTriangle, BarChart2, X } from 'lucide-react'
+import { Plus, Search, Building2, TrendingUp, Layers, Users, ArrowUp, ArrowDown, Minus, AlertTriangle, BarChart2, X, Download } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
 import { computeChurnRisk, DEFAULT_CHURN_CONFIG, type ChurnRiskConfig } from '@/lib/churn-risk-defaults'
@@ -176,6 +176,41 @@ export default function CockpitPage() {
     clientesAltoRisco: filtered.filter(c => c.status === 'ativo' && c.risk.level === 'alto').length,
   }), [filtered])
 
+  function exportCSV() {
+    const fmtData = (d: string | null | undefined) => { if (!d) return ''; const [y, m, dd] = d.slice(0, 10).split('-'); return `${dd}/${m}/${y}` }
+    const fmtScore = (v: number | null | undefined) => v == null ? '' : Number(v).toFixed(1)
+    const RISCO = { baixo: 'Baixo', medio: 'Médio', alto: 'Alto' }
+    const headers = ['Nº','Cliente','Segmento','Status Cliente','LT','Risco','Motivos do Risco','Health Score','Var. Health Score','Atualizado em','Resultados','Tráfego','Entregas','Qualidade','Relacionamento','FCA','Gestor de Projetos','Gestor de Tráfego','Designer','Projeto','Tipo','Status Projeto','Serviço','Etapa Atual','Tipo de Valor','Valor','Investimento em Mídia','Data Início','Data Fim','Responsáveis','Motivo Pausa','Escopo']
+    const rows: (string | number)[][] = []
+    filtered.forEach((c, i) => {
+      const score = c.latestHealth?.score_total ?? null
+      const prev  = c.prevHealth?.score_total ?? null
+      const fca   = score !== null && score < 7 ? (c.hasFca ? 'Registrado' : 'Pendente') : ''
+      const base = [
+        i + 1, c.empresa, c.segmento || '', c.status, calcLT(c, c.projetos),
+        RISCO[c.risk.level], c.risk.reasons.join(' · '),
+        fmtScore(score), score !== null && prev !== null ? (score - prev).toFixed(1) : '', fmtData(c.latestHealth?.semana),
+        fmtScore(c.latestHealth?.resultado), fmtScore(c.latestHealth?.trafego), fmtScore(c.latestHealth?.entregas_prazo),
+        fmtScore(c.latestHealth?.qualidade_entregas), fmtScore(c.latestHealth?.relacionamento), fca,
+        c.gestor_projetos || '', c.analista_midia || '', c.designer || '',
+      ]
+      const projetos = filterTipo === 'todos' ? c.projetos : c.projetos.filter(p => p.tipo === filterTipo)
+      if (projetos.length === 0) { rows.push(base); return }
+      projetos.forEach(p => rows.push([
+        ...base,
+        p.nome || '', p.tipo || '', p.status || '', p.servico || '', p.etapa_atual || '', p.valor_tipo || '',
+        p.valor ?? '', p.investimento_midia ?? '', fmtData(p.data_inicio), fmtData(p.data_fim),
+        (p.responsaveis || []).join(', '), p.motivo_pausa || '', p.escopo || '',
+      ]))
+    })
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `cockpit_clientes_${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const thStyle: React.CSSProperties = {
     padding: '10px 14px', fontSize: 11, fontWeight: 700, color: GRAY3,
     letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'left',
@@ -222,6 +257,9 @@ export default function CockpitPage() {
           </div>
           <button onClick={() => router.push('/cockpit/health-score')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <BarChart2 size={13} strokeWidth={2.5} /> Analytics
+          </button>
+          <button onClick={exportCSV} disabled={loading || filtered.length === 0} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${GRAY5}`, background: WHITE, color: GRAY2, fontSize: 12, fontWeight: 600, cursor: loading || filtered.length === 0 ? 'not-allowed' : 'pointer', opacity: loading || filtered.length === 0 ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+            <Download size={13} strokeWidth={2.5} /> Exportar CSV
           </button>
           {canEditCockpit && (
             <button onClick={() => setShowNew(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: R, color: WHITE, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: `0 2px 6px ${R}40` }}>
